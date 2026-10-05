@@ -8,6 +8,8 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Añadido
 
+- **`compilar.py`**: un solo comando para todo el proceso de publicación: pruebas, ejecutable con cx_Freeze, **verificación del ejecutable compilado** e instalador con Inno Setup. Se detiene en el primer fallo y admite `--sin-pruebas`, `--sin-instalador` y `--salida`.
+- **Modo `--autoprueba`** (`autoprueba.py`): `CalculadoraAccesible.exe --autoprueba informe.txt` calcula un caso de cada motor sin abrir la ventana y devuelve código 0/1. Sirve para comprobar que el empaquetado no dejó fuera ningún módulo, ya que SymPy carga módulos de forma dinámica. `tests/test_autoprueba.py` la ejecuta también desde el código fuente para que no quede desactualizada.
 - **Sugerencias para funciones mal escritas**: `xsin(x)`, `xcos(2*x)` o `sinx` ya no se interpretan en silencio como productos de letras (`i·n·s·x·x`). Ahora dan un error que propone la corrección, por ejemplo "¿Quiso decir x*sin(x)?".
 - Se acepta la notación `sin^2(x)` (antes daba error) y la entrada `Matrix([[1,2],[3,4]])` en Gauss-Jordan y en la inversa (antes era imposible porque el parser pasa todo a minúsculas).
 - `tests/test_parser.py`: 36 pruebas de sintaxis, sugerencias y efecto de las variables reales. La suite llega a 187 pruebas.
@@ -27,6 +29,12 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Cambiado
 
+- **Ejecutable 3 veces más pequeño**: de 237 MB a 77 MB; **instalador de 80 MB a 36 MB**. cx_Freeze incluía librerías que SymPy importa de forma opcional si están instaladas en la máquina que compila: `llvmlite` (102 MB por sí sola), `numba`, `scipy`, `numpy`, `matplotlib`, `PIL` y `cryptography`, además de herramientas de desarrollo (`pip`, `setuptools`, `lief`…). Ahora se excluyen en `setup.py`, y la autoprueba del ejecutable confirma que no hacían falta.
+- **Versión en un solo lugar** (`_version.py`): `compilar.py` se la pasa a Inno Setup (`/DMyAppVersion`), así que ya no se repite a mano en `setup_script.iss`.
+- **Dependencias con versión fija**: `requirements.txt` (wxPython 4.2.2, sympy 1.13.3, mpmath 1.3.0) y `requirements-dev.txt` (más pytest 9.1.1 y cx_Freeze 8.5.1).
+- `setup.py`: carpeta de salida fija (`build/CalculadoraAccesible`), que ya no depende de la versión de Python; ya no copia el código fuente `.py` junto al ejecutable (ya iba compilado dentro), y en su lugar incluye el CHANGELOG.
+- `setup_script.iss`: las URL apuntan al repositorio real (`agus-romero96/calculadora_accesible`; antes `jansen-dev`) y la desinstalación muestra el icono de la aplicación. Se conserva el `AppId` exacto del instalador 1.0.0, para que las nuevas versiones lo actualicen en lugar de instalarse aparte.
+- `guia_compilacion.txt` reescrita: explicaba cómo crear archivos que ya existen; ahora explica cómo compilar y publicar.
 - **Las variables son números reales** (`Symbol(..., real=True)`). Con variables complejas, que era el comportamiento por defecto de SymPy:
   - la derivada de `abs(x)` era un `Piecewise` con `re(x)`, `im(x)` y `Derivative(re(x), x)`; ahora es `sign(x)`;
   - `sqrt(x^2)` no se simplificaba; ahora da `Abs(x)`;
@@ -59,6 +67,10 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 - **Factorizar con factor común numérico** (`2x²−18`, `3x²+6x+3`) no reconocía el caso escolar: comparaba el núcleo con la factorización que incluía la constante. Ahora reconoce "Diferencia de cuadrados", "Trinomio cuadrado perfecto", etc.
 - **Factorizar fallaba con suma o diferencia de cubos** (`x^3-8`, `x^3+27`): la comprobación de diferencia de cuadrados suponía factores de dos términos y lanzaba una excepción que anulaba toda la operación.
 
+### Eliminado
+
+- `compilar.spec` (PyInstaller): el proceso real de publicación era cx_Freeze + Inno Setup, y PyInstaller ni siquiera estaba instalado. Con dos sistemas en paralelo, uno quedaba siempre desactualizado. Se puede recuperar del historial de git si hiciera falta.
+
 ### Cambios anteriores (ya en el historial de git)
 
 #### Corregido — commit `7be2f58`
@@ -88,4 +100,4 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 - **Cancelar un cálculo** no lo detiene: el hilo sigue usando el procesador hasta terminar, porque Python no permite detener un hilo. Para detenerlo de verdad habría que ejecutar los cálculos en un proceso aparte.
 - **Interfaz**: falta un historial de operaciones y una forma rápida de copiar solo la línea del resultado.
 - **Prueba con NVDA real**: el diálogo "Calculando" y el nuevo submenú se verificaron de forma automática (`tests/verificar_ui.py`), pero no todavía con el lector de pantalla. El botón Cancelar del diálogo tampoco se ha pulsado físicamente: la prueba invoca directamente la función que ejecuta.
-- **Empaquetado**: hay dos sistemas en paralelo (cx_Freeze y PyInstaller), la versión está duplicada en `setup_script.iss` y `requirements.txt` no fija versiones.
+- **Instalador sin probar instalado**: el instalador nuevo se generó y el ejecutable compilado pasó la autoprueba, pero no se ha ejecutado la instalación ni la actualización sobre una 1.0.0 instalada, para no modificar el sistema.

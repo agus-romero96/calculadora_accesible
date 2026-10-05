@@ -158,31 +158,28 @@ pip install -r requirements.txt
 python main.py
 ```
 
-Dependencias: `wxPython` (probado con 4.2.2) y `sympy` (probado con 1.13.3).
+Dependencias (con versión fija en `requirements.txt`): `wxPython` 4.2.2, `sympy` 1.13.3 y `mpmath` 1.3.0. Para desarrollar (pruebas y compilación): `pip install -r requirements-dev.txt`.
 
 ---
 
 ## Compilar el ejecutable e instalador
 
-El proyecto tiene dos vías de empaquetado:
+Requisitos: las dependencias de desarrollo (`pip install -r requirements-dev.txt`, incluye cx_Freeze) y, para el instalador, [Inno Setup 6](https://jrsoftware.org/isinfo.php).
 
-**cx_Freeze** (la vía documentada en `guia_compilacion.txt`):
 ```bash
-pip install cx_freeze
-python setup.py build
+python compilar.py
 ```
-Genera `build\exe.win-amd64-3.12\CalculadoraAccesible.exe`.
 
-**PyInstaller** (ejecutable de un solo archivo):
-```bash
-pip install pyinstaller
-pyinstaller compilar.spec
-```
-Genera `dist\CalculadoraAccesible.exe`.
+Un solo comando hace todo y se detiene en el primer fallo:
 
-**Instalador de Windows**: compile `setup_script.iss` con [Inno Setup](https://jrsoftware.org/isinfo.php) después de la compilación con cx_Freeze. Genera `Output\setup-calculadora-accesible-v<versión>.exe`, con instalador en español.
+1. Ejecuta las pruebas.
+2. Compila el ejecutable con **cx_Freeze** en `build\CalculadoraAccesible\` (unos 77 MB).
+3. **Verifica el ejecutable compilado**: lo ejecuta con `--autoprueba`, que calcula un caso de cada motor sin abrir la ventana. Así se detecta si al empaquetado le falta algún módulo.
+4. Genera el instalador en español con **Inno Setup**: `Output\setup-calculadora-accesible-v<versión>.exe` (unos 36 MB).
 
-La versión se define en `_version.py` (y debe actualizarse también a mano en `setup_script.iss`).
+Opciones: `--sin-pruebas`, `--sin-instalador` y `--salida CARPETA`.
+
+La versión se define **solo** en `_version.py`; el título de la ventana, el ejecutable y el instalador la toman de ahí. Los detalles están en [`guia_compilacion.txt`](guia_compilacion.txt).
 
 ---
 
@@ -211,6 +208,13 @@ parser_matematico.py    ParserMatematico: parser único compartido (SymPy parse_
         ├── racionalizacion.py
         ├── continuidad.py
         └── infinito.py
+
+autoprueba.py           Prueba del núcleo para el ejecutable compilado (--autoprueba)
+_version.py             Versión de la aplicación (única fuente)
+compilar.py             Pruebas + ejecutable + autoprueba + instalador
+setup.py                Configuración de cx_Freeze
+setup_script.iss        Instalador (Inno Setup)
+tests/                  Suite de pytest (+ verificar_ui.py, prueba manual de la interfaz)
 ```
 
 Principios de diseño:
@@ -224,7 +228,7 @@ Principios de diseño:
 
 ## Pruebas
 
-El proyecto tiene una suite de **pytest** en `tests/` (187 pruebas, unos 3 segundos) que cubre el parser y todos los motores: aritmética, cálculo, álgebra lineal, límites, y la detección de errores en la interfaz (sin abrir ventanas).
+El proyecto tiene una suite de **pytest** en `tests/` (188 pruebas, unos 3 segundos) que cubre el parser y todos los motores: aritmética, cálculo, álgebra lineal, límites, y la detección de errores en la interfaz (sin abrir ventanas).
 
 ```bash
 pip install -r requirements-dev.txt

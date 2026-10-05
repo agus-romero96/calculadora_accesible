@@ -1,2 +1,4 @@
-wxPython
-sympy
+# Dependencias de la calculadora (versiones fijas: son las probadas y empaquetadas)
+wxPython==4.2.2
+sympy==1.13.3
+mpmath==1.3.0

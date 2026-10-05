@@ -1,2 +1,4 @@
+# Desarrollo: pruebas y compilación (python compilar.py)
 -r requirements.txt
-pytest
+pytest==9.1.1
+cx_Freeze==8.5.1

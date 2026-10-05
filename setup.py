@@ -1,34 +1,43 @@
-import sys
-from cx_Freeze import setup, Executable
+"""
+Compilación del ejecutable con cx_Freeze.
 
-# Import the version from our own file
+No lo ejecute directamente: use  python compilar.py  (compila, verifica el
+ejecutable con --autoprueba y genera el instalador). Ver guia_compilacion.txt.
+"""
+import sys
+
+from cx_Freeze import Executable, setup
+
 from _version import __version__
 
-# Define the base for the executable.
-# "Win32GUI" is used for a GUI application on Windows.
-base = None
-if sys.platform == "win32":
-    base = "Win32GUI"
+# Carpeta de salida fija (no depende de la versión de Python); setup_script.iss la usa.
+CARPETA_BUILD = "build/CalculadoraAccesible"
 
-# List of files and directories to include in the build
-# We need to explicitly include our math modules
-include_files = [
-    'aritmetica.py',
-    'parser_matematico.py',
-    'puente.py',
-    'algebra/',
-    'calculo/',
-    '_version.py',
-    'LICENSE',
-    'README.md'
-]
+# "Win32GUI": aplicación de ventana, sin consola que interfiera con NVDA.
+base = "Win32GUI" if sys.platform == "win32" else None
 
-# Build options
-# We need to make sure sympy and wx are included
 build_exe_options = {
-    "packages": ["wx", "sympy"],
-    "include_files": include_files,
-    "excludes": ["tkinter", "unittest"], # Exclude packages we don't need
+    "build_exe": CARPETA_BUILD,
+    # cx_Freeze sigue los imports desde main.py; se nombran los paquetes propios
+    # y las dependencias para que se incluyan completos.
+    "packages": ["wx", "sympy", "mpmath", "algebra", "calculo"],
+    # SymPy importa estas librerías de forma OPCIONAL si están instaladas en la máquina
+    # que compila (gráficos, numpy, etc.). La calculadora no las usa y ocupaban más de
+    # 100 MB del ejecutable. La autoprueba (--autoprueba) verifica que no hacen falta.
+    "excludes": [
+        "tkinter", "unittest", "pytest", "_pytest",
+        "numpy", "scipy", "matplotlib", "PIL", "pandas",
+        "numba", "llvmlite",  # llvmlite.dll sola ocupaba 102 MB
+        "IPython", "jedi", "notebook", "ipykernel",
+        "cryptography", "bcrypt", "fontTools", "contourpy",
+        "pygments", "docutils", "sphinx",
+        # Herramientas del entorno de desarrollo, no de la calculadora
+        "lief", "pip", "setuptools", "redis", "jinja2", "requests", "urllib3",
+        "psutil", "filelock", "win32ui", "win32com", "pythonwin", "sqlite3",
+    ],
+    # Documentación que acompaña al ejecutable (el código fuente ya va compilado
+    # dentro de lib/library.zip; no se copian los .py).
+    "include_files": ["LICENSE", "README.md", "CHANGELOG.md"],
     "zip_include_packages": ["*"],
     "zip_exclude_packages": [],
 }
@@ -36,7 +45,7 @@ build_exe_options = {
 setup(
     name="Calculadora Accesible",
     version=__version__,
-    description="Una calculadora científica y accesible con capacidades simbólicas.",
+    description="Calculadora científica y accesible con capacidades simbólicas.",
     options={"build_exe": build_exe_options},
-    executables=[Executable("main.py", base=base, target_name="CalculadoraAccesible.exe")]
+    executables=[Executable("main.py", base=base, target_name="CalculadoraAccesible.exe")],
 )

@@ -1,83 +1,75 @@
-Guía de Publicación para la Calculadora Accesible (Versión Sencilla)
+GUÍA DE COMPILACIÓN: CALCULADORA ACCESIBLE
+==========================================
 
-Este documento describe los pasos para preparar el código fuente y compilarlo en una carpeta ejecutable usando cx_Freeze.
+Cómo generar el ejecutable y el instalador de Windows.
 
----
-Fase 1: Preparar el Código Fuente
----
 
-1. Crear Archivo de Versión (`_version.py`):
-   - En la carpeta raíz del proyecto, crea un archivo llamado `_version.py`.
-   - Añade el siguiente contenido. Aquí es donde cambiarás el número de versión en el futuro.
-     __version__ = "1.0.0"
+1. REQUISITOS (una sola vez)
+----------------------------
 
-2. Integrar la Versión en `main.py`:
-   - Modifica `main.py` para que lea la versión y la muestre en el título.
-   - Reemplaza el inicio de la clase `CalculadoraAccesible` con esto:
-     ```python
-     import wx
-     import wx.lib.dialogs
-     from puente import CoreMatematico
-     from _version import __version__
+- Python 3.12 para Windows.
+- Inno Setup 6 (solo para el instalador): https://jrsoftware.org/isinfo.php
+- Dependencias de desarrollo (incluyen las de la calculadora, pytest y cx_Freeze):
 
-     class CalculadoraAccesible(wx.Frame):
-         def __init__(self):
-             super().__init__(parent=None, title=f"Jansen Calculator v{__version__}", size=(800, 750))
-     ```
+      pip install -r requirements-dev.txt
 
-3. Crear Archivo de Dependencias (`requirements.txt`):
-   - En la carpeta raíz, crea un archivo `requirements.txt`.
-   - Añade las librerías que tu proyecto necesita:
-     ```
-     wxPython
-     sympy
-     ```
 
----
-Fase 2: Crear la Aplicación Ejecutable con cx_Freeze
----
+2. CAMBIAR LA VERSIÓN
+---------------------
 
-1. Instalar cx_Freeze:
-   - Abre una terminal y ejecuta:
-     pip install cx_freeze
+La versión se define en UN SOLO lugar: el archivo _version.py
 
-2. Crear el Script de Compilación (`setup.py`):
-   - En la carpeta raíz, crea un archivo `setup.py` con el siguiente contenido:
-     ```python
-     import sys
-     from cx_Freeze import setup, Executable
-     from _version import __version__
+      __version__ = "1.1.0"
 
-     base = None
-     if sys.platform == "win32":
-         base = "Win32GUI"
+De ahí la toman el título de la ventana, el ejecutable (setup.py) y el
+instalador (compilar.py se la pasa a Inno Setup). No hay que tocar
+setup_script.iss.
 
-     include_files = [
-         'aritmetica.py', 'parser_matematico.py', 'puente.py',
-         'algebra/', 'calculo/', '_version.py',
-         'LICENSE', 'README.md'
-     ]
+Antes de publicar, mueva los cambios de la sección [Sin publicar] del
+CHANGELOG.md a una sección con el número de versión y la fecha.
 
-     build_exe_options = {
-         "packages": ["wx", "sympy"],
-         "include_files": include_files,
-         "excludes": ["tkinter", "unittest"],
-         "zip_include_packages": ["*"],
-         "zip_exclude_packages": [],
-     }
 
-     setup(
-         name="Calculadora Accesible",
-         version=__version__,
-         description="Una calculadora científica y accesible con capacidades simbólicas.",
-         options={"build_exe": build_exe_options},
-         executables=[Executable("main.py", base=base, target_name="CalculadoraAccesible.exe")]
-     )
-     ```
+3. COMPILAR
+-----------
 
-3. Compilar la Aplicación:
-   - En una terminal, navega a la carpeta de tu proyecto y ejecuta:
-     python setup.py build
+En la carpeta del proyecto:
 
-   - Al finalizar, encontrarás una carpeta llamada `build\exe.win-amd64-3.12` (o similar).
-   - Dentro de esa carpeta está `CalculadoraAccesible.exe` y todas sus dependencias. Puedes comprimir esta carpeta en un .zip para distribuirla.
+      python compilar.py
+
+El script hace cuatro pasos y se detiene en el primer fallo:
+
+  1. Ejecuta las pruebas (pytest).
+  2. Compila el ejecutable con cx_Freeze en build\CalculadoraAccesible\
+  3. Ejecuta el .exe compilado con --autoprueba: calcula un caso de cada
+     motor sin abrir la ventana. Si falla, al empaquetado le falta algún
+     módulo (revise la lista "excludes" de setup.py).
+  4. Genera el instalador en Output\setup-calculadora-accesible-v<versión>.exe
+
+Opciones:
+
+      python compilar.py --sin-pruebas      omite el paso 1
+      python compilar.py --sin-instalador   omite el paso 4
+      python compilar.py --salida CARPETA   guarda el instalador en otra carpeta
+
+ATENCIÓN: si no cambió la versión, el instalador nuevo reemplaza al anterior
+con el mismo nombre en Output\. Guarde una copia si ya lo distribuyó.
+
+
+4. COMPROBAR EL EJECUTABLE A MANO
+---------------------------------
+
+      build\CalculadoraAccesible\CalculadoraAccesible.exe --autoprueba informe.txt
+
+Escribe el resultado en informe.txt (el programa no tiene consola) y
+termina con código 0 si todo está bien.
+
+
+5. NOTAS
+--------
+
+- El AppId de setup_script.iss NO debe cambiarse: es lo que permite que una
+  versión nueva actualice a la ya instalada en lugar de instalarse aparte.
+- setup.py excluye librerías que SymPy importa de forma opcional (numpy,
+  scipy, matplotlib, numba/llvmlite, etc.). La calculadora no las usa y
+  ocupaban más de 150 MB. Si en el futuro se usa alguna, quítela de "excludes".
+- Las carpetas build\, dist\ y Output\ no se guardan en git.

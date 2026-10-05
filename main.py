@@ -455,6 +455,14 @@ class CalculadoraAccesible(wx.Frame):
         self.presentar_resultado(manual_novato)
 
 if __name__ == "__main__":
+    import sys
+
+    # Verificación del ejecutable compilado, sin abrir la ventana:
+    #   CalculadoraAccesible.exe --autoprueba informe.txt
+    if len(sys.argv) > 1 and sys.argv[1] == "--autoprueba":
+        import autoprueba
+        sys.exit(autoprueba.ejecutar(sys.argv[2] if len(sys.argv) > 2 else None))
+
     app = wx.App()
     frame = CalculadoraAccesible()
     frame.Show()
