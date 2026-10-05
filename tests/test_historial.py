@@ -1,10 +1,14 @@
 import json
+import os
 
 import pytest
+import sympy
 
 import exportar
 import i18n
-from historial import Historial, describir
+from historial import Historial, cargar, describir, guardar, ruta_historial
+from parser_matematico import ParserMatematico
+from test_exportar import RESULTADOS
 
 
 @pytest.fixture
@@ -130,3 +134,115 @@ def test_guardar_historial(historial, tmp_path):
     ruta = tmp_path / "historial.html"
     exportar.guardar_historial(historial.entradas(), "html", str(ruta))
     assert ruta.read_text(encoding="utf-8") == exportar.exportar_historial(historial.entradas(), "html")
+
+
+# ---------------- Guardar entre sesiones ----------------
+
+# Además de los tipos de resultado de test_exportar, entradas que el parser deja sin evaluar
+RESULTADOS_PERSISTENCIA = {
+    **RESULTADOS,
+    "evaluar_sin_evaluar": lambda c: c.evaluar("sin(pi)+1/2"),
+    "derivada_n_seno": lambda c: c.derivada_enecima("sin(2*x)", "x", 4),
+    "limite_infinito": lambda c: c.limite("(3x^2+1)/(x^2-2)", "x", "oo"),
+    "integral_abs": lambda c: c.integrar("abs(x)"),
+}
+
+
+def _ida_y_vuelta(res, tmp_path):
+    ruta = str(tmp_path / "historial.json")
+    guardar([res], ruta)
+    (recuperado,) = cargar(ruta)
+    return recuperado
+
+
+@pytest.mark.parametrize("nombre", sorted(RESULTADOS_PERSISTENCIA))
+def test_guardar_y_cargar_conserva_la_operacion_exacta(core, tmp_path, nombre):
+    res = RESULTADOS_PERSISTENCIA[nombre](core)
+    assert not res.es_error
+    recuperado = _ida_y_vuelta(res, tmp_path)
+    for campo in ("operacion", "entrada", "texto", "parametros", "mas_constante", "idioma", "fecha"):
+        assert getattr(recuperado, campo) == getattr(res, campo), campo
+    # Los objetos SymPy, con la misma estructura (el planteamiento sigue sin evaluar)
+    for campo in ("valor", "expresion", "planteamiento"):
+        assert sympy.srepr(getattr(recuperado, campo)) == sympy.srepr(getattr(res, campo)), campo
+    assert exportar.latex(recuperado) == exportar.latex(res)
+    assert exportar.mathml(recuperado) == exportar.mathml(res)
+    assert exportar.resultado_corto(recuperado) == exportar.resultado_corto(res)
+
+
+def test_las_variables_siguen_siendo_reales(core, tmp_path):
+    recuperado = _ida_y_vuelta(core.derivar("x^3"), tmp_path)
+    assert ParserMatematico.simbolo("x") in recuperado.valor.free_symbols
+
+
+def test_historial_con_ruta_se_conserva(core, tmp_path):
+    ruta = str(tmp_path / "carpeta" / "historial.json")  # la carpeta se crea al guardar
+    h = Historial(ruta)
+    h.agregar(core.derivar("x^2"))
+    h.agregar(core.evaluar("2+"))  # los errores no se guardan
+    h.agregar(core.factorizar("x^2-9"))
+    h.agregar(core.evaluar("1/3+1/6"))
+    assert [r.entrada for r in Historial(ruta).entradas()] == ["x^2", "x^2-9", "1/3+1/6"]
+
+    h.eliminar(h.entradas()[1])
+    assert [r.entrada for r in Historial(ruta).entradas()] == ["x^2", "1/3+1/6"]
+
+    h.vaciar()
+    assert len(Historial(ruta)) == 0
+
+
+def test_al_cargar_se_respeta_el_maximo(core, tmp_path, monkeypatch):
+    ruta = str(tmp_path / "historial.json")
+    guardar([core.evaluar(f"{n}+1") for n in range(5)], ruta)
+    monkeypatch.setattr(Historial, "MAXIMO", 3)
+    assert [r.entrada for r in Historial(ruta).entradas()] == ["2+1", "3+1", "4+1"]
+
+
+@pytest.mark.parametrize("contenido", ["", "no es json", "[]", '{"version": 99, "entradas": []}',
+                                       '{"version": 1}'])
+def test_archivo_ilegible_da_historial_vacio(tmp_path, contenido):
+    ruta = tmp_path / "historial.json"
+    ruta.write_text(contenido, encoding="utf-8")
+    assert len(Historial(str(ruta))) == 0
+
+
+def test_sin_archivo_da_historial_vacio(tmp_path):
+    assert len(Historial(str(tmp_path / "no_existe.json"))) == 0
+
+
+def test_entrada_danada_se_descarta(core, tmp_path):
+    ruta = tmp_path / "historial.json"
+    guardar([core.derivar("x^2"), core.derivar("x^3")], str(ruta))
+    datos = json.loads(ruta.read_text(encoding="utf-8"))
+    del datos["entradas"][0]["texto"]
+    datos["entradas"].append({"operacion": "operacion_desconocida"})
+    ruta.write_text(json.dumps(datos), encoding="utf-8")
+    assert [r.entrada for r in cargar(str(ruta))] == ["x^3"]
+
+
+@pytest.mark.parametrize("formato", sorted(exportar.FORMATOS))
+def test_sin_objetos_sympy_se_conserva_el_texto(core, tmp_path, formato):
+    # Por ejemplo, un historial guardado con otra versión de SymPy que ya no se puede leer
+    res = core.integrar("x*exp(x)")
+    ruta = tmp_path / "historial.json"
+    guardar([res], str(ruta))
+    datos = json.loads(ruta.read_text(encoding="utf-8"))
+    datos["entradas"][0]["sympy"] = "no es pickle"
+    ruta.write_text(json.dumps(datos), encoding="utf-8")
+    (recuperado,) = cargar(str(ruta))
+    assert recuperado.texto == res.texto and recuperado.valor is None
+    assert describir(recuperado, 1).startswith("1. Integral indefinida: x*exp(x)")
+    assert exportar.exportar(recuperado, formato).strip()
+
+
+def test_no_poder_guardar_no_es_un_error(core, tmp_path):
+    archivo = tmp_path / "archivo"
+    archivo.write_text("", encoding="utf-8")
+    h = Historial(str(archivo / "historial.json"))  # la "carpeta" es un archivo
+    h.agregar(core.derivar("x^2"))
+    assert len(h) == 1
+
+
+def test_ruta_junto_a_la_configuracion():
+    assert os.path.dirname(ruta_historial()) == os.path.dirname(i18n.ruta_configuracion())
+    assert os.path.basename(ruta_historial()) == "historial.json"

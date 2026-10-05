@@ -100,8 +100,9 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
    the chosen language, and the choice is remembered on restart.
 
 9. CALCULATION HISTORY (History menu)
-   Every successful calculation is saved in the history while the
-   calculator is open.
+   Every successful calculation is saved in the history (up to 200
+   calculations). It is kept when you close the calculator; to
+   erase it, use History > Clear history.
    [Ctrl + H]         : View the history. It is a list with the
                         most recent calculation first.
      - Enter          : Show that calculation in full. It becomes the

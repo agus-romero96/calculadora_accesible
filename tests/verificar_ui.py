@@ -10,7 +10,8 @@ Comprueba: cálculos rápidos y lentos en segundo plano, el diálogo "Calculando
 la cancelación, errores inesperados del hilo, los menús, copiar al portapapeles,
 exportar, el cambio de idioma y la ayuda (F1).
 wx.MessageBox y el diálogo de guardar se sustituyen para que nada modal bloquee, y
-el cambio de idioma no se guarda (no altera la preferencia del usuario).
+el cambio de idioma no se guarda (no altera la preferencia del usuario). El
+historial se guarda en una carpeta temporal, no en el del usuario.
 """
 import json
 import os
@@ -19,6 +20,9 @@ import tempfile
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# El historial se guarda junto a la configuración: una carpeta temporal en lugar de la del usuario
+carpeta_appdata = tempfile.mkdtemp()
+os.environ["APPDATA"] = carpeta_appdata
 import wx
 mensajes = []
 wx.MessageBox = lambda msg, *a, **k: mensajes.append(msg)
@@ -249,6 +253,12 @@ def paso10():  # historial
         check("historial: exportar todo", len(datos["entries"]) == len(f.historial))
     finally:
         wx.FileDialog = original_dlg
+
+    # Se guarda en disco: al abrir de nuevo la calculadora vuelve el mismo historial
+    guardado = main.Historial(main.ruta_historial()).entradas()
+    check("historial: se conserva al volver a abrir",
+          main.ruta_historial().startswith(carpeta_appdata)
+          and [r.entrada for r in guardado] == [r.entrada for r in f.historial.entradas()])
     fin()
 
 

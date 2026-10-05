@@ -100,8 +100,9 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
    muestran en el idioma elegido, y se recuerda al reiniciar.
 
 9. HISTORIAL DE OPERACIONES (menú Historial)
-   Cada cálculo correcto se guarda en el historial mientras la
-   calculadora está abierta.
+   Cada cálculo correcto se guarda en el historial (hasta 200
+   operaciones). Se conserva al cerrar la calculadora; para
+   borrarlo, use Historial > Borrar historial.
    [Ctrl + H]         : Ver el historial. Es una lista con la
                         operación más reciente primero.
      - Enter          : Mostrar esa operación completa. Vuelve a ser

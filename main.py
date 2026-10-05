@@ -10,7 +10,7 @@ import exportar
 import i18n
 from i18n import N_, tr
 from algebra.classic_systems import MotorSistemasClasicos
-from historial import Historial
+from historial import Historial, ruta_historial
 from puente import CoreMatematico, ResultadoOperacion
 import ventana_historial
 from _version import __version__
@@ -33,8 +33,8 @@ class CalculadoraAccesible(wx.Frame):
         self.core = CoreMatematico()
         # Último resultado mostrado (ResultadoOperacion): lo que se copia y se exporta
         self.ultimo_resultado = None
-        # Operaciones de la sesión (menú Historial)
-        self.historial = Historial()
+        # Operaciones guardadas (menú Historial); se conservan entre sesiones
+        self.historial = Historial(ruta_historial())
 
         # Estado del cálculo en segundo plano. _calculo_actual es un "token" único por
         # cálculo: si el usuario cancela, se pone a None y el resultado tardío se descarta.

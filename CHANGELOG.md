@@ -18,6 +18,10 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
   - `tests/verificar_ui.py`: diálogo, Suprimir, Mostrar, Usar entrada y exportar todo en la ventana real; pasa de 35 a 45 comprobaciones.
   - La suite tiene 1675 pruebas.
 - La ayuda (F1) tiene una sección 9 sobre el historial, en los dos idiomas.
+- **El historial se conserva entre sesiones**: se guarda en `%APPDATA%\CalculadoraAccesible\historial.json` (junto a la preferencia de idioma) tras cada cálculo, al eliminar una operación y al borrarlo, y se recupera al abrir la calculadora. Antes se perdía al cerrarla, y un estudiante que vuelve a la calculadora al día siguiente tenía que rehacer los ejercicios para revisarlos.
+  - Las operaciones recuperadas son completas: se pueden mostrar, reutilizar, copiar y exportar en LaTeX o MathML igual que las de la sesión. Para eso se guardan también los objetos SymPy (resultado, entrada interpretada y planteamiento) con `pickle`, reconstruyendo cada nodo **sin evaluar**: con la reconstrucción normal de SymPy, el planteamiento `1/6 + 1/3` volvería como `1/2` y la ecuación `y = y` de un sistema con infinitas soluciones como `True`. Se probó primero con `srepr`, pero no reproducía exactamente los árboles. Las integrales se reconstruyen con su constructor normal, que no calcula nada y sin evaluar añadiría un `1·` al integrando.
+  - Un archivo dañado no impide abrir la calculadora: las entradas ilegibles se descartan, y si los objetos SymPy no se pueden leer (por ejemplo, tras actualizar SymPy) se conserva el texto de la operación. Si no se puede escribir el archivo, la calculadora sigue funcionando sin avisar, como con la preferencia de idioma.
+  - `tests/test_historial.py`: 35 pruebas nuevas, entre ellas la reconstrucción exacta (`srepr` idéntico, mismo LaTeX y MathML) de 18 tipos de resultado; la suite tiene 1722. `tests/verificar_ui.py` usa ahora una carpeta `APPDATA` temporal, para no tocar el historial del usuario, y comprueba que el historial vuelve al abrir de nuevo (46 comprobaciones).
 
 ### Cambiado
 
@@ -174,6 +178,5 @@ Primera versión publicada con instalador para Windows: evaluación, simplificac
 
 - **Variables como reales**: es la convención adecuada para un curso de cálculo, pero los resultados con números complejos (por ejemplo, raíces de números negativos dentro de expresiones con variables) pueden diferir de los que daría SymPy por defecto.
 - **Cancelar un cálculo** no lo detiene: el hilo sigue usando el procesador hasta terminar, porque Python no permite detener un hilo. Para detenerlo de verdad habría que ejecutar los cálculos en un proceso aparte.
-- **Historial solo de la sesión**: se pierde al cerrar la calculadora (se puede exportar antes). Guardarlo entre sesiones requeriría reconstruir los objetos SymPy al abrir.
 - **Traducción al inglés sin revisión nativa**: la escribió el desarrollador y no la ha revisado un hablante nativo de inglés ni un docente angloparlante (terminología de clase).
 - **Botones de wxWidgets en otros idiomas**: solo se incluye el catálogo de wxWidgets en español (el inglés no lo necesita). Al añadir un idioma, hay que agregar su carpeta en `setup.py`.

@@ -4,7 +4,7 @@ Calculadora científica y simbólica de escritorio diseñada **para usarse con l
 
 Está construida con **Python + wxPython** (interfaz nativa y accesible en Windows) y **SymPy** (motor de matemática simbólica).
 
-Disponible en **español e inglés** (interfaz, explicaciones y ayuda). Los resultados se pueden **copiar** y **exportar** a HTML con fórmulas MathML accesibles, LaTeX, Markdown, JSON o texto plano, y quedan en un **historial** de la sesión.
+Disponible en **español e inglés** (interfaz, explicaciones y ayuda). Los resultados se pueden **copiar** y **exportar** a HTML con fórmulas MathML accesibles, LaTeX, Markdown, JSON o texto plano, y quedan en un **historial** que se conserva entre sesiones.
 
 ---
 
@@ -84,7 +84,7 @@ Tras copiar, un diálogo confirma lo que se copió, para que el lector de pantal
 
 ### Historial de operaciones (menú **Historial**)
 
-Cada cálculo correcto se guarda en el historial mientras la calculadora está abierta (hasta 200 operaciones).
+Cada cálculo correcto se guarda en el historial (hasta 200 operaciones). El historial se conserva al cerrar la calculadora, en `%APPDATA%\CalculadoraAccesible\historial.json`, junto a la preferencia de idioma; **Historial → Borrar historial** lo vacía también en disco.
 
 - **Ver historial** (`Ctrl+H`): una lista con la operación más reciente primero, por ejemplo *"3. Integral indefinida: x*exp(x) → (x - 1)*exp(x) + C"*.
   - `Enter` (**Mostrar**): vuelve a mostrar la explicación completa, que pasa a ser el resultado actual y se puede copiar o exportar.
@@ -238,7 +238,7 @@ puente.py               Fachada: CoreMatematico orquesta los motores y devuelve
   │                     ResultadoOperacion (texto + valor SymPy + planteamiento)
 exportar.py             Copiar/exportar (un resultado o el historial): texto, Markdown,
                         LaTeX, HTML+MathML, JSON
-historial.py            Historial de la sesión (modelo, sin interfaz)
+historial.py            Historial de operaciones y su archivo (modelo, sin interfaz)
 ventana_historial.py    Diálogo accesible del historial
 i18n.py                 Traducción: tr(), N_(), idioma guardado y detectado
 locales/                en.json (catálogo inglés) y ayuda_es.txt / ayuda_en.txt
