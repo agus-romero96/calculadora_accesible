@@ -175,76 +175,82 @@ class MotorMatrices:
             matriz_inversa=inversa
         )
 
-    def ExplicarInversaCofactores(self, expresion: str) -> str:
+    def CalcularInversaCofactores(self, expresion: str) -> ResultadoInversa:
         """
-        Método público para consumir desde la UI.
-        Orquesta el cálculo y genera la narrativa accesible completa.
+        NUEVO CONTRATO: Ya no devuelve texto. Devuelve DATOS PUROS.
+        El UI decidirá cómo mostrar esto.
         """
         try:
-            # Paso 1: Obtener objeto matemático
+            # 1. Parsing
             try:
                 expr = self._parsear_matriz_seguro(expresion)
             except ValueError as e:
-                return f"Error de lectura: {str(e)}"
+                # Devolvemos un objeto de error controlado
+                return ResultadoInversa(False, f"Error de lectura: {str(e)}")
 
-            # Paso 2: Ejecutar motor
-            res = self._calcular_core_inversa_cofactores(expr)
-
-            # Paso 3: Manejo de errores lógicos
-            if not res.es_posible:
-                return f"No se puede calcular la inversa:\n{res.mensaje_error}"
-
-            rows, cols = res.matriz_original.shape
-
-            # CASO A: Matriz 1x1
-            if rows == 1:
-                return (f"Matriz de dimensión 1x1:\n"
-                        f"En este caso, la inversa es simplemente el recíproco del número.\n"
-                        f"Elemento: {res.determinante_total}\n"
-                        f"Inversa: 1 / ({res.determinante_total}) = {res.matriz_inversa[0,0]}")
-
-            # CASO B: Matriz NxN (Narrativa completa)
-            pasos = []
-            pasos.append(f"MÉTODO DE LA MATRIZ ADJUNTA (COFACTORES)")
-            pasos.append(f"Análisis inicial: Matriz cuadrada de {rows} filas por {cols} columnas.")
-            pasos.append("Objetivo: Encontrar la matriz inversa tal que A * Inversa = Identidad.\n")
-
-            # Fase 1: Determinante
-            pasos.append("1. DETERMINANTE (Expandiendo Fila 1)")
-            # Reconstrucción de la suma visual
-            txt_suma_parts = []
-            for s, e, m in res.det_pasos_fila1_raw:
-                signo_txt = "+" if s == 1 else "-" # Mejora visual para la cadena
-                txt_suma_parts.append(f"({signo_txt}1 * {e} * {m})")
-            
-            pasos.append(f"   Operación: {' + '.join(txt_suma_parts)}")
-            pasos.append(f"   Valor Determinante = {res.determinante_total}")
-            
-            # Fase 2: Cofactores
-            c11 = res.ejemplo_cofactor
-            pasos.append("\n2. MATRIZ DE COFACTORES")
-            pasos.append(f"   Generaremos una nueva matriz de {rows}x{cols} cofactores.")
-            pasos.append("   [Ejemplo detallado: Fila 1, Columna 1]")
-            pasos.append(f"     - Signo (+): Positivo")
-            pasos.append(f"     - Menor (tapar fila 1, col 1): Submatriz de {c11.submatriz.rows}x{c11.submatriz.cols}")
-            pasos.append(f"       {self._matriz_a_texto(c11.submatriz)}")
-            pasos.append(f"     - Det(Menor) = {c11.determinante_menor}")
-            pasos.append(f"     - Resultado = {c11.resultado}")
-            pasos.append(f"\n   Matriz de Cofactores Completa ({rows}x{cols}):\n{self._matriz_a_texto(res.matriz_cofactores)}")
-
-            # Fase 3: Adjunta
-            pasos.append("\n3. MATRIZ ADJUNTA")
-            pasos.append("   Es la transpuesta de la anterior (las filas se convierten en columnas).")
-            pasos.append(f"   {self._matriz_a_texto(res.matriz_adjunta)}")
-
-            # Fase 4: Resultado
-            pasos.append("\n4. RESULTADO FINAL")
-            pasos.append(f"   Inversa = (1 / {res.determinante_total}) * Adjunta")
-            pasos.append("   Fundamento Teórico: Se cumple que A * Adj(A) = Det(A) * I, por lo tanto A^(-1) = Adj(A)/Det(A).")
-
-            return (f"Resultado Inversa ({rows}x{cols}):\n{self._matriz_a_texto(res.matriz_inversa)}\n"
-                    f"----------------------------------------\n"
-                    f"{chr(10).join(pasos)}")
+            # 2. Ejecución (Delegamos al motor matemático puro)
+            return self._calcular_core_inversa_cofactores(expr)
 
         except Exception as e:
-            return f"Error inesperado en el módulo matricial: {str(e)}"
+            return ResultadoInversa(False, f"Error inesperado: {str(e)}")
+
+    def RenderizarInformeInversa(self, res: ResultadoInversa) -> str:
+        """
+        NUEVA FUNCIÓN DE PRESENTACIÓN:
+        Toma los DATOS y genera el TEXTO ACCESIBLE.
+        Esto antes estaba mezclado dentro de la lógica.
+        """
+        # 1. Manejo de Errores Lógicos
+        if not res.es_posible:
+            return f"No se puede calcular la inversa:\n{res.mensaje_error}"
+
+        rows, cols = res.matriz_original.shape
+
+        # CASO A: Matriz 1x1
+        if rows == 1:
+            return (f"Matriz de dimensión 1x1:\n"
+                    f"En este caso, la inversa es simplemente el recíproco del número.\n"
+                    f"Elemento: {res.determinante_total}\n"
+                    f"Inversa: 1 / ({res.determinante_total}) = {res.matriz_inversa[0,0]}")
+
+        # CASO B: Matriz NxN (Narrativa completa)
+        pasos = []
+        pasos.append(f"MÉTODO DE LA MATRIZ ADJUNTA (COFACTORES)")
+        pasos.append(f"Análisis inicial: Matriz cuadrada de {rows} filas por {cols} columnas.")
+        
+        # Fase 1: Determinante
+        pasos.append("1. DETERMINANTE (Expandiendo Fila 1)")
+        txt_suma_parts = []
+        for s, e, m in res.det_pasos_fila1_raw:
+            signo_txt = "+" if s == 1 else "-" 
+            txt_suma_parts.append(f"({signo_txt}1 * {e} * {m})")
+        
+        pasos.append(f"   Operación: {' + '.join(txt_suma_parts)}")
+        pasos.append(f"   Valor Determinante = {res.determinante_total}")
+        
+        # Fase 2: Cofactores (Ejemplo)
+        if res.ejemplo_cofactor:
+            c11 = res.ejemplo_cofactor
+            pasos.append("\n2. MATRIZ DE COFACTORES")
+            pasos.append(f"   [Ejemplo detallado: Fila 1, Columna 1]")
+            pasos.append(f"     - Signo: {'Positivo (+)' if c11.signo > 0 else 'Negativo (-)'}")
+            pasos.append(f"     - Menor: {c11.determinante_menor}")
+            pasos.append(f"     - Cofactor: {c11.resultado}")
+            pasos.append(f"   Matriz de Cofactores Completa:\n{self._matriz_a_texto(res.matriz_cofactores)}")
+
+        # Fase 3: Adjunta
+        pasos.append("\n3. MATRIZ ADJUNTA (Transpuesta de Cofactores)")
+        pasos.append(f"   {self._matriz_a_texto(res.matriz_adjunta)}")
+
+        # Fase 4: Resultado (SECCIÓN MODIFICADA PARA NARRATIVA EXAMEN)
+        pasos.append("\n4. CÁLCULO FINAL Y SIMPLIFICACIÓN")
+        pasos.append("   Para obtener la matriz inversa, aplicamos la definición:")
+        pasos.append("   A⁻¹ = (1 / |A|) · Adj(A)")
+        pasos.append(f"   Sustituyendo valores: A⁻¹ = (1 / {res.determinante_total}) · Adj(A)")
+        pasos.append(f"   Esto implica dividir cada elemento de la Matriz Adjunta entre el determinante ({res.determinante_total}).")
+        pasos.append("   Simplificando cada fracción resultante, obtenemos la solución definitiva:")
+        pasos.append(f"\n{self._matriz_a_texto(res.matriz_inversa)}")
+
+        return (f"Resultado Inversa ({rows}x{cols}):\n{self._matriz_a_texto(res.matriz_inversa)}\n"
+                f"----------------------------------------\n"
+                f"{chr(10).join(pasos)}")

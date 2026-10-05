@@ -1,305 +1,326 @@
 import wx
 import wx.lib.dialogs
 from puente import CoreMatematico
+from _version import __version__
 
 class CalculadoraAccesible(wx.Frame):
     def __init__(self):
-        super().__init__(parent=None, title="Calculadora Científica Accesible", size=(700, 750))
+        super().__init__(parent=None, title=f"Jansen Calculator v{__version__}", size=(800, 750))
         
-        # 1. Instanciamos el "Cerebro" Matemático
         self.core = CoreMatematico()
-        
-        # 2. Construimos la Interfaz
         self.init_ui()
         self.crear_menus()
-        
-        # 3. Configuración Final
+        self.crear_atajos()
         self.Centre()
-        # Foco inicial en la entrada para empezar a escribir de inmediato
         self.input_text.SetFocus()
 
     def init_ui(self):
         panel = wx.Panel(self)
         sizer_main = wx.BoxSizer(wx.VERTICAL)
 
-        # --- SECCIÓN A: INSTRUCCIONES ACCESIBLES ---
-        lbl_instrucciones = wx.StaticText(
-            panel, 
-            label=("Escriba su expresión matemática o sistema de ecuaciones abajo.\n"
-                   "Atajos: F1 (Ayuda), Ctrl+Enter (Calcular), Alt (Menú de Herramientas)")
-        )
-        sizer_main.Add(lbl_instrucciones, flag=wx.ALL | wx.EXPAND, border=10)
+        # Info
+        self.lbl_info = wx.TextCtrl(panel, value="Escriba su expresión. F1 Ayuda. Alt para menús.", style=wx.TE_READONLY | wx.BORDER_NONE)
+        self.lbl_info.SetBackgroundColour(panel.GetBackgroundColour())
+        sizer_main.Add(self.lbl_info, flag=wx.EXPAND | wx.ALL, border=10)
 
-        # --- SECCIÓN B: LIENZO DE ENTRADA (INPUT) ---
-        # TE_MULTILINE: Permite escribir sistemas de ecuaciones o matrices grandes.
+        # Input
+        lbl_input = wx.StaticText(panel, label="&Entrada Matemática:")
+        sizer_main.Add(lbl_input, flag=wx.LEFT, border=10)
         self.input_text = wx.TextCtrl(panel, style=wx.TE_MULTILINE | wx.TE_PROCESS_ENTER)
-        self.input_text.SetName("Entrada Matemática. Escriba aquí fórmulas o ecuaciones.")
-        
-        # Fuente grande y legible
-        font_modern = wx.Font(14, wx.FONTFAMILY_TELETYPE, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
-        self.input_text.SetFont(font_modern)
-        
-        # Capturamos teclas especiales dentro de la caja
-        self.input_text.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
-        
+        self.input_text.SetFont(wx.Font(14, wx.FONTFAMILY_TELETYPE, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
         sizer_main.Add(self.input_text, proportion=1, flag=wx.EXPAND | wx.LEFT | wx.RIGHT, border=10)
 
-        # --- SECCIÓN C: BOTONERA (ACCESIBILIDAD VISUAL/MOUSE) ---
+        # Botones
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        
-        btn_calc = wx.Button(panel, label="Calcular / Evaluar (Ctrl+Enter)")
+        btn_calc = wx.Button(panel, label="&Calcular (Ctrl+Enter)")
         btn_calc.Bind(wx.EVT_BUTTON, self.on_evaluar_inteligente)
-        
-        btn_clear = wx.Button(panel, label="Borrar Todo (Ctrl+Borrar)")
+        btn_clear = wx.Button(panel, label="&Borrar (Ctrl+Back)")
         btn_clear.Bind(wx.EVT_BUTTON, self.on_limpiar)
-        
-        btn_sizer.Add(btn_calc, proportion=1, flag=wx.RIGHT, border=5)
-        btn_sizer.Add(btn_clear, proportion=0)
-        
+        btn_sizer.Add(btn_calc, 1, wx.RIGHT | wx.EXPAND, 5)
+        btn_sizer.Add(btn_clear, 0, wx.EXPAND)
         sizer_main.Add(btn_sizer, flag=wx.EXPAND | wx.ALL, border=10)
 
-        # --- SECCIÓN D: LIENZO DE RESULTADOS (OUTPUT) ---
-        lbl_res = wx.StaticText(panel, label="Resultados y Explicación Paso a Paso:")
+        # Output
+        lbl_res = wx.StaticText(panel, label="&Resultados:")
         sizer_main.Add(lbl_res, flag=wx.LEFT, border=10)
-
-        self.output_text = wx.TextCtrl(panel, style=wx.TE_MULTILINE | wx.TE_READONLY)
-        self.output_text.SetName("Pantalla de Resultados.")
-        self.output_text.SetBackgroundColour(wx.Colour(245, 245, 245)) # Gris muy claro
-        self.output_text.SetFont(font_modern)
-        
+        self.output_text = wx.TextCtrl(panel, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_RICH2)
+        self.output_text.SetFont(wx.Font(12, wx.FONTFAMILY_ROMAN, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
+        self.output_text.SetBackgroundColour(wx.Colour(250, 250, 250))
         sizer_main.Add(self.output_text, proportion=2, flag=wx.EXPAND | wx.ALL, border=10)
 
         panel.SetSizer(sizer_main)
 
+    def crear_atajos(self):
+        entries = [
+            wx.AcceleratorEntry(wx.ACCEL_CTRL, wx.WXK_RETURN, 1001),
+            wx.AcceleratorEntry(wx.ACCEL_CTRL, wx.WXK_BACK, 1002)
+        ]
+        self.SetAcceleratorTable(wx.AcceleratorTable(entries))
+        self.Bind(wx.EVT_MENU, self.on_evaluar_inteligente, id=1001)
+        self.Bind(wx.EVT_MENU, self.on_limpiar, id=1002)
+
     def crear_menus(self):
         menubar = wx.MenuBar()
-
-        # --- 1. MENÚ BÁSICO (ARITMÉTICA) ---
-        menu_ops = wx.Menu()
-        item_eval = menu_ops.Append(wx.ID_ANY, "&Evaluar Expresión\tCtrl+Enter", "Calcula valor numérico o resuelve sistemas automáticamente")
-        item_simp = menu_ops.Append(wx.ID_ANY, "&Simplificar\tCtrl+S", "Reduce términos algebraicos")
-        item_fact = menu_ops.Append(wx.ID_ANY, "&Factorizar\tCtrl+F", "Transforma sumas en productos")
-        menu_ops.AppendSeparator()
-        item_exit = menu_ops.Append(wx.ID_EXIT, "Salir\tAlt+F4", "Cierra la aplicación")
-
-        self.Bind(wx.EVT_MENU, self.on_evaluar_inteligente, item_eval)
-        self.Bind(wx.EVT_MENU, self.on_simplificar, item_simp)
-        self.Bind(wx.EVT_MENU, self.on_factorizar, item_fact)
-        self.Bind(wx.EVT_MENU, lambda e: self.Close(), item_exit)
-
-        # --- 2. MENÚ ÁLGEBRA (SISTEMAS Y MATRICES) ---
-        menu_alg = wx.Menu()
         
-        # Submenú Sistemas Lineales
-        menu_sis = wx.Menu()
-        sis_gauss = menu_sis.Append(wx.ID_ANY, "Método &Gauss-Jordan (Universal)", "Paso a paso matrices")
-        sis_red = menu_sis.Append(wx.ID_ANY, "Método de &Reducción (2x2)", "Suma y Resta escolar")
-        sis_sust = menu_sis.Append(wx.ID_ANY, "Método de &Sustitución (2x2)", "Despeje escolar")
-        sis_igual = menu_sis.Append(wx.ID_ANY, "Método de &Igualación (2x2)", "Igualación escolar")
-        menu_alg.AppendSubMenu(menu_sis, "Resolver &Sistema de Ecuaciones")
-        
-        # Matrices
-        menu_alg.AppendSeparator()
-        mat_inv = menu_alg.Append(wx.ID_ANY, "Matriz &Inversa (Cofactores)\tCtrl+I", "Cálculo paso a paso por adjunta")
-        
-        # Conexiones Álgebra
-        self.Bind(wx.EVT_MENU, self.on_sistema_gauss, sis_gauss)
-        self.Bind(wx.EVT_MENU, lambda e: self.procesar_sistema_clasico("reduccion"), sis_red)
-        self.Bind(wx.EVT_MENU, lambda e: self.procesar_sistema_clasico("sustitucion"), sis_sust)
-        self.Bind(wx.EVT_MENU, lambda e: self.procesar_sistema_clasico("igualacion"), sis_igual)
-        self.Bind(wx.EVT_MENU, self.on_inversa_cofactores, mat_inv)
+        # Operaciones
+        m_ops = wx.Menu()
+        m_ops.Append(1001, "Evaluar\tCtrl+Enter")
+        self.Bind(wx.EVT_MENU, self.on_simplificar, m_ops.Append(wx.ID_ANY, "Simplificar\tCtrl+S"))
+        self.Bind(wx.EVT_MENU, self.on_factorizar, m_ops.Append(wx.ID_ANY, "Factorizar\tCtrl+F"))
+        m_ops.AppendSeparator()
+        self.Bind(wx.EVT_MENU, lambda e: self.Close(), m_ops.Append(wx.ID_EXIT, "Salir\tAlt+F4"))
 
-        # --- 3. MENÚ CÁLCULO (AQUÍ ESTÁ LO QUE FALTABA) ---
-        menu_calc = wx.Menu()
+        # Cálculo
+        m_calc = wx.Menu()
+        self.Bind(wx.EVT_MENU, self.on_derivar, m_calc.Append(wx.ID_ANY, "Derivar\tCtrl+D"))
+        self.Bind(wx.EVT_MENU, self.on_derivada_enecima, m_calc.Append(wx.ID_ANY, "Derivada Orden N\tCtrl+Shift+D"))
+        m_calc.AppendSeparator()
+        self.Bind(wx.EVT_MENU, self.on_integrar, m_calc.Append(wx.ID_ANY, "Integrar\tCtrl+I"))
+        self.Bind(wx.EVT_MENU, self.on_limite, m_calc.Append(wx.ID_ANY, "Límite\tCtrl+L"))
+
+        # Álgebra y Ayuda
+        m_alg = wx.Menu()
+        self.Bind(wx.EVT_MENU, self.on_sistema_gauss, m_alg.Append(wx.ID_ANY, "Sistemas (Gauss)"))
+        m_alg.AppendSeparator()
+        self.Bind(wx.EVT_MENU, self.on_inversa_cofactores, m_alg.Append(wx.ID_ANY, "Matriz Inversa (Cofactores)\tCtrl+M"))
         
-        calc_der = menu_calc.Append(wx.ID_ANY, "&Derivar Función (Simple)\tCtrl+D", "Derivada primera con reglas")
-        calc_der_n = menu_calc.Append(wx.ID_ANY, "Derivada de Orden &N (Superior)\tCtrl+Shift+D", "Derivadas sucesivas (ej: 3ra derivada)")
-        menu_calc.AppendSeparator()
-        calc_int = menu_calc.Append(wx.ID_ANY, "I&ntegrar Función\tCtrl+Shift+I", "Integral indefinida paso a paso")
-        calc_lim = menu_calc.Append(wx.ID_ANY, "Calcular &Límite...\tCtrl+L", "Límite en un punto o infinito")
+        m_help = wx.Menu()
+        self.Bind(wx.EVT_MENU, self.mostrar_ayuda, m_help.Append(wx.ID_ANY, "Ayuda\tF1"))
 
-        # Conexiones Cálculo
-        self.Bind(wx.EVT_MENU, self.on_derivar, calc_der)
-        self.Bind(wx.EVT_MENU, self.on_derivada_enecima, calc_der_n)
-        self.Bind(wx.EVT_MENU, self.on_integrar, calc_int)
-        self.Bind(wx.EVT_MENU, self.on_limite, calc_lim)
-
-        # --- 4. AYUDA ---
-        menu_help = wx.Menu()
-        help_syntax = menu_help.Append(wx.ID_ANY, "Guía de Símbolos\tF1", "Muestra ayuda rápida")
-        self.Bind(wx.EVT_MENU, self.mostrar_ayuda, help_syntax)
-
-        menubar.Append(menu_ops, "&Operaciones")
-        menubar.Append(menu_alg, "&Álgebra")
-        menubar.Append(menu_calc, "&Cálculo")
-        menubar.Append(menu_help, "A&yuda")
-        
+        menubar.Append(m_ops, "&Operaciones")
+        menubar.Append(m_calc, "&Cálculo")
+        menubar.Append(m_alg, "&Álgebra")
+        menubar.Append(m_help, "A&yuda")
         self.SetMenuBar(menubar)
 
-    # --- LÓGICA DE INTERACCIÓN (CORE UX) ---
-
-    def on_key_down(self, event):
-        # Ctrl+Enter dispara la evaluación inteligente
-        if event.GetKeyCode() == wx.WXK_RETURN and event.ControlDown():
-            self.on_evaluar_inteligente(None)
-        # Ctrl+Backspace limpia todo
-        elif event.GetKeyCode() == wx.WXK_BACK and event.ControlDown():
-            self.on_limpiar(None)
-        else:
-            event.Skip()
+    # --- LÓGICA DE UX MEJORADA ---
 
     def obtener_texto(self):
         txt = self.input_text.GetValue().strip()
         if not txt:
-            wx.MessageBox("El campo de entrada está vacío.", "Atención", wx.ICON_WARNING)
+            # ERROR EN DIÁLOGO (User Request)
+            wx.MessageBox("El campo de entrada está vacío.\nPor favor escriba una expresión matemática.", 
+                          "Atención", wx.OK | wx.ICON_WARNING)
+            self.input_text.SetFocus()
             return None
         return txt
 
     def presentar_resultado(self, texto):
-        """
-        Clave de Accesibilidad: Mueve el foco y prepara el cursor para lectura.
-        """
-        self.output_text.SetValue(str(texto))
-        self.output_text.SetFocus()
-        self.output_text.SetInsertionPoint(0)
+        # Si el resultado comienza con "Error" o "Ambigüedad", mostramos DIÁLOGO
+        if str(texto).startswith("Error") or "Ambigüedad" in str(texto):
+             wx.MessageBox(str(texto), "Error Matemático", wx.OK | wx.ICON_ERROR)
+             self.input_text.SetFocus() # Volvemos al input para que corrija
+        else:
+            self.output_text.SetValue(str(texto))
+            self.output_text.SetInsertionPoint(0)
+            self.output_text.SetFocus()
 
-    # --- HANDLERS: ARITMÉTICA Y GENERAL ---
+    def _resolver_ambiguedad_variable(self, txt, operacion):
+        """
+        Analiza variables y pregunta al usuario si hay más de una.
+        Retorna: La variable elegida (str) o None si el usuario canceló.
+        """
+        vars_detectadas = self.core.DetectarVariables(txt)
+        
+        # Caso 1: Multivariable (x, y) -> Preguntar
+        if len(vars_detectadas) > 1:
+            dlg = wx.SingleChoiceDialog(
+                self, 
+                f"La expresión tiene varias variables ({', '.join(vars_detectadas)}).\n¿Respecto a cuál desea {operacion}?", 
+                "Selección de Variable", 
+                vars_detectadas
+            )
+            if dlg.ShowModal() == wx.ID_OK:
+                return dlg.GetStringSelection()
+            else:
+                return None # Cancelado
+
+        # Caso 2: Integrar constante (0 variables) -> Preguntar
+        if len(vars_detectadas) == 0 and operacion == "integrar":
+            dlg = wx.TextEntryDialog(self, "Está integrando una constante.\n¿Cuál es la variable de integración? (ej: x, t)", "Variable Requerida")
+            if dlg.ShowModal() == wx.ID_OK:
+                return dlg.GetValue()
+            return None
+
+        # Caso 3: Una sola variable o constante en derivada -> Dejar pasar (el motor manejará defaults)
+        return None 
+
+    # --- HANDLERS ---
 
     def on_evaluar_inteligente(self, event):
         txt = self.obtener_texto()
         if not txt: return
-        
-        # Detectar si es sistema (múltiples líneas con =)
-        lineas = [l for l in txt.split('\n') if l.strip()]
-        if len(lineas) > 1 and "=" in txt:
-            try:
-                self.presentar_resultado(self.core.ResolverSistemaGauss(lineas))
-            except Exception as e:
-                self.presentar_resultado(f"Error interpretando sistema: {e}")
-        else:
-            try:
+        try:
+            if "\n" in txt and "=" in txt:
+                self.presentar_resultado(self.core.ResolverSistemaGauss(txt.split('\n')))
+            else:
                 self.presentar_resultado(self.core.Evaluar(txt))
-            except Exception as e:
-                self.presentar_resultado(f"Error evaluando: {e}")
+        except Exception as e:
+            self.presentar_resultado(f"Error: {e}")
 
     def on_simplificar(self, event):
         txt = self.obtener_texto()
-        if txt:
-            self.presentar_resultado(self.core.Simplificar(txt))
+        if txt: self.presentar_resultado(self.core.Simplificar(txt))
 
     def on_factorizar(self, event):
         txt = self.obtener_texto()
-        if txt:
-            self.presentar_resultado(self.core.Factorizar(txt))
+        if txt: self.presentar_resultado(self.core.Factorizar(txt))
+
+    # --- CÁLCULO INTELIGENTE ---
+
+    def on_derivar(self, event):
+        txt = self.obtener_texto()
+        if not txt: return
+        
+        # Pregunta preventiva
+        var_elegida = self._resolver_ambiguedad_variable(txt, "derivar")
+        
+        # Si var_elegida es None, puede ser que:
+        # 1. Usuario canceló -> no hacemos nada.
+        # 2. No había ambigüedad -> llamamos a Derivar normalmente (Core usará default).
+        
+        # Verificamos si el usuario canceló el diálogo (si hubo diálogo)
+        # (Lógica simplificada: Si hay multivariable y devuelve None, es cancel)
+        vars_detectadas = self.core.DetectarVariables(txt)
+        if len(vars_detectadas) > 1 and var_elegida is None:
+            return # Cancelado
+
+        # Llamada al core (si var_elegida es None, el core usa su lógica default 'x')
+        res = self.core.calculo.CalcularDerivada(txt, variable=var_elegida)
+        self.presentar_resultado(self.core.calculo.RenderizarTexto(res))
+
+    def on_integrar(self, event):
+        txt = self.obtener_texto()
+        if not txt: return
+
+        var_elegida = self._resolver_ambiguedad_variable(txt, "integrar")
+        
+        vars_detectadas = self.core.DetectarVariables(txt)
+        # Si era ambigua o constante y no eligió nada (Cancel), salimos
+        if (len(vars_detectadas) > 1 or len(vars_detectadas) == 0) and var_elegida is None:
+            return
+
+        res = self.core.calculo.CalcularIntegral(txt, variable=var_elegida)
+        self.presentar_resultado(self.core.calculo.RenderizarTexto(res))
+
+    def on_derivada_enecima(self, event):
+        expr = self.obtener_texto()
+        if not expr: return
+        
+        # Aquí siempre preguntamos porque es avanzado
+        dlg_var = wx.TextEntryDialog(self, "Variable:", "Derivada N")
+        if dlg_var.ShowModal() != wx.ID_OK: return
+        var = dlg_var.GetValue()
+
+        dlg_ord = wx.TextEntryDialog(self, "Orden (número):", "Derivada N")
+        if dlg_ord.ShowModal() != wx.ID_OK: return
+        
+        try:
+            orden = int(dlg_ord.GetValue())
+            self.presentar_resultado(self.core.DerivadaEnecima(expr, var, orden))
+        except:
+            wx.MessageBox("El orden debe ser un número entero.", "Error", wx.OK | wx.ICON_ERROR)
+
+    def on_limite(self, event):
+        expr = self.obtener_texto()
+        if not expr: return
+        
+        dlg_var = wx.TextEntryDialog(self, "Variable:", "Límite")
+        if dlg_var.ShowModal() != wx.ID_OK: return
+        var = dlg_var.GetValue()
+        
+        dlg_ten = wx.TextEntryDialog(self, "Tendencia:", "Límite")
+        if dlg_ten.ShowModal() != wx.ID_OK: return
+        
+        self.presentar_resultado(self.core.CalcularLimite(expr, var, dlg_ten.GetValue()))
+
+    def on_sistema_gauss(self, event):
+        txt = self.obtener_texto()
+        if txt: self.presentar_resultado(self.core.ResolverSistemaGauss(txt.split('\n')))
+
+    def on_inversa_cofactores(self, event):
+        """
+        Manejador para el cálculo de Matriz Inversa por Cofactores.
+        """
+        txt = self.obtener_texto()
+        if not txt: 
+            return
+            
+        try:
+            # Llamamos al puente. Asegúrate de que tu puente.py tenga este método expuesto.
+            resultado = self.core.MatrizInversaCofactores(txt)
+            self.presentar_resultado(resultado)
+        except AttributeError:
+            self.presentar_resultado("Error: El núcleo matemático (puente.py) no tiene conectado el módulo de matrices.")
+        except Exception as e:
+            self.presentar_resultado(f"Error de cálculo: {str(e)}")
 
     def on_limpiar(self, event):
         self.input_text.Clear()
         self.output_text.Clear()
         self.input_text.SetFocus()
 
-    # --- HANDLERS: ÁLGEBRA ---
-
-    def on_sistema_gauss(self, event):
-        txt = self.obtener_texto()
-        if not txt:
-            return
-        lineas = [l for l in txt.split('\n') if l.strip()]
-        if len(lineas) < 2:
-            self.presentar_resultado("Para Gauss, escriba al menos 2 ecuaciones (una por línea).")
-            return
-        self.presentar_resultado(self.core.ResolverSistemaGauss(lineas))
-
-    def procesar_sistema_clasico(self, metodo):
-        txt = self.obtener_texto()
-        if not txt: return
-        lineas = [l for l in txt.split('\n') if l.strip()]
-        if len(lineas) != 2:
-            self.presentar_resultado(f"El método de {metodo} requiere exactamente 2 ecuaciones.")
-            return
-        try:
-            # puente.py -> ResolverSistemaEducativo
-            self.presentar_resultado(self.core.ResolverSistemaEducativo(lineas, metodo))
-        except Exception as e:
-            self.presentar_resultado(f"Error: {e}")
-
-    def on_inversa_cofactores(self, event):
-        txt = self.obtener_texto()
-        if txt: self.presentar_resultado(self.core.MatrizInversaCofactores(txt))
-
-    # --- HANDLERS: CÁLCULO (Derivadas, Integrales, Límites) ---
-
-    def on_derivar(self, event):
-        """Derivada simple (orden 1)."""
-        txt = self.obtener_texto()
-        if txt: self.presentar_resultado(self.core.Derivar(txt))
-
-    def on_integrar(self, event):
-        txt = self.obtener_texto()
-        if txt: self.presentar_resultado(self.core.Integrar(txt))
-
-    def on_derivada_enecima(self, event):
-        """Pide Variable y Orden N mediante diálogos simples."""
-        expr = self.obtener_texto()
-        if not expr: return
-
-        # 1. Pedir Variable
-        dlg_var = wx.TextEntryDialog(self, "Escriba la variable de derivación (ej: x):", "Derivada Enésima", "x")
-        if dlg_var.ShowModal() != wx.ID_OK: return
-        variable = dlg_var.GetValue()
-
-        # 2. Pedir Orden
-        dlg_ord = wx.TextEntryDialog(self, "Escriba el orden de la derivada (ej: 2, 3):", "Derivada Enésima", "2")
-        if dlg_ord.ShowModal() != wx.ID_OK: return
-        
-        try:
-            orden = int(dlg_ord.GetValue())
-            # puente.py -> DerivadaEnecima
-            res = self.core.DerivadaEnecima(expr, variable, orden)
-            self.presentar_resultado(res)
-        except ValueError:
-            self.presentar_resultado("Error: El orden debe ser un número entero.")
-        except Exception as e:
-            self.presentar_resultado(f"Error cálculo: {e}")
-
-    def on_limite(self, event):
-        """Pide Variable y Tendencia."""
-        expr = self.obtener_texto()
-        if not expr: return
-
-        # 1. Pedir Variable
-        dlg_var = wx.TextEntryDialog(self, "Variable del límite (ej: x):", "Calcular Límite", "x")
-        if dlg_var.ShowModal() != wx.ID_OK: return
-        variable = dlg_var.GetValue()
-
-        # 2. Pedir Tendencia
-        dlg_ten = wx.TextEntryDialog(self, f"¿A qué valor tiende '{variable}'? (Use 'oo' para infinito):", "Calcular Límite", "0")
-        if dlg_ten.ShowModal() != wx.ID_OK:
-            return
-        tendencia = dlg_ten.GetValue()
-
-        try:
-            # puente.py -> CalcularLimite
-            res = self.core.CalcularLimite(expr, variable, tendencia)
-            self.presentar_resultado(res)
-        except Exception as e:
-            self.presentar_resultado(f"Error cálculo límite: {e}")
-
     def mostrar_ayuda(self, event):
-        info = (
-            "GUÍA RÁPIDA DE SINTAXIS\n"
-            "-----------------------\n"
-            "Operaciones: +, -, *, /, ** (potencia)\n"
-            "Funciones: sqrt(x), sin(x), cos(x), ln(x), exp(x)\n"
-            "Constantes: pi, e, oo (infinito)\n\n"
-            "Sistemas de Ecuaciones:\n"
-            "Escriba una ecuación por línea.\n"
-            "Ejemplo:\n"
-            "2x + y = 10\n"
-            "x - y = 5\n\n"
-            "Matrices:\n"
-            "Use corchetes anidados. Ej: [[1, 2], [3, 4]]"
+        # Texto diseñado para ser leído claramente por NVDA
+        # Usamos mayúsculas para separar secciones y listas claras.
+        manual_novato = (
+            "MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE\n"
+            "===================================================\n\n"
+            
+            "1. ¿QUÉ ES ESTA HERRAMIENTA?\n"
+            "   Es una calculadora avanzada que funciona como un chat.\n"
+            "   Usted escribe una orden matemática en el cuadro de arriba,\n"
+            "   presiona una combinación de teclas, y el resultado aparece\n"
+            "   aquí abajo, listo para ser leído.\n\n"
+
+            "2. FLUJO DE TRABAJO (CÓMO USARLA)\n"
+            "   Paso A: Escriba su fórmula (ej: 2+2) en la entrada.\n"
+            "   Paso B: Elija qué hacer (Calcular, Derivar, Integrar).\n"
+            "           Puede usar el menú o los atajos de teclado.\n"
+            "   Paso C: El foco saltará automáticamente a este cuadro\n"
+            "           para leerle el resultado paso a paso.\n\n"
+
+            "3. ATAJOS DE TECLADO (MEMORIZAR ESTOS)\n"
+            "   [Ctrl + Enter] : CALCULAR (Aritmética básica, Sistemas).\n"
+            "   [Ctrl + D]     : DERIVAR una función.\n"
+            "   [Ctrl + I]     : INTEGRAR una función.\n"
+            "   [Ctrl + L]     : Calcular LÍMITE.\n"
+            "   [Ctrl + Borrar]: LIMPIAR pantalla para empezar de cero.\n"
+            "   [F1]           : Ver esta ayuda.\n"
+            "   [Alt]          : Acceder a la barra de menús.\n\n"
+
+            "4. GUÍA DE ESCRITURA (SINTAXIS)\n"
+            "   Para que la calculadora le entienda, escriba así:\n\n"
+            "   * Multiplicación: Use siempre el asterisco.\n"
+            "     CORRECTO: 2*x     INCORRECTO: 2x\n\n"
+            "   * Potencias: Use el sombrero (^) o doble asterisco (**).\n"
+            "     Ejemplo: x^2  o  x**2\n\n"
+            "   * Funciones: Use paréntesis siempre.\n"
+            "     Ejemplo: sin(x), cos(x), ln(x), sqrt(x)\n\n"
+            "   * Constantes matemáticas:\n"
+            "     Escriba 'pi' para el número Pi.\n"
+            "     Escriba 'e' para el número de Euler.\n"
+            "     Escriba 'oo' (doble letra o) para Infinito.\n\n"
+
+            "5. EJEMPLOS PRÁCTICOS\n"
+            "   - Derivar: Escriba '3*x^2 + 5'. Pulse Ctrl+D.\n"
+            "   - Integrar: Escriba 'sin(x)'. Pulse Ctrl+I.\n"
+            "   - Sistema 2x2: Escriba dos líneas:\n"
+            "       x + y = 10\n"
+            "       x - y = 2\n"
+            "     Luego pulse Ctrl+Enter.\n\n"
+
+            "6. SOLUCIÓN DE PROBLEMAS\n"
+            "   - ¿Le pregunta por variables? Si escribe 'x + y', el sistema\n"
+            "     le preguntará con cuál desea trabajar. Use las flechas\n"
+            "     para elegir en el diálogo y pulse Enter.\n"
+            "   - ¿Error de Sintaxis? Verifique que cerró todos los paréntesis\n"
+            "     y que usó '*' para multiplicar."
         )
-        self.presentar_resultado(info)
+        
+        # En lugar de MessageBox, usamos presentar_resultado.
+        # Esto pone el texto en el cuadro grande y mueve el foco ahí.
+        self.presentar_resultado(manual_novato)
 
 if __name__ == "__main__":
     app = wx.App()

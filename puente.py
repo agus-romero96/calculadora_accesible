@@ -1,11 +1,8 @@
 """
-operations.py (El Backend / Fachada)
-====================================
-Este archivo es el ÚNICO punto de contacto para la interfaz gráfica (ui.py).
-Su responsabilidad es:
-1. Inicializar la herramienta compartida (Parser).
-2. "Contratar" (instanciar) a los módulos especialistas.
-3. Delegar las peticiones de la UI al especialista correcto.
+puente.py (La Fachada / Controller)
+===================================
+Punto de conexión entre la Interfaz Gráfica (main.py) y los Motores Matemáticos.
+Su responsabilidad es orquestar las llamadas y asegurar que la UI reciba texto limpio.
 """
 
 # --- 1. IMPORTACIONES DE HERRAMIENTAS COMUNES ---
@@ -20,17 +17,17 @@ from algebra.gauss_logic import MotorGauss
 from algebra.classic_systems import MotorSistemasClasicos
 
 # Módulos de CÁLCULO
+# NOTA: Asegúrate de que tu archivo nuevo se llame calculo.py y esté en la carpeta calculo/
 from calculo.limite import GestorLimites
-from calculo.calculo import Calculo  # Tu nuevo archivo
+from calculo.router import RouterMatematico 
+from calculo.calculo import Calculo 
 
 class CoreMatematico:
     def __init__(self):
-        # A. CREAMOS LA FUENTE ÚNICA DE VERDAD (El Parser)
-        # Esto ahorra memoria y asegura que todos entiendan "ln(x)" igual.
+        # A. FUENTE ÚNICA DE VERDAD (Parser)
         self.parser_comun = ParserMatematico()
 
-        # B. INYECCIÓN DE DEPENDENCIAS (Contratamos a los especialistas)
-        # Les pasamos el parser común para que no creen uno propio cada vez.
+        # B. INYECCIÓN DE DEPENDENCIAS
         
         # Especialista en Aritmética
         self.aritmetica = Aritmetica(self.parser_comun)
@@ -41,63 +38,92 @@ class CoreMatematico:
         self.clasicos = MotorSistemasClasicos(self.parser_comun)
         
         # Especialistas en Cálculo
-        # Nota: Tu archivo calculo.py actual crea su propio parser en __init__.
-        # Idealmente, modifícalo para aceptar (self.parser_comun).
-        # Por ahora lo instanciamos directo:
         self.calculo = Calculo(self.parser_comun)
-        
-        # Especialista en Límites
-        self.limites = GestorLimites(self.parser_comun)
+        self.limites_backend = GestorLimites(self.parser_comun)
+        self.router = RouterMatematico(self.parser_comun, self.limites_backend)
 
     # ==========================================
     # 1. DELEGACIÓN: ARITMÉTICA BÁSICA
     # ==========================================
 
     def Evaluar(self, expresion):
-        """Calcula valor exacto y decimal."""
-        return self.aritmetica.evaluar(expresion)
+        # Obtenemos DTO
+        dto = self.aritmetica.evaluar(expresion)
+        # Renderizamos a texto accesible
+        return self.aritmetica.renderizar(dto)
 
     def Simplificar(self, expresion):
-        """Reduce términos algebraicos."""
-        return self.aritmetica.simplificar(expresion)
+        dto = self.aritmetica.simplificar(expresion)
+        return self.aritmetica.renderizar(dto)
 
     def Factorizar(self, expresion):
-        """Convierte sumas en productos."""
-        return self.aritmetica.factorizar(expresion)
+        dto = self.aritmetica.factorizar(expresion)
+        return self.aritmetica.renderizar(dto)
 
     # ==========================================
-    # 2. DELEGACIÓN: ÁLGEBRA LINEAL (Sistemas y Matrices)
+    # 2. DELEGACIÓN: ÁLGEBRA LINEAL
     # ==========================================
 
     def ResolverSistemaGauss(self, lista_ecuaciones):
-        """Método universal para sistemas NxN (Gauss-Jordan)."""
         return self.gauss.ExplicarGaussJordan(lista_ecuaciones)
 
     def ResolverSistemaEducativo(self, lista_ecuaciones, metodo):
-        """Métodos de colegio (Sustitución, Igualación) para 2x2."""
         return self.clasicos.ExplicarSistemaClasico(lista_ecuaciones, metodo)
 
     def MatrizInversaCofactores(self, expresion_matriz):
-        """Explicación paso a paso de la Inversa por Adjunta."""
-        return self.matrices.ExplicarInversaCofactores(expresion_matriz)
+        # Nota: Aquí también podrías refactorizar para usar Renderizar, 
+        # pero por ahora mantenemos compatibilidad con tu código de matrices existente.
+        res = self.matrices.CalcularInversaCofactores(expresion_matriz)
+        return self.matrices.RenderizarInformeInversa(res)
 
     # ==========================================
-    # 3. DELEGACIÓN: CÁLCULO (Derivadas, Integrales, Límites)
+    # 3. DELEGACIÓN: CÁLCULO (ACTUALIZADO V4.2)
     # ==========================================
 
     def Derivar(self, expresion):
-        """Derivada simple con explicación de regla."""
-        return self.calculo.derivar(expresion)
+        """
+        Calcula la derivada y devuelve el informe accesible.
+        La UI no envía variable (None), así que el motor inferirá o usará 'x'.
+        """
+        # 1. Obtenemos el objeto rico (DTO)
+        resultado_dto = self.calculo.CalcularDerivada(expresion, variable=None)
+        # 2. Lo convertimos a texto para la UI
+        return self.calculo.RenderizarTexto(resultado_dto)
 
     def DerivadaEnecima(self, expresion, variable, orden):
-        """Muestra la secuencia de derivadas hasta orden N."""
-        # La UI debe asegurar que 'orden' sea un entero (int)
-        return self.calculo.derivada_enecima(expresion, variable, orden)
+        """
+        Calcula derivada de orden N.
+        La UI sí envía variable y orden explícitos aquí.
+        """
+        resultado_dto = self.calculo.DerivadaEnecima(expresion, variable, orden)
+        return self.calculo.RenderizarTexto(resultado_dto)
 
     def Integrar(self, expresion):
-        """Integral indefinida con pasos (ManualIntegrate)."""
-        return self.calculo.integrar(expresion)
+        """
+        Calcula integral indefinida.
+        Advertencia: Si el usuario no puso variable en la UI, el motor V4.2 dará error (correcto).
+        """
+        resultado_dto = self.calculo.CalcularIntegral(expresion, variable=None)
+        return self.calculo.RenderizarTexto(resultado_dto)
 
     def CalcularLimite(self, expresion, variable, tendencia):
-        """Límites con análisis de continuidad y asíntotas."""
-        return self.limites.calcular_limite(expresion, variable, tendencia)
+        return self.router.CalcularLimite(expresion, variable, tendencia)
+    
+
+
+    def DetectarVariables(self, expresion):
+        """
+        Método auxiliar para la UI.
+        Analiza la expresión y devuelve una lista de las variables encontradas (strings).
+        Ejemplo: "x + y" -> ["x", "y"]
+        """
+        try:
+            # Usamos el parser común para ver qué hay dentro
+            expr = self.parser_comun.parsear(expresion)
+            # Extraemos símbolos y los ordenamos alfabéticamente
+            syms = sorted([s.name for s in expr.free_symbols])
+            return syms
+        except Exception:
+            # Si hay error de sintaxis, devolvemos lista vacía.
+            # El error real saltará cuando intenten calcular.
+            return []

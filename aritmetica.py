@@ -1,341 +1,415 @@
 import sympy
 from dataclasses import dataclass, field
-from typing import List, Any, Optional
-from sympy import degree, Symbol, Poly, RealNumber
+from typing import List, Any, Optional, Tuple
+from sympy import Integer, Float, Rational, Symbol
 
-# --- 1. CAPA DE DATOS (DTO - Data Transfer Object) ---
-# Esto estandariza la salida. Nunca más devolvemos strings sueltos.
+
+# =============================================================
+# 1) DTO (Contrato de datos)
+# =============================================================
 
 @dataclass(frozen=True)
 class ResultadoAritmetica:
-    operacion: str              # "Factorización", "Simplificación", "Evaluación"
-    expresion_original: Any     # Objeto SymPy
-    resultado: Any              # Objeto SymPy
-    diagnostico: str            # Análisis previo (ej: "Polinomio grado 2")
-    estrategia: str             # Nombre del método (ej: "Diferencia de Cuadrados")
-    justificacion: str          # Por qué se eligió (ej: "Dos términos cuadrados con signo opuesto")
-    pasos: List[str]            # Lista de pasos intermedios
-    advertencias: List[str] = field(default_factory=list) # Notas de dominio o precisión
+    es_exitoso: bool
+    operacion: str
+    expresion_original: Any
+    resultado: Optional[Any]  # SymPy si éxito, None si error
 
-# --- 2. MOTOR LÓGICO ---
+    diagnostico: str = ""
+    estrategia: str = ""
+    justificacion: str = ""
+    pasos: List[str] = field(default_factory=list)
+    advertencias: List[str] = field(default_factory=list)
+
+    # UX
+    es_trivial: bool = False
+
+    # Error
+    mensaje_error: str = ""
+
+
+# =============================================================
+# 2) MOTOR LÓGICO
+# =============================================================
 
 class Aritmetica:
     """
-    Módulo V4: Arquitectura Empresarial.
-    Implementa DTOs, Diagnóstico Formal y Estrategias Explícitas.
+    Módulo V6: Aritmética Enterprise (Rigor + Pedagogía honesta).
+
+    Principios:
+    - La "verdad" la determina SymPy (simplify/factor).
+    - La "explicación" solo se emite si el patrón se verifica estructuralmente.
+    - No strings mágicos para errores: DTO lleva es_exitoso/mensaje_error.
     """
-    
+
     def __init__(self, parser_compartido):
         self.parser = parser_compartido
 
-    # ==========================================
-    # MÉTODOS PÚBLICOS (Fachada)
-    # ==========================================
+    # ---------------------------------------------------------
+    # API pública (texto + DTO)
+    # ---------------------------------------------------------
 
-    def evaluar(self, expresion: str) -> str:
+    def evaluar(self, expresion: str) -> ResultadoAritmetica:
+        """
+        Evaluación numérica estricta:
+        - Si hay símbolos libres -> error (no adivinamos valores).
+        - Devuelve exacto si es entero/float/racional simple.
+        - Si es irracional u objeto exacto grande, devuelve decimal como principal
+          y deja el exacto en pasos.
+        """
         try:
             expr = self.parser.parsear(expresion)
-            
-            # 1. Diagnóstico
-            es_entero = isinstance(expr, sympy.Integer) or expr.is_Integer
-            es_racional = expr.is_Rational
-            
-            diag = "Número Entero" if es_entero else "Expresión Numérica Real"
-            if not es_entero and es_racional: diag = "Número Racional (Fracción)"
 
-            # 2. Ejecución
-            res_exacto = sympy.simplify(expr)
-            res_decimal = res_exacto.evalf()
-            
-            pasos = []
-            advertencias = []
-            
-            # Análisis de precisión
-            if res_exacto != res_decimal:
-                diff = abs(res_exacto.evalf() - res_decimal)
-                if diff > 1e-15:
-                    advertencias.append("La representación decimal es una aproximación (contiene redondeo).")
-                pasos.append(f"Valor Exacto: {res_exacto}")
-                pasos.append(f"Valor Decimal: {res_decimal:.6f}")
+            if expr.free_symbols:
+                syms = ", ".join(sorted([s.name for s in expr.free_symbols]))
+                return self._error("Evaluación Numérica", expr,
+                                   f"La expresión contiene variables ({syms}). Reemplace variables por números o use Simplificar.")
 
-            dto = ResultadoAritmetica(
+            # "Evaluar" significa: ejecutar aritmética exacta primero
+            exacto = sympy.simplify(expr)
+
+            pasos: List[str] = []
+            advertencias: List[str] = []
+
+            # Trivialidad (UX): entero, float, racional pequeño
+            es_trivial = (
+                isinstance(exacto, Integer) or
+                isinstance(exacto, Float) or
+                (isinstance(exacto, Rational) and max(abs(exacto.p), abs(exacto.q)) < 1000)
+            )
+
+            resultado_final = exacto
+
+            # Si no es trivial, suele ser irracional (pi, sqrt(2), etc.) o racional enorme
+            # Política: en "evaluar" se prioriza decimal como resultado principal,
+            # pero se conserva exacto como paso.
+            if not es_trivial:
+                decimal = sympy.N(exacto, 20)
+                pasos.append(f"Valor exacto: {exacto}")
+                pasos.append(f"Aproximación decimal: {decimal:.10f}".rstrip("0").rstrip("."))
+                advertencias.append("Resultado aproximado: se muestra una evaluación decimal.")
+                resultado_final = decimal
+
+            return ResultadoAritmetica(
+                es_exitoso=True,
                 operacion="Evaluación Numérica",
                 expresion_original=expr,
-                resultado=res_exacto if es_entero else f"{res_exacto} ≈ {res_decimal:.6f}",
-                diagnostico=diag,
-                estrategia="Evaluación Directa y Aproximación",
-                justificacion="Cálculo de valor simbólico y punto flotante.",
+                resultado=resultado_final,
+                diagnostico="Expresión numérica (sin variables).",
+                estrategia="Cálculo directo",
+                justificacion="Se simplifica la expresión para obtener el valor numérico.",
                 pasos=pasos,
-                advertencias=advertencias
+                advertencias=advertencias,
+                es_trivial=es_trivial,
             )
-            return self._renderizar(dto)
-            
-        except Exception as e:
-            return f"Error al evaluar: {str(e)}"
 
-    def simplificar(self, expresion: str) -> str:
+        except Exception as e:
+            return self._error("Evaluación Numérica", expresion, str(e))
+
+    def simplificar(self, expresion: str) -> ResultadoAritmetica:
+        """
+        Simplificación algebraica:
+        - Intenta primero herramientas específicas (collect univariado, cancel en fracciones).
+        - Luego simplify como verdad final.
+        """
         try:
             expr = self.parser.parsear(expresion)
-            
-            # 1. Diagnóstico Previo
-            diag = self._diagnosticar_estructura(expr)
-            
-            # 2. Ejecución
-            resultado = sympy.simplify(expr)
-            
-            # 3. Análisis de Estrategia (Trazabilidad)
-            estrategia, justificacion, pasos = self._analizar_cambios_simplificacion(expr, resultado)
+            pasos: List[str] = []
+            estrategia = "Simplificación general"
+            justificacion = "Aplicación de transformaciones equivalentes para reducir complejidad."
 
-            dto = ResultadoAritmetica(
-                operacion="Simplificación Algebraica",
+            # Agrupación (solo univariado)
+            syms = sorted(list(expr.free_symbols), key=lambda s: s.name)
+            if expr.is_Add and len(syms) == 1:
+                var = syms[0]
+                collected = sympy.collect(expr, var)
+                if collected != expr:
+                    pasos.append(f"Agrupación por potencias de {var}: {collected}")
+                    estrategia = "Agrupación (collect)"
+
+            # Cancelación en racionales
+            num, den = sympy.fraction(expr)
+            if den != 1:
+                cancelado = sympy.cancel(expr)
+                if cancelado != expr:
+                    pasos.append(f"Cancelación de factores comunes: {cancelado}")
+                    estrategia = "Cancelación (cancel)"
+
+            # Verdad final
+            resultado = sympy.simplify(expr)
+            if resultado == expr and not pasos:
+                pasos.append("La expresión ya estaba en una forma simple (no hubo cambios detectables).")
+
+            return ResultadoAritmetica(
+                es_exitoso=True,
+                operacion="Simplificación",
                 expresion_original=expr,
                 resultado=resultado,
-                diagnostico=diag,
+                diagnostico=self._diagnosticar_tipo(expr),
                 estrategia=estrategia,
                 justificacion=justificacion,
-                pasos=pasos
+                pasos=pasos,
+                es_trivial=False
             )
-            return self._renderizar(dto)
 
         except Exception as e:
-            return f"Error al simplificar: {str(e)}"
+            return self._error("Simplificación", expresion, str(e))
 
-    def factorizar(self, expresion: str) -> str:
+    def factorizar(self, expresion: str) -> ResultadoAritmetica:
+        """
+        Factorización con inferencia estructural:
+        - Primero extrae factor común (factor_terms).
+        - Luego factoriza completamente (factor) como verdad.
+        - Clasifica SOLO si el patrón se verifica.
+        """
         try:
             expr = self.parser.parsear(expresion)
-            
-            # 1. Diagnóstico Riguroso
-            info_polinomio = self._analizar_polinomio_formal(expr)
-            
-            # 2. Selección de Estrategia
-            estrategia_nombre, razon, pasos_previos = self._seleccionar_estrategia_factorizacion(expr, info_polinomio)
-            
-            # 3. Ejecución
-            resultado = sympy.factor(expr)
-            
-            # 4. Verificación de Irreducibilidad (Mejora Matemática)
-            advertencias = []
-            if expr == resultado:
-                razon = "El polinomio no tiene raíces racionales (Irreducible en Q)."
-                advertencias.append("Nota: Podría tener raíces reales (irracionales) o complejas no detectadas por factorización simple.")
+            pasos: List[str] = []
+            advertencias: List[str] = []
 
-            dto = ResultadoAritmetica(
-                operacion="Factorización de Polinomios",
+            # 1) Extraer factor común (pedagógico)
+            comun = sympy.factor_terms(expr)
+            nucleo = expr
+            factor_comun = sympy.Integer(1)
+
+            # Si factor_terms cambió, intentamos separar "constante" vs "núcleo"
+            # Política: si hay una variable principal (univariado), todo lo que no depende de ella se trata como constante.
+            syms = sorted(list(expr.free_symbols), key=lambda s: s.name)
+            var_principal = syms[0] if len(syms) == 1 else None
+
+            if comun != expr:
+                pasos.append(f"Extracción de factor común: {comun}")
+
+                if comun.is_Mul and var_principal is not None:
+                    consts = [a for a in comun.args if not a.has(var_principal)]
+                    vars_ = [a for a in comun.args if a.has(var_principal)]
+                    if consts:
+                        factor_comun = sympy.Mul(*consts)
+                        nucleo = sympy.Mul(*vars_) if vars_ else sympy.Integer(1)
+                    else:
+                        nucleo = comun
+                else:
+                    # Si no podemos separar limpiamente, al menos analizamos el "comun" como núcleo
+                    nucleo = comun
+
+            # 2) Verdad final
+            resultado = sympy.factor(expr)
+
+            # Irreducible (en Q, según SymPy por defecto)
+            if expr == resultado:
+                advertencias.append("No se encontraron factores más simples en los racionales (Q).")
+                return ResultadoAritmetica(
+                    es_exitoso=True,
+                    operacion="Factorización",
+                    expresion_original=expr,
+                    resultado=resultado,
+                    diagnostico=self._diagnosticar_tipo(expr),
+                    estrategia="Irreducible",
+                    justificacion="SymPy no encontró una factorización no trivial sobre los racionales.",
+                    pasos=pasos,
+                    advertencias=advertencias,
+                    es_trivial=False
+                )
+
+            # 3) Inferencia desde la estructura del resultado, pero sobre el núcleo (sin el factor común)
+            caso, explicacion = self._inferir_caso(nucleo, resultado)
+
+            estrategia = caso or ("Factor común" if comun != expr else "Factorización general")
+            justificacion = explicacion if caso else "Factorización algebraica estándar (sin patrón escolar único verificable)."
+
+            if caso:
+                pasos.append(f"Patrón identificado: {justificacion}")
+
+            return ResultadoAritmetica(
+                es_exitoso=True,
+                operacion="Factorización",
                 expresion_original=expr,
                 resultado=resultado,
-                diagnostico=info_polinomio['texto'],
-                estrategia=estrategia_nombre,
-                justificacion=razon,
-                pasos=pasos_previos,
-                advertencias=advertencias
+                diagnostico=self._diagnosticar_tipo(expr),
+                estrategia=estrategia,
+                justificacion=justificacion,
+                pasos=pasos,
+                advertencias=advertencias,
+                es_trivial=False
             )
-            return self._renderizar(dto)
 
         except Exception as e:
-            return f"Error al factorizar: {str(e)}"
+            return self._error("Factorización", expresion, str(e))
 
-    # ==========================================
-    # VALIDADORES MATEMÁTICOS (Helpers Privados)
-    # ==========================================
+    # ---------------------------------------------------------
+    # Inferencia de patrones (sin inventar)
+    # ---------------------------------------------------------
 
-    def _es_cuadrado_perfecto(self, expr) -> bool:
-        """Verifica matemáticamente si una expresión es un cuadrado exacto."""
-        # Caso simple: x^2
-        if expr.is_Pow:
-            return expr.exp % 2 == 0
-        # Caso coeficientes: 4, 9, 16...
-        if expr.is_Integer and expr > 0:
-            raiz = sympy.sqrt(expr)
-            return raiz.is_Integer
-        # Caso compuesto: 4*x^2
-        if expr.is_Mul:
-            return all(self._es_cuadrado_perfecto(arg) for arg in expr.args)
-        return False
-
-    def _es_cubo_perfecto(self, expr) -> bool:
-        if expr.is_Pow:
-            return expr.exp % 3 == 0
-        if expr.is_Integer:
-            raiz = sympy.cbrt(expr)
-            return raiz.is_Integer
-        return False
-
-    def _diagnosticar_estructura(self, expr) -> str:
-        if expr.is_RationalFunction:
-            n, d = sympy.fraction(expr)
-            if d != 1: return "Fracción Racional (Cociente de polinomios)"
-        if expr.is_polynomial():
-            grado = sympy.degree(expr)
-            return f"Polinomio de Grado {grado}"
-        return "Expresión Algebraica General"
-
-    def _analizar_polinomio_formal(self, expr) -> dict:
-        """Devuelve metadata matemática para toma de decisiones."""
-        info = {'es_poli': False, 'grado': 0, 'terminos': 0, 'vars': []}
-        
-        info['vars'] = list(expr.free_symbols)
-        if expr.is_polynomial():
-            info['es_poli'] = True
-            info['grado'] = sympy.degree(expr)
-            # Contamos términos si es una suma
-            if expr.is_Add:
-                info['terminos'] = len(expr.args)
-            else:
-                info['terminos'] = 1
-            info['texto'] = f"Polinomio Grado {info['grado']} con {info['terminos']} términos."
-        else:
-            info['texto'] = "Expresión no polinómica estándar."
-        
-        return info
-
-    def _analizar_cambios_simplificacion(self, original, resultado) -> tuple:
-        """Compara estados para deducir qué hizo SymPy."""
-        ops_antes = original.count_ops()
-        ops_despues = resultado.count_ops()
-        pasos = []
-        
-        # Estrategia 1: Cancelación
-        n1, d1 = sympy.fraction(original)
-        n2, d2 = sympy.fraction(resultado)
-        
-        if d1 != 1 and (d2 == 1 or sympy.degree(d2) < sympy.degree(d1)):
-            estrategia = "Cancelación de Factores"
-            justificacion = "El numerador y denominador compartían factores comunes."
-            pasos.append(f"1. Numerador original: {n1}")
-            pasos.append(f"2. Denominador original: {d1}")
-            pasos.append("3. Se eliminaron los términos repetidos.")
-            return estrategia, justificacion, pasos
-
-        # Estrategia 2: Reducción
-        if ops_despues < ops_antes:
-            return "Agrupación de Términos", "Se sumaron coeficientes de variables iguales.", [f"Reducción de complejidad: {ops_antes} ops -> {ops_despues} ops"]
-
-        return "Transformación Algebraica", "Aplicación de identidades generales.", []
-
-    def _seleccionar_estrategia_factorizacion(self, expr, info) -> tuple:
+    def _inferir_caso(self, nucleo, factorizada) -> Tuple[Optional[str], str]:
         """
-        El cerebro: Decide la estrategia basado en evidencia matemática, no corazonadas.
-        Retorna: (Nombre, Justificación, Pasos Teóricos)
+        Devuelve (caso, explicación). Caso None si no puede verificarse con rigor.
+        La verificación se apoya en:
+        - forma del resultado
+        - conteo de términos del núcleo original
+        - consistencia por expansión
         """
-        pasos = []
-        
-        # 1. Factor Común (Prioridad Máxima)
-        terms = expr.args if expr.is_Add else [expr]
-        common = sympy.gcd(terms)
-        if common != 1:
-            return (
-                "Factor Común (Distributiva Inversa)",
-                f"Todos los términos son divisibles por '{common}'.",
-                [f"Extraemos {common} y dividimos el polinomio original."]
-            )
+        # Normalizar: comparar expandido del resultado con el núcleo expandido
+        try:
+            nucleo_exp = sympy.expand(nucleo)
+            fact_exp = sympy.expand(factorizada)
+            if sympy.simplify(nucleo_exp - fact_exp) != 0:
+                # Si ni siquiera coincide, no intentamos clasificar.
+                return None, "La factorización no coincide con el núcleo bajo expansión (no clasificable)."
+        except Exception:
+            # Si falla la comparación, no afirmamos patrones
+            return None, "No se pudo verificar equivalencia estructural por expansión."
 
-        # 2. Diferencia de Cuadrados
-        # Rigor: 2 términos, uno negativo, ambos cuadrados perfectos
-        if info['terminos'] == 2 and expr.is_Add:
-            a, b = expr.args[0], expr.args[1]
-            # Aseguramos a positivo, b negativo para la forma a^2 - b^2
-            term_pos, term_neg = None, None
-            if a.as_coeff_Mul()[0] > 0 and b.as_coeff_Mul()[0] < 0: term_pos, term_neg = a, b
-            elif b.as_coeff_Mul()[0] > 0 and a.as_coeff_Mul()[0] < 0: term_pos, term_neg = b, a
-            
-            if term_pos and term_neg:
-                # Quitamos el signo para chequear si es cuadrado
-                neg_abs = -term_neg
-                if self._es_cuadrado_perfecto(term_pos) and self._es_cuadrado_perfecto(neg_abs):
-                    return (
-                        "Diferencia de Cuadrados",
-                        "Forma a^2 - b^2 identificada rigurosamente.",
-                        [f"Identificamos a = sqrt({term_pos})", f"Identificamos b = sqrt({neg_abs})", "Aplicamos (a+b)(a-b)"]
-                    )
+        # Conteo de términos del núcleo
+        try:
+            t_nucleo = sympy.Add.make_args(nucleo_exp)
+            n_terms = len(t_nucleo)
+        except Exception:
+            n_terms = None
 
-        # 3. Trinomios (Grado 2, 3 términos)
-        if info['grado'] == 2 and info['terminos'] == 3:
-            var = info['vars'][0] if info['vars'] else Symbol('x')
-            a = sympy.Poly(expr, var).coeff_monomial(var**2)
-            b = sympy.Poly(expr, var).coeff_monomial(var)
-            c = sympy.Poly(expr, var).coeff_monomial(1)
-            
-            delta = b**2 - 4*a*c
-            pasos.append(f"Análisis del Discriminante (Δ = b^2 - 4ac): {delta}")
-            
-            if delta == 0:
-                return "Trinomio Cuadrado Perfecto", "El discriminante es cero.", pasos
-            elif delta > 0:
-                raiz_delta = sympy.sqrt(delta)
-                if raiz_delta.is_Integer:
-                    return "Trinomio Factorizable (Aspa Simple)", "El discriminante es un cuadrado perfecto positivo.", pasos
-                else:
-                    return "Fórmula General (Raíces Irracionales)", "Discriminante positivo pero no cuadrado perfecto.", pasos
-            else:
-                return "Irreducible en Reales", "Discriminante negativo (soluciones complejas).", pasos
+        # ---- 1) TCP: (a±b)^2 y el núcleo es trinomio
+        if factorizada.is_Pow and factorizada.exp == 2:
+            base = sympy.expand(factorizada.base)
+            if base.is_Add and len(sympy.Add.make_args(base)) == 2 and n_terms == 3:
+                return "Trinomio cuadrado perfecto", "Forma a^2 ± 2ab + b^2 = (a±b)^2 (verificado por estructura)."
 
-        # 4. Suma/Resta de Cubos
-        if info['terminos'] == 2 and info['grado'] == 3:
-             return "Suma/Diferencia de Cubos", "Binomio de grado 3 detectado.", ["Aplicar identidad a^3 ± b^3"]
+        # ---- 2) Cubo perfecto: (a±b)^3 y el núcleo tiene 4 términos
+        if factorizada.is_Pow and factorizada.exp == 3:
+            base = sympy.expand(factorizada.base)
+            if base.is_Add and len(sympy.Add.make_args(base)) == 2 and n_terms == 4:
+                return "Cubo perfecto de binomio", "Forma (a±b)^3 (verificado por estructura)."
 
-        # 5. Ruffini / General
-        if info['grado'] > 2:
-            return "Evaluación Polinómica (Ruffini)", "Grado superior a 2.", ["Búsqueda de raíces racionales (p/q)."]
+        # ---- 3) Diferencia de cuadrados: (a-b)(a+b) y el núcleo es binomio con signos opuestos
+        # Requisito fuerte: dos factores, ambos binomios, y son conjugados.
+        if factorizada.is_Mul and len(factorizada.args) == 2 and n_terms == 2:
+            f1, f2 = factorizada.args
+            f1e = sympy.expand(f1)
+            f2e = sympy.expand(f2)
 
-        return "Factorización General", "Método algorítmico estándar.", []
+            if f1e.is_Add and f2e.is_Add:
+                a1, b1 = sympy.Add.make_args(f1e)
+                a2, b2 = sympy.Add.make_args(f2e)
 
-    # ==========================================
-    # RENDERIZADO (Salida Accesible)
-    # ==========================================
+                # Construimos "A" y "B" a partir de (f1+f2)/2 y (f1-f2)/2
+                A = sympy.simplify((f1e + f2e) / 2)
+                B = sympy.simplify((f1e - f2e) / 2)
 
-    def _renderizar(self, dto: ResultadoAritmetica) -> str:
-        """Convierte el DTO en la narrativa accesible que espera la UI."""
+                # Si f1 = A + B y f2 = A - B (o viceversa), entonces:
+                # producto = A^2 - B^2
+                # Verificamos exactamente esa identidad
+                if sympy.simplify(sympy.expand(A**2 - B**2) - nucleo_exp) == 0:
+                    return "Diferencia de cuadrados", "Forma a^2 - b^2 = (a-b)(a+b) (verificada)."
+
+        # ---- 4) Suma/Diferencia de cubos: (a±b)(a^2 ∓ ab + b^2) con núcleo binomial
+        # Requisito mínimo confiable: dos factores, uno lineal (binomio) y otro cuadrático (trinomio),
+        # y núcleo con 2 términos.
+        if factorizada.is_Mul and len(factorizada.args) == 2 and n_terms == 2:
+            f1, f2 = factorizada.args
+            d1 = sympy.total_degree(f1)
+            d2 = sympy.total_degree(f2)
+            # Para cubos: grados típicos 1 y 2 (en univariado), o en general "menor" y "mayor"
+            if {d1, d2} == {1, 2}:
+                return "Suma/diferencia de cubos", "Estructura (lineal)*(cuadrática) compatible con a^3 ± b^3 (verificación parcial)."
+
+        # ---- 5) Trinomio cuadrático univariado: producto de dos lineales
+        if factorizada.is_Mul and len(factorizada.args) == 2 and n_terms == 3:
+            syms = sorted(list(nucleo.free_symbols), key=lambda s: s.name)
+            if len(syms) == 1:
+                var = syms[0]
+                try:
+                    p = sympy.Poly(nucleo_exp, var)
+                    if p.degree() == 2:
+                        # Dos factores lineales en var
+                        if all(sympy.Poly(sympy.expand(f), var).degree() == 1 for f in factorizada.args):
+                            a = p.LC()
+                            if a == 1:
+                                return "Trinomio x^2 + bx + c", "Factorización en dos binomios lineales (coeficiente líder 1)."
+                            return "Trinomio ax^2 + bx + c", "Factorización en dos binomios lineales (coeficiente líder ≠ 1)."
+                except Exception:
+                    pass
+
+        return None, "No se pudo verificar un patrón escolar único con rigor."
+
+    # ---------------------------------------------------------
+    # Diagnóstico y errores
+    # ---------------------------------------------------------
+
+    def _diagnosticar_tipo(self, expr) -> str:
+        try:
+            if expr.is_polynomial():
+                return f"Polinomio (Grado {sympy.total_degree(expr)})"
+        except Exception:
+            pass
+
+        try:
+            _, den = sympy.fraction(expr)
+            if den != 1:
+                return "Expresión racional (fracción)"
+        except Exception:
+            pass
+
+        return "Expresión algebraica"
+
+    def _error(self, operacion: str, expr_original: Any, msg: str) -> ResultadoAritmetica:
+        return ResultadoAritmetica(
+            es_exitoso=False,
+            operacion=operacion,
+            expresion_original=expr_original,
+            resultado=None,
+            diagnostico="Error",
+            estrategia="Ninguna",
+            justificacion="No se pudo completar la operación.",
+            pasos=[],
+            advertencias=[],
+            es_trivial=True,
+            mensaje_error=msg
+        )
+
+    # ---------------------------------------------------------
+    # Render accesible (texto)
+    # ---------------------------------------------------------
+
+    def renderizar(self, dto: ResultadoAritmetica) -> str:
+        if not dto.es_exitoso:
+            return f"ERROR ({dto.operacion}):\n{dto.mensaje_error}"
+
+        if dto.es_trivial:
+            val = dto.resultado
+            if isinstance(val, Float):
+                val = f"{val:.6f}".rstrip("0").rstrip(".")
+            return f"RESULTADO: {val}"
+
         txt = []
         txt.append(f"OPERACIÓN: {dto.operacion.upper()}")
         txt.append(f"Expresión: {dto.expresion_original}")
         txt.append("-" * 30)
-        
+
         txt.append("1. DIAGNÓSTICO")
         txt.append(f"   {dto.diagnostico}")
-        
-        txt.append("\n2. ESTRATEGIA SELECCIONADA")
-        txt.append(f"   Método: {dto.estrategia}")
-        txt.append(f"   Justificación: {dto.justificacion}")
-        
+
+        txt.append("\n2. ESTRATEGIA")
+        txt.append(f"   {dto.estrategia}")
+        txt.append(f"   Nota: {dto.justificacion}")
+
         if dto.pasos:
-            txt.append("\n3. DESARROLLO / ANÁLISIS")
+            txt.append("\n3. DESARROLLO")
             for p in dto.pasos:
                 txt.append(f"   • {p}")
-        
+
         if dto.advertencias:
-            txt.append("\n[!] ADVERTENCIAS MATEMÁTICAS:")
+            txt.append("\n[!] AVISOS:")
             for adv in dto.advertencias:
                 txt.append(f"   - {adv}")
-                
+
         txt.append("-" * 30)
         txt.append(f"RESULTADO FINAL: {dto.resultado}")
-        
         return "\n".join(txt)
 
-    # --- Funciones Legacy (MCD, Primos) ---
-    # Se mantienen por compatibilidad, pero idealmente deberían migrar al DTO también.
-    def analizar_numero(self, n): return self._legacy_analizar(n)
-    def mcd_mcm(self, l): return self._legacy_mcd(l)
-    def fracciones_parciales(self, e): return self._legacy_fracciones(e)
+    # Facades tipo “texto directo” (compatibilidad con tu estilo)
+    def evaluar_texto(self, e: str) -> str:
+        return self.renderizar(self.evaluar(e))
 
-    # (Implementaciones simples para no borrar funcionalidad existente...)
-    def _legacy_analizar(self, n_str):
-        # ... (Tu código anterior de primos aquí) ...
-        # Por brevedad en la respuesta, asumo que mantienes la lógica de la V2 aquí
-        try:
-             expr = self.parser.parsear(n_str)
-             if not expr.is_Integer: return "Error: Solo enteros."
-             n = int(expr)
-             return f"Análisis de {n}:\nPrimo: {sympy.isprime(n)}\nFactores: {sympy.factorint(n)}"
-        except: return "Error."
-        
-    def _legacy_mcd(self, l_str):
-        # ... (Tu código anterior de MCD aquí) ...
-        try:
-            nums = [int(self.parser.parsear(x)) for x in l_str.replace(',', ' ').split()]
-            return f"MCD: {sympy.gcd(nums)}\nmcm: {sympy.lcm(nums)}"
-        except: return "Error."
+    def simplificar_texto(self, e: str) -> str:
+        return self.renderizar(self.simplificar(e))
 
-    def _legacy_fracciones(self, e_str):
-        try: return f"Fracciones Parciales:\n{sympy.apart(self.parser.parsear(e_str))}"
-        except: return "Error."
+    def factorizar_texto(self, e: str) -> str:
+        return self.renderizar(self.factorizar(e))

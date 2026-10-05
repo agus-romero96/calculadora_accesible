@@ -87,34 +87,35 @@ class MotorSistemasClasicos:
     def _resolver_sustitucion(self, eq1: sympy.Eq, eq2: sympy.Eq, x: sympy.Symbol, y: sympy.Symbol) -> List[PasoMetodo]:
         pasos = []
         
-        # 1. Estrategia de Selección: Buscar coeficiente 1 o -1
-        # Candidatos: (Ecuación, Variable, IndiceEc)
+        # 1. Estrategia de Selección (Igual que antes)
         candidatos = [
             (eq1, x, 1), (eq1, y, 1),
             (eq2, x, 2), (eq2, y, 2)
         ]
-        
-        seleccion = candidatos[0] # Default
+        seleccion = candidatos[0]
         for ec, var, idx in candidatos:
             try:
-                # coeff_monomial es seguro aquí porque ya validamos linealidad
                 coef = sympy.Poly(ec.lhs, var).coeff_monomial(var)
                 if abs(coef) == 1:
                     seleccion = (ec, var, idx)
                     break
-            except Exception:
-                continue
+            except Exception: continue
 
         ec_origen, var_desp, idx_origen = seleccion
         var_restante = y if var_desp == x else x
         ec_destino = eq2 if idx_origen == 1 else eq1
         idx_destino = 2 if idx_origen == 1 else 1
 
+        # --- SEGURIDAD AGREGADA AQUÍ ---
         # Paso 1: Despeje
-        despeje = sympy.solve(ec_origen, var_desp)[0]
+        sol_despeje = sympy.solve(ec_origen, var_desp)
+        if not sol_despeje:
+            raise ValueError(f"Imposible despejar {var_desp}. Verifique las ecuaciones.")
+        despeje = sol_despeje[0]
+
         pasos.append(PasoMetodo(
             1, "Despeje Inicial",
-            f"Seleccionamos la Ecuación {idx_origen} y despejamos '{var_desp}' por ser lo más eficiente.",
+            f"Seleccionamos la Ecuación {idx_origen} y despejamos '{var_desp}'.",
             f"{var_desp} = {despeje}"
         ))
 
@@ -122,14 +123,22 @@ class MotorSistemasClasicos:
         sustituida = ec_destino.subs(var_desp, despeje)
         pasos.append(PasoMetodo(
             2, "Sustitución",
-            f"Reemplazamos la expresión en la Ecuación {idx_destino}.",
+            f"Reemplazamos en la Ecuación {idx_destino}.",
             f"{self._fmt_eq(sustituida, [var_restante])}"
         ))
 
         # Paso 3: Resolución parcial
         res_parcial = sympy.solve(sustituida, var_restante)
+        
+        # --- VALIDACIÓN DE COHERENCIA ---
         if not res_parcial:
-            raise ValueError("Sistema Incompatible detectado en sustitución.")
+            # Si al sustituir desaparece la variable y queda algo falso (ej: 0=5)
+            raise ValueError("SISTEMA INCOMPATIBLE: No tiene solución (Rectas paralelas).")
+        
+        # Si devuelve algo raro o vacío (casos infinitos malformados)
+        if isinstance(res_parcial, dict) and not res_parcial:
+             raise ValueError("SISTEMA INDETERMINADO: Infinitas soluciones (Misma recta).")
+
         val_restante = res_parcial[0]
         
         pasos.append(PasoMetodo(
@@ -150,11 +159,18 @@ class MotorSistemasClasicos:
 
     def _resolver_igualacion(self, eq1: sympy.Eq, eq2: sympy.Eq, x: sympy.Symbol, y: sympy.Symbol) -> List[PasoMetodo]:
         pasos = []
-        var_obj = x # Variable a despejar en ambas
+        var_obj = x 
 
+        # --- SEGURIDAD AGREGADA AQUÍ ---
         # Paso 1: Despejes
-        d1 = sympy.solve(eq1, var_obj)[0]
-        d2 = sympy.solve(eq2, var_obj)[0]
+        s1 = sympy.solve(eq1, var_obj)
+        s2 = sympy.solve(eq2, var_obj)
+
+        if not s1 or not s2:
+            raise ValueError(f"No se pudo despejar {var_obj} en alguna ecuación.")
+
+        d1 = s1[0]
+        d2 = s2[0]
         
         pasos.append(PasoMetodo(
             1, "Despeje Doble",
@@ -172,7 +188,13 @@ class MotorSistemasClasicos:
         ))
 
         # Paso 3: Resolución
-        sol_rest = sympy.solve(igualdad, var_rest)[0]
+        sol_rest_list = sympy.solve(igualdad, var_rest)
+        
+        # --- VALIDACIÓN ---
+        if not sol_rest_list:
+             raise ValueError("SISTEMA INCOMPATIBLE: Al igualar se obtiene una contradicción.")
+        
+        sol_rest = sol_rest_list[0]
         pasos.append(PasoMetodo(
             3, f"Resolución para {var_rest}",
             "Despejamos la variable restante.",
@@ -191,14 +213,13 @@ class MotorSistemasClasicos:
 
     def _resolver_reduccion(self, eq1: sympy.Eq, eq2: sympy.Eq, x: sympy.Symbol, y: sympy.Symbol) -> List[PasoMetodo]:
         pasos = []
-        # Obtener coeficientes de x
+        # Obtener coeficientes
         c1 = sympy.Poly(eq1.lhs, x).coeff_monomial(x)
         c2 = sympy.Poly(eq2.lhs, x).coeff_monomial(x)
 
         target = x
         other = y
         
-        # Si x no tiene coeficientes, vamos por y
         if c1 == 0 and c2 == 0:
             c1 = sympy.Poly(eq1.lhs, y).coeff_monomial(y)
             c2 = sympy.Poly(eq2.lhs, y).coeff_monomial(y)
@@ -211,7 +232,6 @@ class MotorSistemasClasicos:
             "Buscamos coeficientes opuestos."
         ))
 
-        # Multiplicadores cruzados
         m1, m2 = c2, -c1
         
         # Paso 2: Multiplicación
@@ -226,6 +246,15 @@ class MotorSistemasClasicos:
 
         # Paso 3: Suma
         suma_lhs = sympy.simplify(eq1_new.lhs + eq2_new.lhs)
+        
+        # --- SEGURIDAD: VERIFICAR SI SE ELIMINÓ TODO ---
+        if suma_lhs == 0:
+             # 0 = 0 -> Indeterminado
+             raise ValueError("SISTEMA INDETERMINADO: Al restar las ecuaciones, todo se anula (son la misma recta).")
+        if suma_lhs.is_constant() and suma_lhs != 0:
+             # 5 = 0 -> Incompatible
+             raise ValueError("SISTEMA INCOMPATIBLE: Al restar queda una igualdad falsa (ej: 5=0).")
+
         pasos.append(PasoMetodo(
             3, "Reducción (Suma)",
             f"Sumamos las ecuaciones. La variable '{target}' se elimina.",
@@ -233,7 +262,11 @@ class MotorSistemasClasicos:
         ))
 
         # Paso 4: Solución Parcial
-        val_other = sympy.solve(suma_lhs, other)[0]
+        val_other_list = sympy.solve(suma_lhs, other)
+        if not val_other_list:
+            raise ValueError(f"Error matemático resolviendo para {other}")
+            
+        val_other = val_other_list[0]
         pasos.append(PasoMetodo(
             4, f"Hallar {other}",
             "Resolvemos la ecuación simplificada.",
@@ -242,7 +275,11 @@ class MotorSistemasClasicos:
 
         # Paso 5: Final
         eq_final = eq1.subs(other, val_other)
-        val_target = sympy.solve(eq_final, target)[0]
+        val_target_list = sympy.solve(eq_final, target)
+        if not val_target_list:
+             raise ValueError(f"Error resolviendo para {target}")
+        
+        val_target = val_target_list[0]
         pasos.append(PasoMetodo(
             5, f"Hallar {target}",
             "Sustituimos en la Ec1 original.",
