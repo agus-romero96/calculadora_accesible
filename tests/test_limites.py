@@ -46,6 +46,28 @@ def test_simplificacion_solo_gana_si_cancela_0_sobre_0(core):
     assert "Simplificación" not in extraer_metodo(salida)
 
 
+# ---------------- Continuidad con raíces y potencias (regresión) ----------------
+# sqrt(u) se parsea como u**(1/2): antes la estrategia de continuidad lo descartaba
+# y el límite caía en el modo general.
+
+@pytest.mark.parametrize("expr, tend, esperado", [
+    ("sqrt(x^2+9)", "4", "RESULTADO: 5"),
+    ("(x^2+1)^(1/3)", "2", "RESULTADO: 5**(1/3)"),
+    ("(x+1)^2", "2", "RESULTADO: 9"),
+])
+def test_continuidad_con_raices_y_potencias(core, expr, tend, esperado):
+    salida = core.CalcularLimite(expr, "x", tend)
+    assert primera_linea(salida) == esperado
+    assert "Continuidad por composición" in extraer_metodo(salida)
+
+
+def test_continuidad_no_se_atribuye_division_entre_cero(core):
+    # 1/(x-1)^2 es la potencia (x-1)**(-2) con L=0: no es continua ahí
+    salida = core.CalcularLimite("1/(x-1)^2", "x", "1")
+    assert primera_linea(salida) == "RESULTADO: +Infinito"
+    assert "Continuidad" not in extraer_metodo(salida)
+
+
 # ---------------- Entrada de la tendencia (regresión) ----------------
 
 @pytest.mark.parametrize("tend", ["oo", "inf", "infinito", "∞", "+∞"])

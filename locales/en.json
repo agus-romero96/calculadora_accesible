@@ -473,6 +473,7 @@
   "Potencia racional ({c}) con denominador impar: continua para L real.": "Rational power ({c}) with an odd denominator: continuous for real L.",
   "Potencia racional ({c}) con denominador par: dominio real requiere L>=0, verificado.": "Rational power ({c}) with an even denominator: the real domain requires L>=0, verified.",
   "Potencia racional ({c}) con denominador par: no podemos garantizar L>=0.": "Rational power ({c}) with an even denominator: we cannot guarantee L>=0.",
+  "Potencia con exponente {c}: no está definida en L=0 (división entre cero).": "Power with exponent {c}: it is not defined at L=0 (division by zero).",
   "Probando racionalización en {ubicacion} con bloque: {bloque_norm}": "Trying rationalization in the {ubicacion} with block: {bloque_norm}",
   "Producto + Cadena": "Product + Chain",
   "Producto de funciones.": "Product of functions.",

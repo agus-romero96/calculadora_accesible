@@ -47,7 +47,10 @@ class ContinuidadComposicion(Estrategia):
             pass
 
         outer, inner = self._extraer_compuesta(expr)
-        return outer is not None and inner is not None and self._es_funcion_externa_conocida(outer)
+        if outer is None or inner is None:
+            return False
+        # Las raíces llegan como potencia ("pow", 1/2): sqrt(u) se parsea como u**(1/2)
+        return self._es_potencia(outer) or self._es_funcion_externa_conocida(outer)
 
     def resolver(self, expr, var, punto, **kwargs) -> ResultadoEstrategia:
         dir_ = kwargs.get("dir", None)
@@ -243,12 +246,16 @@ class ContinuidadComposicion(Estrategia):
         if isinstance(expr, sympy.Pow):
             base, exp = expr.args
             if self._es_constante(exp):
-                return ("pow", exp), base
+                # El parser puede dejar el exponente sin evaluar (1/3 como Mul(1, 3**-1))
+                return ("pow", exp.doit()), base
 
         return None, None
 
+    def _es_potencia(self, outer: Any) -> bool:
+        return isinstance(outer, tuple) and bool(outer) and outer[0] == "pow"
+
     def _repr_outer(self, outer: Any) -> str:
-        if isinstance(outer, tuple) and outer and outer[0] == "pow":
+        if self._es_potencia(outer):
             return f"(·)**({outer[1]})"
         try:
             return outer.__name__
@@ -287,8 +294,12 @@ class ContinuidadComposicion(Estrategia):
         Retorna (ok, mensaje). Conservador.
         """
         # 1) Potencias
-        if isinstance(outer, tuple) and outer and outer[0] == "pow":
+        if self._es_potencia(outer):
             c = outer[1]
+
+            # u**(-n) = 1/u**n no es continua en 0 (p. ej. 1/x cuando x->0)
+            if c.is_negative is not False and L == 0:
+                return False, tr("Potencia con exponente {c}: no está definida en L=0 (división entre cero).", c=c)
 
             if c.is_integer is True:
                 return True, tr("Potencia con exponente entero ({c}): continua para todo L real.", c=c)

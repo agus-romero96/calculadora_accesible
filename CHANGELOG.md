@@ -23,6 +23,12 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 - `exportar.py` separa cada formato en el bloque de una operación y el documento que lo envuelve, para exportar un resultado o todo el historial con el mismo código. La exportación de un solo resultado no cambia; solo se añade al HTML un estilo que separa las secciones.
 
+### Corregido
+
+- **Continuidad con raíces y potencias**: `sqrt(x^2+9)` cuando x→4 se resuelve ahora por *Continuidad por composición* (resultado 5) en vez de caer en el modo general. La estrategia ya sabía evaluar `u**c`, pero `puede_resolver()` solo aceptaba funciones como `sin` o `exp`, y `sqrt(u)` se representa como la potencia `u**(1/2)`. También se normaliza el exponente, porque el parser deja `1/3` sin evaluar y `(x^2+1)^(1/3)` no se reconocía como raíz cúbica.
+  - Para no atribuir a la continuidad límites que no lo son, una potencia con exponente negativo se rechaza si el límite interno es 0 (por ejemplo `1/(x-1)^2` cuando x→1 sigue en el modo general).
+  - `tests/test_limites.py`: 4 pruebas nuevas; la auditoría `tests_limites.py` sigue en 65/65.
+
 ## [1.2.0] - 2026-10-05
 
 Versión bilingüe: la calculadora completa en español e inglés, y los resultados se pueden copiar y exportar a HTML con fórmulas MathML accesibles, LaTeX, Markdown, JSON o texto plano.
@@ -162,7 +168,6 @@ Primera versión publicada con instalador para Windows: evaluación, simplificac
 ## Pendiente (problemas conocidos)
 
 - **Explicaciones de la estrategia trigonométrica**: puede atribuir un límite a un núcleo que no aparece como factor en la expresión. Por ejemplo, `cos(1/x)` cuando x→∞ se explica con `(1−cos u)/u²`, y `exp(sin(x)/x)` cuando x→0 con `sin(u)/u` sobre un resto que contiene `exp`. Los valores son correctos, pero la explicación no corresponde al método que usaría un estudiante.
-- **Continuidad con raíces**: `sqrt(x^2+9)` cuando x→4 no se resuelve por continuidad (`sqrt` se representa como potencia `1/2`) y cae en el modo general.
 - **Variables como reales**: es la convención adecuada para un curso de cálculo, pero los resultados con números complejos (por ejemplo, raíces de números negativos dentro de expresiones con variables) pueden diferir de los que daría SymPy por defecto.
 - **Cancelar un cálculo** no lo detiene: el hilo sigue usando el procesador hasta terminar, porque Python no permite detener un hilo. Para detenerlo de verdad habría que ejecutar los cálculos en un proceso aparte.
 - **Historial solo de la sesión**: se pierde al cerrar la calculadora (se puede exportar antes). Guardarlo entre sesiones requeriría reconstruir los objetos SymPy al abrir.
