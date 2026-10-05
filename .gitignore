@@ -1,3 +1,17 @@
+# Entornos y dependencias locales
 Paquetes/
-.vscode/
+.venv/
+venv/
+
+# Python
 __pycache__/
+*.py[cod]
+
+# Editor
+.vscode/
+
+# Artefactos de compilación / distribución
+build/
+dist/
+Output/
+*.zip

@@ -1,0 +1,83 @@
+Guía de Publicación para la Calculadora Accesible (Versión Sencilla)
+
+Este documento describe los pasos para preparar el código fuente y compilarlo en una carpeta ejecutable usando cx_Freeze.
+
+---
+Fase 1: Preparar el Código Fuente
+---
+
+1. Crear Archivo de Versión (`_version.py`):
+   - En la carpeta raíz del proyecto, crea un archivo llamado `_version.py`.
+   - Añade el siguiente contenido. Aquí es donde cambiarás el número de versión en el futuro.
+     __version__ = "1.0.0"
+
+2. Integrar la Versión en `main.py`:
+   - Modifica `main.py` para que lea la versión y la muestre en el título.
+   - Reemplaza el inicio de la clase `CalculadoraAccesible` con esto:
+     ```python
+     import wx
+     import wx.lib.dialogs
+     from puente import CoreMatematico
+     from _version import __version__
+
+     class CalculadoraAccesible(wx.Frame):
+         def __init__(self):
+             super().__init__(parent=None, title=f"Jansen Calculator v{__version__}", size=(800, 750))
+     ```
+
+3. Crear Archivo de Dependencias (`requirements.txt`):
+   - En la carpeta raíz, crea un archivo `requirements.txt`.
+   - Añade las librerías que tu proyecto necesita:
+     ```
+     wxPython
+     sympy
+     ```
+
+---
+Fase 2: Crear la Aplicación Ejecutable con cx_Freeze
+---
+
+1. Instalar cx_Freeze:
+   - Abre una terminal y ejecuta:
+     pip install cx_freeze
+
+2. Crear el Script de Compilación (`setup.py`):
+   - En la carpeta raíz, crea un archivo `setup.py` con el siguiente contenido:
+     ```python
+     import sys
+     from cx_Freeze import setup, Executable
+     from _version import __version__
+
+     base = None
+     if sys.platform == "win32":
+         base = "Win32GUI"
+
+     include_files = [
+         'aritmetica.py', 'parser.py', 'puente.py',
+         'algebra/', 'calculo/', '_version.py',
+         'LICENSE', 'README.md'
+     ]
+
+     build_exe_options = {
+         "packages": ["wx", "sympy"],
+         "include_files": include_files,
+         "excludes": ["tkinter", "unittest"],
+         "zip_include_packages": ["*"],
+         "zip_exclude_packages": [],
+     }
+
+     setup(
+         name="Calculadora Accesible",
+         version=__version__,
+         description="Una calculadora científica y accesible con capacidades simbólicas.",
+         options={"build_exe": build_exe_options},
+         executables=[Executable("main.py", base=base, target_name="CalculadoraAccesible.exe")]
+     )
+     ```
+
+3. Compilar la Aplicación:
+   - En una terminal, navega a la carpeta de tu proyecto y ejecuta:
+     python setup.py build
+
+   - Al finalizar, encontrarás una carpeta llamada `build\exe.win-amd64-3.12` (o similar).
+   - Dentro de esa carpeta está `CalculadoraAccesible.exe` y todas sus dependencias. Puedes comprimir esta carpeta en un .zip para distribuirla.
