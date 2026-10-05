@@ -214,14 +214,6 @@ class RacionalizacionRaices(Estrategia):
         conj = a - b
         return block, conj
 
-    def _limite_seguro(self, expr, var, punto, dir_):
-        try:
-            if dir_ in ("+", "-"):
-                return sympy.limit(expr, var, punto, dir=dir_)
-            return sympy.limit(expr, var, punto)
-        except Exception:
-            return None
-
     def _es_resuelto(self, val: Any, var: sympy.Symbol) -> bool:
         """
         ✅ FIX: consideramos 'resuelto' si:

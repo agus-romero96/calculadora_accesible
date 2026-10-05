@@ -113,7 +113,9 @@ class Aritmetica:
         - Luego simplify como verdad final.
         """
         try:
-            expr = self.parser.parsear(expresion)
+            # El parser no evalúa (evaluate=False): doit() lleva la expresión a su forma
+            # normal para que las comparaciones (¿cambió algo?) sean fiables.
+            expr = self.parser.parsear(expresion).doit()
             pasos: List[str] = []
             estrategia = "Simplificación general"
             justificacion = "Aplicación de transformaciones equivalentes para reducir complejidad."
@@ -163,7 +165,9 @@ class Aritmetica:
         - Clasifica SOLO si el patrón se verifica.
         """
         try:
-            expr = self.parser.parsear(expresion)
+            # El parser no evalúa (evaluate=False): doit() lleva la expresión a su forma
+            # normal para que las comparaciones (¿cambió algo?) sean fiables.
+            expr = self.parser.parsear(expresion).doit()
             pasos: List[str] = []
             advertencias: List[str] = []
 
@@ -212,7 +216,9 @@ class Aritmetica:
                 )
 
             # 3) Inferencia desde la estructura del resultado, pero sobre el núcleo (sin el factor común)
-            caso, explicacion = self._inferir_caso(nucleo, resultado)
+            # (se compara contra factor(núcleo): con el factor común incluido, 2*(x-3)*(x+3)
+            #  tiene 3 factores y ningún patrón de 2 factores se reconocería)
+            caso, explicacion = self._inferir_caso(nucleo, sympy.factor(nucleo))
 
             estrategia = caso or ("Factor común" if comun != expr else "Factorización general")
             justificacion = explicacion if caso else "Factorización algebraica estándar (sin patrón escolar único verificable)."
@@ -285,10 +291,9 @@ class Aritmetica:
             f1e = sympy.expand(f1)
             f2e = sympy.expand(f2)
 
-            if f1e.is_Add and f2e.is_Add:
-                a1, b1 = sympy.Add.make_args(f1e)
-                a2, b2 = sympy.Add.make_args(f2e)
-
+            # Ambos factores deben ser binomios (en a^3-b^3 el segundo es trinomio y no aplica)
+            if (f1e.is_Add and f2e.is_Add
+                    and len(sympy.Add.make_args(f1e)) == 2 and len(sympy.Add.make_args(f2e)) == 2):
                 # Construimos "A" y "B" a partir de (f1+f2)/2 y (f1-f2)/2
                 A = sympy.simplify((f1e + f2e) / 2)
                 B = sympy.simplify((f1e - f2e) / 2)

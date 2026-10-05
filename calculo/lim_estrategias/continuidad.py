@@ -294,7 +294,7 @@ class ContinuidadComposicion(Estrategia):
 
     def _u_tiende_a_0_local(self, u: Any, var: sympy.Symbol, punto: Any, dir_: Optional[str]) -> bool:
         lu = self._limite_seguro(u, var, punto, dir_)
-        if isinstance(lu, sympy.Limit):
+        if not self._es_limite_evaluable(lu):
             return False
         try:
             return sympy.simplify(lu) == 0
@@ -486,24 +486,3 @@ class ContinuidadComposicion(Estrategia):
             c = outer[1]
             return sympy.simplify(L ** c)
         return sympy.simplify(outer(L))
-
-    # --------------------------
-    # Límite seguro + evaluable
-    # --------------------------
-
-    def _limite_seguro(self, expr: Any, var: sympy.Symbol, punto: Any, dir_: Optional[str]) -> Any:
-        try:
-            if dir_ in ("+", "-"):
-                return sympy.limit(expr, var, punto, dir=dir_)
-            return sympy.limit(expr, var, punto)
-        except Exception:
-            return sympy.Limit(expr, var, punto, dir=dir_) if dir_ in ("+", "-") else sympy.Limit(expr, var, punto)
-
-    def _es_limite_evaluable(self, val: Any) -> bool:
-        if val is None:
-            return False
-        if val is sympy.nan or val is sympy.zoo:
-            return False
-        if isinstance(val, sympy.Limit):
-            return False
-        return True

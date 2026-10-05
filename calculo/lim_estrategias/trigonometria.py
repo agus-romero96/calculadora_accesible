@@ -127,28 +127,9 @@ class LimitesTrigNotables(Estrategia):
         except Exception:
             return expr
 
-    def _limite_seguro(self, expr: Any, var: sympy.Symbol, punto: Any, dir_: Optional[str]) -> Any:
-        try:
-            if dir_ in ("+", "-"):
-                return sympy.limit(expr, var, punto, dir=dir_)
-            return sympy.limit(expr, var, punto)
-        except Exception:
-            # si no lo puede evaluar, consideramos "no concluyente"
-            return sympy.Limit(expr, var, punto, dir=dir_) if dir_ in ("+", "-") else sympy.Limit(expr, var, punto)
-
-    def _es_limite_evaluable(self, val: Any) -> bool:
-        if val is None:
-            return False
-        if val is sympy.nan or val is sympy.zoo:
-            return False
-        # Si quedó como Limit(...), no está evaluado
-        if isinstance(val, sympy.Limit):
-            return False
-        return True
-
     def _u_tiende_a_0(self, u: Any, var: sympy.Symbol, punto: Any, dir_: Optional[str]) -> bool:
         lu = self._limite_seguro(u, var, punto, dir_)
-        if isinstance(lu, sympy.Limit):
+        if not self._es_limite_evaluable(lu):
             return False
         try:
             return sympy.simplify(lu) == 0

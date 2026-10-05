@@ -8,8 +8,22 @@ from .lim_estrategias.racionalizacion import RacionalizacionRaices
 from .lim_estrategias.infinito import LimiteRacionalInfinito
 from .lim_estrategias.continuidad import ContinuidadComposicion
 from .lim_estrategias.simplificacion import SimplificacionCancelacion
-from .lim_estrategias._base import ESTADO_NO_CONCLUYENTE
+from .lim_estrategias._base import ESTADO_NO_CONCLUYENTE, limite_seguro
 
+
+def humanizar_limite(val: Any) -> str:
+    """Traduce el valor de limite_seguro() a texto claro para lector de pantalla."""
+    if val is None:
+        return "No concluyente"
+    if val == S.Infinity:
+        return "+Infinito"
+    if val == S.NegativeInfinity:
+        return "-Infinito"
+    if val is sp.zoo:
+        return "No existe (diverge a infinitos de distinto signo)"
+    if val is sp.nan:
+        return "No existe (los límites laterales no coinciden)"
+    return str(val)
 
 
 class RouterMatematico:
@@ -17,12 +31,15 @@ class RouterMatematico:
         self.parser = parser_compartido
         self.motor_limites = motor_limites_viejo
 
+        # Orden: de la estrategia más específica a la más general.
+        # La primera que llega a una conclusión gana, así que las técnicas didácticas
+        # concretas (trig, racionalización, grados) van antes que la cancelación genérica.
         self.estrategias = [
-            SimplificacionCancelacion(),
             LimitesTrigNotables(),
             RacionalizacionRaices(),
-            ContinuidadComposicion(),
             LimiteRacionalInfinito(),
+            ContinuidadComposicion(),
+            SimplificacionCancelacion(),
         ]
 
     def CalcularLimite(self, expresion: str, variable: Optional[str] = None, tendencia: str = "0") -> str:
@@ -59,53 +76,35 @@ class RouterMatematico:
 
         # 1) Si es lateral explícito, intentamos SymPy directo (es lo más fiel al dir)
         if dir_ in {"+", "-"}:
-            try:
-                val = sp.limit(expr_parsed, var_sym, punto, dir=dir_)
+            val = limite_seguro(expr_parsed, var_sym, punto, dir_)
+            if val is not None:
                 return "\n".join([
-                    f"RESULTADO: {val}",
+                    f"RESULTADO: {humanizar_limite(val)}",
                     "=" * 30,
-                    f"MÉTODO: Límite lateral directo (SymPy, dir='{dir_}')",
+                    f"MÉTODO: Modo General (límite lateral calculado con SymPy, dir='{dir_}')",
                     f"Límite de {expr_str} cuando {var_sym} -> {punto}{dir_}",
                 ])
-            except Exception as e:
-                # Si falla, igual devolvemos RESULTADO parseable
-                base = self._motor_viejo(expr_str, var_str, tend_str)
-                return "\n".join([
-                    "RESULTADO: No concluyente",
-                    "=" * 30,
-                    f"MÉTODO: Modo General (Motor Viejo) + Error en lateral directo",
-                    f"Error (lateral dir='{dir_}'): {e}",
-                    "",
-                    base,
-                ])
-
-        # 2) Bilateral / infinito: intentamos SymPy primero para sacar RESULTADO parseable
-        sympy_val_ok = False
-        sympy_val = None
-        try:
-            sympy_val = sp.limit(expr_parsed, var_sym, punto)
-            sympy_val_ok = True
-        except Exception:
-            sympy_val_ok = False
-
-        # 3) Ejecutamos motor viejo para explicación/pasos (aunque SymPy haya funcionado)
-        base = self._motor_viejo(expr_str, var_str, tend_str)
-
-        if sympy_val_ok:
+            # Si falla, igual devolvemos RESULTADO parseable
             return "\n".join([
-                f"RESULTADO: {sympy_val}",
+                "RESULTADO: No concluyente",
                 "=" * 30,
-                "MÉTODO: Modo General (Motor Viejo) + Verificación SymPy",
-                f"Límite de {expr_str} cuando {var_sym} -> {punto}",
+                "MÉTODO: Modo General (Motor Viejo) + Error en lateral directo",
                 "",
-                base,
+                self._motor_viejo(expr_str, var_str, tend_str),
             ])
 
-        # 4) Si SymPy no pudo, igual devolvemos un RESULTADO parseable
+        # 2) Bilateral / infinito: SymPy da el RESULTADO; el motor viejo, la explicación
+        sympy_val = limite_seguro(expr_parsed, var_sym, punto)
+        base = self._motor_viejo(expr_str, var_str, tend_str)
+
+        metodo = "Modo General (Motor Viejo)"
+        if sympy_val is not None:
+            metodo += " + Verificación SymPy"
+
         return "\n".join([
-            "RESULTADO: No concluyente",
+            f"RESULTADO: {humanizar_limite(sympy_val)}",
             "=" * 30,
-            "MÉTODO: Modo General (Motor Viejo)",
+            f"MÉTODO: {metodo}",
             f"Límite de {expr_str} cuando {var_sym} -> {punto}",
             "",
             base,
@@ -153,7 +152,7 @@ class RouterMatematico:
 
     def _render_estrategia(self, expr_in, var, punto, dir_, res):
         s = dir_ if dir_ else ""
-        txt = [f"RESULTADO: {res.resultado}", "=" * 30]
+        txt = [f"RESULTADO: {humanizar_limite(res.resultado)}", "=" * 30]
         txt.append(f"Límite de {expr_in} cuando {var} -> {punto}{s}")
         txt.append(f"\nMÉTODO: {res.nombre_estrategia}")
         if res.explicacion:

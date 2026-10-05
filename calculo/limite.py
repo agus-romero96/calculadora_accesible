@@ -20,6 +20,8 @@ from typing import Any, Dict, List, Optional, Tuple
 import sympy
 from sympy import Symbol, S
 
+from calculo.lim_estrategias._base import limite_seguro
+
 
 # =============================================================
 # 1) DTO (Inmutable y Transparente)
@@ -370,17 +372,8 @@ class GestorLimites:
     # =============================================================
 
     def _limite_seguro(self, expr: Any, var: Symbol, punto: Any, dir: Optional[str]) -> Any:
-        try:
-            if dir in ("+", "-"):
-                return sympy.limit(expr, var, punto, dir=dir)
-            return sympy.limit(expr, var, punto)
-        except Exception:
-            try:
-                if dir in ("+", "-"):
-                    return sympy.Limit(expr, var, punto, dir=dir)
-                return sympy.Limit(expr, var, punto)
-            except Exception:
-                return None
+        # Bilateral real en puntos finitos (sympy.limit sin dir es solo el lateral derecho)
+        return limite_seguro(expr, var, punto, dir)
 
     # =============================================================
     # 8) Diagnóstico de comportamiento (robusto)
@@ -515,7 +508,7 @@ class GestorLimites:
         if val == S.NegativeInfinity:
             return "-Infinito"
         if val is sympy.zoo:
-            return "No existe (diverge)"
+            return "No existe (diverge a infinitos de distinto signo)"
         if val is sympy.nan:
-            return "No definido (NaN)"
+            return "No existe (los límites laterales no coinciden)"
         return str(val)
