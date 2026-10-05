@@ -6,6 +6,12 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Sin publicar]
 
+(Nada todavía.)
+
+## [1.2.0] - 2026-10-05
+
+Versión bilingüe: la calculadora completa en español e inglés, y los resultados se pueden copiar y exportar a HTML con fórmulas MathML accesibles, LaTeX, Markdown, JSON o texto plano.
+
 ### Añadido
 
 - **Interfaz y resultados en inglés.** Nuevo menú **Idioma / Language** para cambiar entre español e inglés en cualquier momento: menús, etiquetas, diálogos, explicaciones paso a paso de todos los motores, mensajes de error, ayuda (F1) y archivos exportados.
@@ -132,7 +138,8 @@ Versión de calidad: corrige resultados matemáticos incorrectos (límites bilat
 
 Primera versión publicada con instalador para Windows: evaluación, simplificación y factorización; derivadas, integrales y límites con explicación paso a paso; sistemas por Gauss-Jordan e inversa por cofactores; interfaz accesible para NVDA.
 
-[Sin publicar]: https://github.com/agus-romero96/calculadora_accesible/compare/v1.1.0...HEAD
+[Sin publicar]: https://github.com/agus-romero96/calculadora_accesible/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/agus-romero96/calculadora_accesible/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/agus-romero96/calculadora_accesible/compare/9de0952...v1.1.0
 
 ---
@@ -145,5 +152,4 @@ Primera versión publicada con instalador para Windows: evaluación, simplificac
 - **Cancelar un cálculo** no lo detiene: el hilo sigue usando el procesador hasta terminar, porque Python no permite detener un hilo. Para detenerlo de verdad habría que ejecutar los cálculos en un proceso aparte.
 - **Interfaz**: falta un historial de operaciones (copiar el resultado ya es posible).
 - **Traducción al inglés sin revisión nativa**: la escribió el desarrollador y no la ha revisado un hablante nativo de inglés ni un docente angloparlante (terminología de clase).
-- **Lectura de fórmulas exportadas**: el HTML con MathML se comprobó como XML válido, pero no se ha probado todavía su lectura con NVDA + MathCAT o JAWS.
 - **Botones de wxWidgets en otros idiomas**: solo se incluye el catálogo de wxWidgets en español (el inglés no lo necesita). Al añadir un idioma, hay que agregar su carpeta en `setup.py`.
