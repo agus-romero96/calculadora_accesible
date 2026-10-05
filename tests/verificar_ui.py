@@ -191,8 +191,65 @@ def paso9():  # cambio de idioma
         f.on_idioma("es")
         check("vuelta a español", f.GetMenuBar().FindMenu("Cálculo") != wx.NOT_FOUND
               and f.lbl_info.GetValue().startswith("Escriba"))
-        fin()
+        paso10()
     wx.CallLater(500, despues)
+
+
+def paso10():  # historial
+    import ventana_historial
+    entradas = f.historial.entradas()
+    check("historial: guarda los cálculos correctos (no los errores)",
+          len(entradas) >= 4 and not any(r.es_error for r in entradas))
+    check("historial: menú Historial", f.GetMenuBar().FindMenu("Historial") != wx.NOT_FOUND)
+
+    # El diálogo (sin mostrarlo): lista, la más reciente primero, y Suprimir
+    dlg = ventana_historial.DialogoHistorial(f, f.historial)
+    lineas = dlg.lista.GetStrings()
+    check("historial: lista con la más reciente primero",
+          len(lineas) == len(entradas) and lineas[0].startswith(f"{len(entradas)}. Derivada: x^3"))
+    check("historial: primera fila seleccionada", dlg.lista.GetSelection() == 0)
+    evento = wx.KeyEvent(wx.wxEVT_KEY_DOWN)
+    evento.SetKeyCode(wx.WXK_DELETE)
+    dlg._on_tecla(evento)
+    check("historial: Suprimir elimina", len(f.historial) == len(entradas) - 1)
+    dlg.Destroy()
+
+    # Mostrar y Usar entrada desde la ventana principal (ShowModal simulado)
+    original = ventana_historial.DialogoHistorial.ShowModal
+    gauss = next(r for r in f.historial.entradas() if r.operacion == "sistema_clasico")
+
+    def elegir(accion):
+        def mostrar_modal(self):
+            self.accion, self.elegido = accion, gauss
+            return wx.ID_OK
+        return mostrar_modal
+
+    try:
+        ventana_historial.DialogoHistorial.ShowModal = elegir(ventana_historial.MOSTRAR)
+        f.on_ver_historial(None)
+        check("historial: Mostrar vuelve a mostrar el resultado",
+              f.output_text.GetValue() == gauss.texto and f.ultimo_resultado is gauss)
+        cantidad = len(f.historial)
+        f.on_copiar_resultado(None)
+        check("historial: el resultado mostrado se puede copiar", portapapeles() == "x = 6, y = 4")
+        check("historial: Mostrar no duplica la entrada", len(f.historial) == cantidad)
+        ventana_historial.DialogoHistorial.ShowModal = elegir(ventana_historial.USAR_ENTRADA)
+        f.on_ver_historial(None)
+        check("historial: Usar entrada", f.input_text.GetValue() == "x + y = 10\nx - y = 2")
+    finally:
+        ventana_historial.DialogoHistorial.ShowModal = original
+
+    # Exportar el historial completo
+    original_dlg = wx.FileDialog
+    wx.FileDialog = DialogoGuardarFalso
+    try:
+        DialogoGuardarFalso.indice = list(main.exportar.FORMATOS).index("json")
+        f.on_exportar_historial(None)
+        datos = json.load(open(os.path.join(carpeta_tmp, "exportado.json"), encoding="utf-8"))
+        check("historial: exportar todo", len(datos["entries"]) == len(f.historial))
+    finally:
+        wx.FileDialog = original_dlg
+    fin()
 
 
 def fin():

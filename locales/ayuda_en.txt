@@ -27,6 +27,7 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
    [Ctrl + Backspace] : CLEAR the screen to start over.
    [Ctrl + Shift + C] : COPY the result.
    [Ctrl + E]         : EXPORT the result to a file.
+   [Ctrl + H]         : View the calculation HISTORY.
    [F1]               : Show this help.
    [Alt]              : Open the menu bar.
    2x2 systems by substitution, equalization or elimination:
@@ -97,3 +98,17 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
    The 'Idioma / Language' menu changes the language of the
    calculator (Spanish or English). New results are shown in
    the chosen language, and the choice is remembered on restart.
+
+9. CALCULATION HISTORY (History menu)
+   Every successful calculation is saved in the history while the
+   calculator is open.
+   [Ctrl + H]         : View the history. It is a list with the
+                        most recent calculation first.
+     - Enter          : Show that calculation in full. It becomes the
+                        current result again: you can copy or export it.
+     - Alt + U        : Use input: puts the expression back in the input
+                        box so you can edit it and calculate again.
+     - Delete         : Remove that calculation from the history.
+     - Escape         : Close the history.
+   [Ctrl + Shift + E] : Export the whole history to a file
+                        (same formats as a single result).

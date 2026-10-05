@@ -27,6 +27,7 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
    [Ctrl + Retroceso] : LIMPIAR pantalla para empezar de cero.
    [Ctrl + Mayús + C] : COPIAR el resultado.
    [Ctrl + E]         : EXPORTAR el resultado a un archivo.
+   [Ctrl + H]         : Ver el HISTORIAL de operaciones.
    [F1]               : Ver esta ayuda.
    [Alt]              : Acceder a la barra de menús.
    Sistemas 2x2 por sustitución, igualación o reducción:
@@ -97,3 +98,17 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
    El menú 'Idioma / Language' cambia el idioma de la
    calculadora (español o inglés). Los resultados nuevos se
    muestran en el idioma elegido, y se recuerda al reiniciar.
+
+9. HISTORIAL DE OPERACIONES (menú Historial)
+   Cada cálculo correcto se guarda en el historial mientras la
+   calculadora está abierta.
+   [Ctrl + H]         : Ver el historial. Es una lista con la
+                        operación más reciente primero.
+     - Enter          : Mostrar esa operación completa. Vuelve a ser
+                        el resultado actual: puede copiarlo o exportarlo.
+     - Alt + U        : Usar entrada: copia la expresión al cuadro de
+                        entrada para modificarla y calcular de nuevo.
+     - Suprimir       : Eliminar esa operación del historial.
+     - Escape         : Cerrar el historial.
+   [Ctrl + Mayús + E] : Exportar todo el historial a un archivo
+                        (mismos formatos que un resultado).

@@ -10,7 +10,9 @@ import exportar
 import i18n
 from i18n import N_, tr
 from algebra.classic_systems import MotorSistemasClasicos
+from historial import Historial
 from puente import CoreMatematico, ResultadoOperacion
+import ventana_historial
 from _version import __version__
 
 
@@ -31,6 +33,8 @@ class CalculadoraAccesible(wx.Frame):
         self.core = CoreMatematico()
         # Último resultado mostrado (ResultadoOperacion): lo que se copia y se exporta
         self.ultimo_resultado = None
+        # Operaciones de la sesión (menú Historial)
+        self.historial = Historial()
 
         # Estado del cálculo en segundo plano. _calculo_actual es un "token" único por
         # cálculo: si el usuario cancela, se pone a None y el resultado tardío se descarta.
@@ -184,6 +188,13 @@ class CalculadoraAccesible(wx.Frame):
         m_res.AppendSeparator()
         self._item(m_res, N_("Exportar a archivo..."), "Ctrl+E", self.on_exportar)
 
+        # Historial de la sesión
+        m_hist = wx.Menu()
+        self._item(m_hist, N_("Ver historial..."), "Ctrl+H", self.on_ver_historial)
+        self._item(m_hist, N_("Exportar historial..."), "Ctrl+Shift+E", self.on_exportar_historial)
+        m_hist.AppendSeparator()
+        self._item(m_hist, N_("Borrar historial"), None, self.on_borrar_historial)
+
         # Idioma (el nombre del menú está en los dos idiomas para encontrarlo siempre)
         m_idioma = wx.Menu()
         for codigo, nombre in i18n.IDIOMAS.items():
@@ -198,6 +209,7 @@ class CalculadoraAccesible(wx.Frame):
         menubar.Append(m_calc, tr("&Cálculo"))
         menubar.Append(m_alg, tr("&Álgebra"))
         menubar.Append(m_res, tr("Res&ultado"))
+        menubar.Append(m_hist, tr("&Historial"))
         menubar.Append(m_idioma, tr("&Idioma / Language"))
         menubar.Append(m_help, tr("A&yuda"))
         self.SetMenuBar(menubar)
@@ -229,6 +241,7 @@ class CalculadoraAccesible(wx.Frame):
             self.input_text.SetFocus()  # Volvemos al input para que corrija
         else:
             self.ultimo_resultado = res
+            self.historial.agregar(res)
             self._mostrar_texto(res.texto)
 
     def _mostrar_texto(self, texto):
@@ -513,13 +526,11 @@ class CalculadoraAccesible(wx.Frame):
         res = self._resultado_disponible()
         if res: self._copiar(exportar.mathml(res), tr("el resultado en MathML"))
 
-    def on_exportar(self, event):
-        res = self._resultado_disponible()
-        if not res:
-            return
+    def _exportar_con_dialogo(self, titulo, nombre_archivo, guardar):
+        """Pide archivo y formato (lista 'Tipo' del diálogo Guardar) y llama a guardar(formato, ruta)."""
         claves = list(exportar.FORMATOS)
         filtros = "|".join(f"{tr(nombre)} (*.{ext})|*.{ext}" for nombre, ext in exportar.FORMATOS.values())
-        dlg = wx.FileDialog(self, tr("Exportar resultado"), defaultFile=f"{res.operacion or 'resultado'}.html",
+        dlg = wx.FileDialog(self, titulo, defaultFile=f"{nombre_archivo}.html",
                             wildcard=filtros, style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
         try:
             if dlg.ShowModal() != wx.ID_OK:
@@ -533,12 +544,66 @@ class CalculadoraAccesible(wx.Frame):
         if not ruta.lower().endswith(extension):
             ruta = os.path.splitext(ruta)[0] + extension
         try:
-            exportar.guardar(res, formato, ruta)
+            guardar(formato, ruta)
         except Exception as e:
             wx.MessageBox(tr("No se pudo guardar el archivo:\n{error}", error=e), tr("Error"), wx.OK | wx.ICON_ERROR)
             return
-        wx.MessageBox(tr("Resultado exportado en:\n{ruta}", ruta=ruta), tr("Exportar resultado"),
-                      wx.OK | wx.ICON_INFORMATION)
+        wx.MessageBox(tr("Resultado exportado en:\n{ruta}", ruta=ruta), titulo, wx.OK | wx.ICON_INFORMATION)
+
+    def on_exportar(self, event):
+        res = self._resultado_disponible()
+        if res:
+            self._exportar_con_dialogo(tr("Exportar resultado"), res.operacion or "resultado",
+                                       lambda formato, ruta: exportar.guardar(res, formato, ruta))
+
+    # --- HISTORIAL ---
+
+    def _historial_disponible(self) -> bool:
+        if not len(self.historial):
+            wx.MessageBox(tr("El historial está vacío. Los cálculos que haga se irán guardando aquí."),
+                          tr("Historial de operaciones"), wx.OK | wx.ICON_INFORMATION)
+            return False
+        return True
+
+    def on_ver_historial(self, event):
+        if self._calculo_actual is not None:
+            self._avisar_ocupado()
+            return
+        if not self._historial_disponible():
+            return
+        dlg = ventana_historial.DialogoHistorial(self, self.historial)
+        try:
+            dlg.ShowModal()
+            accion, elegido = dlg.accion, dlg.elegido
+        finally:
+            dlg.Destroy()
+
+        if accion == ventana_historial.MOSTRAR:
+            # Vuelve a ser el resultado actual: se puede copiar y exportar
+            self.ultimo_resultado = elegido
+            self._mostrar_texto(elegido.texto)
+        elif accion == ventana_historial.USAR_ENTRADA:
+            self.input_text.SetValue(elegido.entrada)
+            self.input_text.SetInsertionPointEnd()
+            self.input_text.SetFocus()
+        else:
+            self.input_text.SetFocus()
+
+    def on_exportar_historial(self, event):
+        if not self._historial_disponible():
+            return
+        entradas = self.historial.entradas()
+        self._exportar_con_dialogo(tr("Exportar historial"), tr("historial"),
+                                   lambda formato, ruta: exportar.guardar_historial(entradas, formato, ruta))
+
+    def on_borrar_historial(self, event):
+        if not self._historial_disponible():
+            return
+        if wx.MessageBox(tr("¿Borrar todas las operaciones del historial?"), tr("Borrar historial"),
+                         wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION) == wx.YES:
+            self.historial.vaciar()
+            wx.MessageBox(tr("Historial borrado."), tr("Borrar historial"), wx.OK | wx.ICON_INFORMATION)
+        self.input_text.SetFocus()
 
     # --- AYUDA ---
 

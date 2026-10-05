@@ -4,7 +4,7 @@ Calculadora científica y simbólica de escritorio diseñada **para usarse con l
 
 Está construida con **Python + wxPython** (interfaz nativa y accesible en Windows) y **SymPy** (motor de matemática simbólica).
 
-Disponible en **español e inglés** (interfaz, explicaciones y ayuda). Los resultados se pueden **copiar** y **exportar** a HTML con fórmulas MathML accesibles, LaTeX, Markdown, JSON o texto plano.
+Disponible en **español e inglés** (interfaz, explicaciones y ayuda). Los resultados se pueden **copiar** y **exportar** a HTML con fórmulas MathML accesibles, LaTeX, Markdown, JSON o texto plano, y quedan en un **historial** de la sesión.
 
 ---
 
@@ -82,6 +82,17 @@ Formatos de exportación:
 
 Tras copiar, un diálogo confirma lo que se copió, para que el lector de pantalla lo anuncie.
 
+### Historial de operaciones (menú **Historial**)
+
+Cada cálculo correcto se guarda en el historial mientras la calculadora está abierta (hasta 200 operaciones).
+
+- **Ver historial** (`Ctrl+H`): una lista con la operación más reciente primero, por ejemplo *"3. Integral indefinida: x*exp(x) → (x - 1)*exp(x) + C"*.
+  - `Enter` (**Mostrar**): vuelve a mostrar la explicación completa, que pasa a ser el resultado actual y se puede copiar o exportar.
+  - **Usar entrada** (`Alt+U`): copia la expresión al cuadro de entrada para modificarla y calcular de nuevo.
+  - `Suprimir`: elimina esa operación. **Borrar todo** vacía el historial (pide confirmación).
+  - `Esc`: cierra la lista.
+- **Exportar historial** (`Ctrl+Shift+E`): todas las operaciones en un solo documento, en cualquiera de los formatos de exportación. En HTML, cada operación es una sección con su fórmula MathML; si se calcularon en idiomas distintos, cada sección indica su idioma para que el lector de pantalla use la voz adecuada.
+
 ### Idioma
 
 El menú **Idioma / Language** cambia toda la calculadora entre **español** e **inglés**: menús, diálogos, explicaciones paso a paso, mensajes de error, ayuda (F1) y archivos exportados. La primera vez se elige según el idioma de Windows, y la elección se recuerda (en `%APPDATA%\CalculadoraAccesible\config.json`). En inglés también se acepta `infinity` como infinito.
@@ -121,8 +132,10 @@ El menú **Idioma / Language** cambia toda la calculadora entre **español** e *
 | `Ctrl+Shift+L` | Copiar el resultado en LaTeX |
 | `Ctrl+Shift+M` | Copiar el resultado en MathML |
 | `Ctrl+E` | Exportar el resultado a un archivo |
+| `Ctrl+H` | Ver el historial de operaciones |
+| `Ctrl+Shift+E` | Exportar todo el historial |
 | `F1` | Ayuda |
-| `Alt` | Barra de menús (Operaciones, Cálculo, Álgebra, Resultado, Idioma, Ayuda) |
+| `Alt` | Barra de menús (Operaciones, Cálculo, Álgebra, Resultado, Historial, Idioma, Ayuda) |
 | `Alt+E` / `Alt+R` | Ir al cuadro de entrada / de resultados |
 
 ---
@@ -223,7 +236,10 @@ main.py                 Interfaz wxPython (ventana, menús, atajos, diálogos)
   │
 puente.py               Fachada: CoreMatematico orquesta los motores y devuelve
   │                     ResultadoOperacion (texto + valor SymPy + planteamiento)
-exportar.py             Copiar/exportar: texto, Markdown, LaTeX, HTML+MathML, JSON
+exportar.py             Copiar/exportar (un resultado o el historial): texto, Markdown,
+                        LaTeX, HTML+MathML, JSON
+historial.py            Historial de la sesión (modelo, sin interfaz)
+ventana_historial.py    Diálogo accesible del historial
 i18n.py                 Traducción: tr(), N_(), idioma guardado y detectado
 locales/                en.json (catálogo inglés) y ayuda_es.txt / ayuda_en.txt
   │
@@ -276,7 +292,7 @@ Principios de diseño:
 
 ## Pruebas
 
-El proyecto tiene una suite de **pytest** en `tests/` (más de 1600 pruebas, unos 10 segundos) que cubre el parser, todos los motores, la exportación, la traducción (cada texto del programa tiene traducción, y los resultados en inglés no dejan texto en español) y la detección de errores en la interfaz (sin abrir ventanas).
+El proyecto tiene una suite de **pytest** en `tests/` (más de 1600 pruebas, unos 15 segundos) que cubre el parser, todos los motores, la exportación, la traducción (cada texto del programa tiene traducción, y los resultados en inglés no dejan texto en español) y la detección de errores en la interfaz (sin abrir ventanas).
 
 ```bash
 pip install -r requirements-dev.txt
@@ -289,7 +305,7 @@ python -X utf8 -m pytest tests
 python -X utf8 tests_limites.py
 ```
 
-Para verificar la interfaz (abre la ventana real unos segundos y comprueba el cálculo en segundo plano, la cancelación, los menús, copiar, exportar, el cambio de idioma y la ayuda):
+Para verificar la interfaz (abre la ventana real unos segundos y comprueba el cálculo en segundo plano, la cancelación, los menús, copiar, exportar, el historial, el cambio de idioma y la ayuda):
 
 ```bash
 python -X utf8 tests/verificar_ui.py

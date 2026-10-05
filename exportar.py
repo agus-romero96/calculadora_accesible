@@ -14,13 +14,14 @@ leer y explorar las fórmulas, y cualquier navegador lo abre.
 import html
 import json
 import re
+from datetime import datetime
 from typing import Any, List, Optional
 
 import sympy
 
 from _version import __version__
 from calculo.router import humanizar_limite
-from i18n import N_, tr
+from i18n import N_, idioma_actual, tr
 from puente import OPERACIONES, ResultadoOperacion
 
 # clave -> (nombre visible, extensión)
@@ -178,90 +179,176 @@ def _parametros_legibles(res: ResultadoOperacion) -> List[str]:
 # Formatos de archivo
 # ---------------------------------------------------------
 
+def _titulo(res: ResultadoOperacion, numero: Optional[int]) -> str:
+    """Título de una operación: su nombre, numerado si forma parte del historial."""
+    nombre = nombre_operacion(res)
+    return f"{numero}. {nombre}" if numero is not None else nombre
+
+
+def _pie(fecha: str) -> str:
+    return f"{tr('Generado por Calculadora Accesible {version}', version=__version__)} — {fecha}"
+
+
+def _ahora() -> str:
+    return datetime.now().isoformat(timespec="seconds")
+
+
+def _titulo_historial() -> str:
+    return tr("Historial de operaciones")
+
+
+# --- Texto plano ---
+
+def _texto_bloque(res: ResultadoOperacion, numero: Optional[int] = None) -> str:
+    if numero is None:
+        return res.texto.rstrip()
+    titulo = _titulo(res, numero)
+    entrada = res.entrada.replace("\n", "; ")
+    return "\n".join([titulo, "-" * len(titulo), f"{tr('Entrada')}: {entrada}", "", res.texto.rstrip()])
+
+
 def a_texto(res: ResultadoOperacion) -> str:
-    return res.texto.rstrip() + "\n"
+    return _texto_bloque(res) + "\n"
 
 
-def a_markdown(res: ResultadoOperacion) -> str:
-    lineas = [f"# {nombre_operacion(res)}", "",
-              f"**{tr('Entrada')}:**", "", "```text", res.entrada, "```", ""]
+def historial_a_texto(lista: List[ResultadoOperacion]) -> str:
+    titulo = _titulo_historial().upper()
+    bloques = [_texto_bloque(r, i) for i, r in enumerate(lista, 1)]
+    separador = "\n\n" + "=" * 40 + "\n\n"
+    return "\n".join([titulo, "=" * len(titulo), ""]) + separador.join(bloques) + "\n\n" + _pie(_ahora()) + "\n"
+
+
+# --- Markdown ---
+
+def _markdown_bloque(res: ResultadoOperacion, titulo: str, nivel: int) -> List[str]:
+    h, h2 = "#" * nivel, "#" * (nivel + 1)
+    lineas = [f"{h} {titulo}", "", f"**{tr('Entrada')}:**", "", "```text", res.entrada, "```", ""]
     for p in _parametros_legibles(res):
         lineas.append(f"- {p}")
     if res.parametros:
         lineas.append("")
     if not res.es_error:
         lineas += [f"**{tr('Resultado')}:** `{resultado_corto(res)}`", "", "$$", latex(res), "$$", ""]
-    lineas += [f"## {tr('Explicación paso a paso')}", "", "```text", res.texto.rstrip(), "```", "",
-               f"_{tr('Generado por Calculadora Accesible {version}', version=__version__)} — {res.fecha}_", ""]
-    return "\n".join(lineas)
+    lineas += [f"{h2} {tr('Explicación paso a paso')}", "", "```text", res.texto.rstrip(), "```", ""]
+    return lineas
 
 
-def a_latex(res: ResultadoOperacion) -> str:
+def a_markdown(res: ResultadoOperacion) -> str:
+    return "\n".join(_markdown_bloque(res, _titulo(res, None), 1) + [f"_{_pie(res.fecha)}_", ""])
+
+
+def historial_a_markdown(lista: List[ResultadoOperacion]) -> str:
+    lineas = [f"# {_titulo_historial()}", ""]
+    for i, r in enumerate(lista, 1):
+        lineas += _markdown_bloque(r, _titulo(r, i), 2)
+    return "\n".join(lineas + [f"_{_pie(_ahora())}_", ""])
+
+
+# --- LaTeX ---
+
+def _latex_bloque(res: ResultadoOperacion, titulo: str, seccion: str, subseccion: str) -> List[str]:
     lineas = [
-        "% " + tr("Generado por Calculadora Accesible {version}", version=__version__),
-        "% " + tr("Compile con XeLaTeX o LuaLaTeX: la explicación contiene caracteres Unicode."),
-        r"\documentclass{article}",
-        r"\usepackage{amsmath}",
-        r"\usepackage{fontspec}",
-        r"\begin{document}",
-        r"\section*{" + _escapar_latex(nombre_operacion(res)) + "}",
+        "\\" + seccion + "*{" + _escapar_latex(titulo) + "}",
         r"\textbf{" + _escapar_latex(tr("Entrada")) + r":} \verb|" + res.entrada.replace("|", "/").replace("\n", "; ") + "|",
         "",
     ]
     for p in _parametros_legibles(res):
         lineas.append(_escapar_latex(p) + r"\\")
     if not res.es_error:
-        lineas += [r"\subsection*{" + _escapar_latex(tr("Resultado")) + "}",
+        lineas += ["\\" + subseccion + "*{" + _escapar_latex(tr("Resultado")) + "}",
                    r"\begin{equation*}", latex(res), r"\end{equation*}"]
-    lineas += [r"\subsection*{" + _escapar_latex(tr("Explicación paso a paso")) + "}",
-               r"\begin{verbatim}", res.texto.rstrip(), r"\end{verbatim}", r"\end{document}", ""]
-    return "\n".join(lineas)
+    lineas += ["\\" + subseccion + "*{" + _escapar_latex(tr("Explicación paso a paso")) + "}",
+               r"\begin{verbatim}", res.texto.rstrip(), r"\end{verbatim}"]
+    return lineas
 
 
-def a_html(res: ResultadoOperacion) -> str:
+def _latex_documento(cuerpo: List[str]) -> str:
+    return "\n".join([
+        "% " + tr("Generado por Calculadora Accesible {version}", version=__version__),
+        "% " + tr("Compile con XeLaTeX o LuaLaTeX: la explicación contiene caracteres Unicode."),
+        r"\documentclass{article}",
+        r"\usepackage{amsmath}",
+        r"\usepackage{fontspec}",
+        r"\begin{document}",
+    ] + cuerpo + [r"\end{document}", ""])
+
+
+def a_latex(res: ResultadoOperacion) -> str:
+    return _latex_documento(_latex_bloque(res, _titulo(res, None), "section", "subsection"))
+
+
+def historial_a_latex(lista: List[ResultadoOperacion]) -> str:
+    cuerpo = [r"\section*{" + _escapar_latex(_titulo_historial()) + "}"]
+    for i, r in enumerate(lista, 1):
+        cuerpo += _latex_bloque(r, _titulo(r, i), "subsection", "subsubsection") + [""]
+    return _latex_documento(cuerpo)
+
+
+# --- HTML con MathML ---
+
+def _html_bloque(res: ResultadoOperacion, titulo: str, nivel: int) -> List[str]:
     e = html.escape
-    titulo = nombre_operacion(res)
-    partes = [
+    h, h2 = f"h{nivel}", f"h{nivel + 1}"
+    partes = [f"<{h}>{e(titulo)}</{h}>",
+              f"<{h2}>{e(tr('Entrada'))}</{h2}>",
+              f"<pre>{e(res.entrada)}</pre>"]
+    params = _parametros_legibles(res)
+    if params:
+        partes.append("<ul>" + "".join(f"<li>{e(p)}</li>" for p in params) + "</ul>")
+    if not res.es_error:
+        partes += [f"<{h2}>{e(tr('Resultado'))}</{h2}>",
+                   f"<p>{e(resultado_corto(res))}</p>",
+                   mathml(res)]
+    partes += [f"<{h2}>{e(tr('Explicación paso a paso'))}</{h2}>",
+               f"<pre>{e(res.texto.rstrip())}</pre>"]
+    return partes
+
+
+def _html_documento(titulo: str, idioma: str, cuerpo: List[str], fecha: str) -> str:
+    e = html.escape
+    return "\n".join([
         "<!DOCTYPE html>",
-        f'<html lang="{e(res.idioma)}">',
+        f'<html lang="{e(idioma)}">',
         "<head>",
         '<meta charset="utf-8">',
         '<meta name="viewport" content="width=device-width, initial-scale=1">',
         f"<title>{e(titulo)}</title>",
         "<style>body{font-family:sans-serif;max-width:50rem;margin:1rem auto;padding:0 1rem;line-height:1.5}"
-        "pre{white-space:pre-wrap;background:#f4f4f4;padding:1rem}math{font-size:1.3em}</style>",
+        "pre{white-space:pre-wrap;background:#f4f4f4;padding:1rem}math{font-size:1.3em}"
+        "section{border-top:1px solid #ccc;margin-top:2rem}</style>",
         "</head>",
         "<body>",
         "<main>",
-        f"<h1>{e(titulo)}</h1>",
-        f"<h2>{e(tr('Entrada'))}</h2>",
-        f"<pre>{e(res.entrada)}</pre>",
-    ]
-    params = _parametros_legibles(res)
-    if params:
-        partes.append("<ul>" + "".join(f"<li>{e(p)}</li>" for p in params) + "</ul>")
-    if not res.es_error:
-        partes += [f"<h2>{e(tr('Resultado'))}</h2>",
-                   f"<p>{e(resultado_corto(res))}</p>",
-                   mathml(res)]
-    partes += [
-        f"<h2>{e(tr('Explicación paso a paso'))}</h2>",
-        f"<pre>{e(res.texto.rstrip())}</pre>",
+    ] + cuerpo + [
         "</main>",
-        f"<footer><p>{e(tr('Generado por Calculadora Accesible {version}', version=__version__))} — {e(res.fecha)}</p></footer>",
+        f"<footer><p>{e(_pie(fecha))}</p></footer>",
         "</body>",
         "</html>",
         "",
-    ]
-    return "\n".join(partes)
+    ])
 
 
-def a_json(res: ResultadoOperacion) -> str:
+def a_html(res: ResultadoOperacion) -> str:
+    titulo = _titulo(res, None)
+    return _html_documento(titulo, res.idioma, _html_bloque(res, titulo, 1), res.fecha)
+
+
+def historial_a_html(lista: List[ResultadoOperacion]) -> str:
+    idioma = idioma_actual()
+    cuerpo = [f"<h1>{html.escape(_titulo_historial())}</h1>"]
+    for i, r in enumerate(lista, 1):
+        # Cada operación conserva el idioma en que se calculó (el lector de pantalla cambia de voz)
+        lang = f' lang="{html.escape(r.idioma)}"' if r.idioma != idioma else ""
+        cuerpo += [f"<section{lang}>"] + _html_bloque(r, _titulo(r, i), 2) + ["</section>"]
+    return _html_documento(_titulo_historial(), idioma, cuerpo, _ahora())
+
+
+# --- JSON ---
+
+def _json_datos(res: ResultadoOperacion) -> dict:
     """Claves en inglés: es un formato de intercambio, igual en todos los idiomas."""
     valor = _valor_simbolico(res)
-    datos = {
-        "application": "Calculadora Accesible",
-        "version": __version__,
+    return {
         "date": res.fecha,
         "language": res.idioma,
         "operation": res.operacion,
@@ -277,16 +364,48 @@ def a_json(res: ResultadoOperacion) -> str:
         },
         "explanation": res.texto.rstrip().splitlines(),
     }
+
+
+def _json_cabecera() -> dict:
+    return {"application": "Calculadora Accesible", "version": __version__}
+
+
+def a_json(res: ResultadoOperacion) -> str:
+    return json.dumps({**_json_cabecera(), **_json_datos(res)}, ensure_ascii=False, indent=2) + "\n"
+
+
+def historial_a_json(lista: List[ResultadoOperacion]) -> str:
+    datos = {**_json_cabecera(), "date": _ahora(), "language": idioma_actual(),
+             "entries": [_json_datos(r) for r in lista]}
     return json.dumps(datos, ensure_ascii=False, indent=2) + "\n"
 
 
+# ---------------------------------------------------------
+# Puntos de entrada
+# ---------------------------------------------------------
+
 CONVERSORES = {"txt": a_texto, "md": a_markdown, "tex": a_latex, "html": a_html, "json": a_json}
+CONVERSORES_HISTORIAL = {"txt": historial_a_texto, "md": historial_a_markdown, "tex": historial_a_latex,
+                         "html": historial_a_html, "json": historial_a_json}
 
 
 def exportar(res: ResultadoOperacion, formato: str) -> str:
     return CONVERSORES[formato](res)
 
 
-def guardar(res: ResultadoOperacion, formato: str, ruta: str) -> None:
+def exportar_historial(lista: List[ResultadoOperacion], formato: str) -> str:
+    """Todas las operaciones del historial en un solo documento (de la más antigua a la más reciente)."""
+    return CONVERSORES_HISTORIAL[formato](lista)
+
+
+def _escribir(ruta: str, contenido: str) -> None:
     with open(ruta, "w", encoding="utf-8", newline="\n") as f:
-        f.write(exportar(res, formato))
+        f.write(contenido)
+
+
+def guardar(res: ResultadoOperacion, formato: str, ruta: str) -> None:
+    _escribir(ruta, exportar(res, formato))
+
+
+def guardar_historial(lista: List[ResultadoOperacion], formato: str, ruta: str) -> None:
+    _escribir(ruta, exportar_historial(lista, formato))

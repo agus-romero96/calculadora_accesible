@@ -6,7 +6,22 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Sin publicar]
 
-(Nada todavía.)
+### Añadido
+
+- **Historial de operaciones** (menú **Historial**). Cada cálculo correcto se guarda mientras la calculadora está abierta (máximo 200; los errores no se guardan).
+  - **Ver historial** (`Ctrl+H`): diálogo con una lista, la operación más reciente primero, con número, operación, entrada y resultado. Enter muestra la operación completa, que vuelve a ser el resultado actual (se puede copiar o exportar); **Usar entrada** la copia al cuadro de entrada para editarla; `Supr` la elimina; **Borrar todo** vacía el historial con confirmación.
+  - **Exportar historial** (`Ctrl+Shift+E`): todas las operaciones en un solo documento, en los mismos 5 formatos. En HTML, cada operación es una `<section>` con su MathML y, si se calculó en otro idioma, su atributo `lang`, para que el lector de pantalla cambie de voz. En JSON, una lista `entries`.
+  - **Borrar historial**, también desde el menú.
+- `historial.py` (modelo sin interfaz, probado con pytest) y `ventana_historial.py` (diálogo).
+- Pruebas:
+  - `tests/test_historial.py`: modelo, numeración, límite de tamaño y exportación del historial en cada formato.
+  - `tests/verificar_ui.py`: diálogo, Suprimir, Mostrar, Usar entrada y exportar todo en la ventana real; pasa de 35 a 45 comprobaciones.
+  - La suite tiene 1675 pruebas.
+- La ayuda (F1) tiene una sección 9 sobre el historial, en los dos idiomas.
+
+### Cambiado
+
+- `exportar.py` separa cada formato en el bloque de una operación y el documento que lo envuelve, para exportar un resultado o todo el historial con el mismo código. La exportación de un solo resultado no cambia; solo se añade al HTML un estilo que separa las secciones.
 
 ## [1.2.0] - 2026-10-05
 
@@ -150,6 +165,6 @@ Primera versión publicada con instalador para Windows: evaluación, simplificac
 - **Continuidad con raíces**: `sqrt(x^2+9)` cuando x→4 no se resuelve por continuidad (`sqrt` se representa como potencia `1/2`) y cae en el modo general.
 - **Variables como reales**: es la convención adecuada para un curso de cálculo, pero los resultados con números complejos (por ejemplo, raíces de números negativos dentro de expresiones con variables) pueden diferir de los que daría SymPy por defecto.
 - **Cancelar un cálculo** no lo detiene: el hilo sigue usando el procesador hasta terminar, porque Python no permite detener un hilo. Para detenerlo de verdad habría que ejecutar los cálculos en un proceso aparte.
-- **Interfaz**: falta un historial de operaciones (copiar el resultado ya es posible).
+- **Historial solo de la sesión**: se pierde al cerrar la calculadora (se puede exportar antes). Guardarlo entre sesiones requeriría reconstruir los objetos SymPy al abrir.
 - **Traducción al inglés sin revisión nativa**: la escribió el desarrollador y no la ha revisado un hablante nativo de inglés ni un docente angloparlante (terminología de clase).
 - **Botones de wxWidgets en otros idiomas**: solo se incluye el catálogo de wxWidgets en español (el inglés no lo necesita). Al añadir un idioma, hay que agregar su carpeta en `setup.py`.
