@@ -68,6 +68,32 @@ def test_continuidad_no_se_atribuye_division_entre_cero(core):
     assert "Continuidad" not in extraer_metodo(salida)
 
 
+# ---------------- Núcleos trigonométricos (regresión) ----------------
+# Antes bastaba con que sin(u) o cos(u) apareciera en cualquier parte de la expresión:
+# cos(1/x) se explicaba con (1-cos u)/u^2 y exp(sin(x)/x) con sin(u)/u.
+
+@pytest.mark.parametrize("expr, tend, esperado", [
+    ("cos(1/x)", "oo", "RESULTADO: 1"),
+    ("exp(sin(x)/x)", "0", "RESULTADO: E"),
+    ("(sin(x)-x)/x^3", "0", "RESULTADO: -1/6"),
+])
+def test_trig_no_se_atribuye_si_el_nucleo_no_es_factor(core, expr, tend, esperado):
+    salida = core.CalcularLimite(expr, "x", tend)
+    assert primera_linea(salida) == esperado
+    assert "trigonométricos" not in extraer_metodo(salida)
+
+
+@pytest.mark.parametrize("expr, tend, esperado", [
+    ("x*sin(1/x)", "oo", "RESULTADO: 1"),
+    ("sin(x)^2/x^2", "0", "RESULTADO: 1"),
+    ("2*(1-cos(x))/x^2", "0", "RESULTADO: 1"),
+])
+def test_trig_con_nucleo_como_factor(core, expr, tend, esperado):
+    salida = core.CalcularLimite(expr, "x", tend)
+    assert primera_linea(salida) == esperado
+    assert "Límites trigonométricos notables" in extraer_metodo(salida)
+
+
 # ---------------- Entrada de la tendencia (regresión) ----------------
 
 @pytest.mark.parametrize("tend", ["oo", "inf", "infinito", "∞", "+∞"])

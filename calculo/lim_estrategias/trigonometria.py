@@ -128,6 +128,23 @@ class LimitesTrigNotables(Estrategia):
         except Exception:
             return expr
 
+    def _factores(self, num: Any) -> List[Any]:
+        """
+        Factores multiplicativos del numerador (sin exponentes enteros positivos).
+        El núcleo solo se puede extraer si es uno de ellos: un sin(u) dentro de
+        exp(...) o de una suma no permite escribir expr = K * R.
+        """
+        try:
+            num = sympy.factor_terms(num)
+        except Exception:
+            pass
+        factores = []
+        for f in sympy.Mul.make_args(num):
+            if f.is_Pow and f.exp.is_Integer and f.exp > 0:
+                f = f.base
+            factores.append(f)
+        return factores
+
     def _u_tiende_a_0(self, u: Any, var: sympy.Symbol, punto: Any, dir_: Optional[str]) -> bool:
         lu = self._limite_seguro(u, var, punto, dir_)
         if not self._es_limite_evaluable(lu):
@@ -166,7 +183,7 @@ class LimitesTrigNotables(Estrategia):
         num, _ = expr_s.as_numer_denom()
 
         # ✅ FIX: en SymPy NO se usa isinstance(t, sympy.sin). Se usa t.func == sympy.sin / tan
-        candidates = [t for t in sympy.preorder_traversal(num) if getattr(t, "func", None) == func_type]
+        candidates = [t for t in self._factores(num) if getattr(t, "func", None) == func_type]
 
         for term in candidates:
             u = term.args[0]
@@ -196,9 +213,15 @@ class LimitesTrigNotables(Estrategia):
         => R = expr * u^2 / (1 - cos(u))
         """
         expr_s = self._prep(expr)
+        num, _ = expr_s.as_numer_denom()
 
-        # Buscamos cos(u) en toda la expresión (no solo numerador, aquí da igual)
-        candidates = [t for t in sympy.preorder_traversal(expr_s) if getattr(t, "func", None) == sympy.cos]
+        # El núcleo exige que (1 - cos(u)) o (cos(u) - 1) sea un factor del numerador:
+        # un cos(u) suelto, como en cos(1/x), no forma el núcleo
+        candidates = []
+        for f in self._factores(num):
+            for cos_u in f.atoms(sympy.cos):
+                if sympy.expand(f - (1 - cos_u)) == 0 or sympy.expand(f - (cos_u - 1)) == 0:
+                    candidates.append(cos_u)
 
         for cos_u in candidates:
             u = cos_u.args[0]

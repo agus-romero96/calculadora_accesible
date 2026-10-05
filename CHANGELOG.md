@@ -28,6 +28,11 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 - **Continuidad con raíces y potencias**: `sqrt(x^2+9)` cuando x→4 se resuelve ahora por *Continuidad por composición* (resultado 5) en vez de caer en el modo general. La estrategia ya sabía evaluar `u**c`, pero `puede_resolver()` solo aceptaba funciones como `sin` o `exp`, y `sqrt(u)` se representa como la potencia `u**(1/2)`. También se normaliza el exponente, porque el parser deja `1/3` sin evaluar y `(x^2+1)^(1/3)` no se reconocía como raíz cúbica.
   - Para no atribuir a la continuidad límites que no lo son, una potencia con exponente negativo se rechaza si el límite interno es 0 (por ejemplo `1/(x-1)^2` cuando x→1 sigue en el modo general).
   - `tests/test_limites.py`: 4 pruebas nuevas; la auditoría `tests_limites.py` sigue en 65/65.
+- **Explicaciones de la estrategia trigonométrica**: un límite ya no se atribuye a un núcleo notable que no aparece como factor en la expresión. Antes bastaba con que hubiera un `sin(u)` o un `cos(u)` en cualquier parte, así que `cos(1/x)` cuando x→∞ se explicaba con `(1−cos u)/u²` y `exp(sin(x)/x)` cuando x→0 con `sin(u)/u`. Los valores eran correctos, pero la explicación no correspondía al método que usaría un estudiante. Ahora `sin(u)`, `tan(u)` o `(1−cos u)` deben ser un factor del numerador:
+  - `cos(1/x)` y `exp(sin(x)/x)` se resuelven por *Continuidad por composición*.
+  - `(sin(x)−x)/x³` pasa al modo general: el resultado −1/6 sale de la serie de Taylor, no de `sin(u)/u`.
+  - Los casos con el núcleo como factor (`x·sin(1/x)` cuando x→∞, `sin²(x)/x²`, `2(1−cos x)/x²`) siguen usando la estrategia trigonométrica.
+  - `tests/test_limites.py`: 6 pruebas nuevas (la suite tiene 1687); la auditoría `tests_limites.py` sigue en 65/65.
 
 ## [1.2.0] - 2026-10-05
 
@@ -167,7 +172,6 @@ Primera versión publicada con instalador para Windows: evaluación, simplificac
 
 ## Pendiente (problemas conocidos)
 
-- **Explicaciones de la estrategia trigonométrica**: puede atribuir un límite a un núcleo que no aparece como factor en la expresión. Por ejemplo, `cos(1/x)` cuando x→∞ se explica con `(1−cos u)/u²`, y `exp(sin(x)/x)` cuando x→0 con `sin(u)/u` sobre un resto que contiene `exp`. Los valores son correctos, pero la explicación no corresponde al método que usaría un estudiante.
 - **Variables como reales**: es la convención adecuada para un curso de cálculo, pero los resultados con números complejos (por ejemplo, raíces de números negativos dentro de expresiones con variables) pueden diferir de los que daría SymPy por defecto.
 - **Cancelar un cálculo** no lo detiene: el hilo sigue usando el procesador hasta terminar, porque Python no permite detener un hilo. Para detenerlo de verdad habría que ejecutar los cálculos en un proceso aparte.
 - **Historial solo de la sesión**: se pierde al cerrar la calculadora (se puede exportar antes). Guardarlo entre sesiones requeriría reconstruir los objetos SymPy al abrir.
