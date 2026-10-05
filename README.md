@@ -288,8 +288,8 @@ Principios de diseño:
 
 1. Copie `locales/en.json` como `locales/<código>.json` (por ejemplo `fr.json`) y traduzca los **valores**. Las claves son el texto original en español y no se modifican; los marcadores entre llaves (`{variable}`) deben conservarse.
 2. Cree `locales/ayuda_<código>.txt` con la ayuda (F1) traducida.
-3. Añada el idioma a `IDIOMAS` en `i18n.py` (y, si quiere que se elija automáticamente, ajuste `detectar_idioma_sistema()`).
-4. Ejecute las pruebas: `tests/test_i18n.py` comprueba que el catálogo cubra **todos** los textos del programa y que los marcadores coincidan.
+3. Añada el idioma a `IDIOMAS` en `i18n.py` (y, si quiere que se elija automáticamente, ajuste `detectar_idioma_sistema()`). No hace falta nada más para los botones propios de wxWidgets (Aceptar/Cancelar): la calculadora busca el idioma de wx por su código y `setup.py` incluye en el ejecutable el catálogo de wxWidgets de cada idioma de `IDIOMAS`.
+4. Ejecute las pruebas: `tests/test_i18n.py` comprueba que el catálogo cubra **todos** los textos del programa, que los marcadores coincidan y que wxWidgets conozca el idioma y traiga su catálogo.
 
 ---
 

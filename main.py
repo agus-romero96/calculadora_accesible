@@ -79,7 +79,7 @@ class CalculadoraAccesible(wx.Frame):
         else:
             carpeta = os.path.join(os.path.dirname(wx.__file__), "locale")
         wx.Locale.AddCatalogLookupPathPrefix(carpeta)
-        idioma = wx.LANGUAGE_SPANISH if i18n.idioma_actual() == "es" else wx.LANGUAGE_ENGLISH
+        idioma = wx.Locale.FindLanguageInfo(i18n.idioma_actual()).Language
         self._wx_locale = None  # libera el anterior antes de crear el nuevo
         self._wx_locale = wx.Locale(idioma)
 

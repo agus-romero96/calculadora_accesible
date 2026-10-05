@@ -27,6 +27,8 @@ from typing import Dict
 
 IDIOMA_ORIGEN = "es"
 IDIOMAS = {"es": "Español", "en": "English"}
+# Idioma en que wxWidgets escribe sus propios textos: no necesita catálogo.
+IDIOMA_WX_ORIGEN = "en"
 
 _idioma = IDIOMA_ORIGEN
 _catalogo: Dict[str, str] = {}
@@ -41,6 +43,11 @@ def carpeta_recursos() -> str:
 
 def carpeta_locales() -> str:
     return os.path.join(carpeta_recursos(), "locales")
+
+
+def catalogos_wx() -> list:
+    """Idiomas cuyo catálogo de wxWidgets (wx/locale/<idioma>) hay que incluir en el ejecutable."""
+    return [codigo for codigo in IDIOMAS if codigo != IDIOMA_WX_ORIGEN]
 
 
 def cargar_catalogo(codigo: str) -> Dict[str, str]:

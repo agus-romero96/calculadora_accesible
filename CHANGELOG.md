@@ -32,6 +32,10 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
   - En el ejecutable, el proceso de cálculo es otra copia de `CalculadoraAccesible.exe`: `main.py` llama a `multiprocessing.freeze_support()` al empezar, para que esa copia solo calcule y no abra otra ventana. La autoprueba (`--autoprueba`) tiene un caso nuevo que calcula a través del proceso (15 casos), así que `compilar.py` comprueba que funciona en el ejecutable compilado.
   - `CalculadoraAccesible` acepta `nucleo=` (la clase del núcleo matemático) para las pruebas, y al cerrar la ventana se detiene el proceso de cálculo.
 - `exportar.py` separa cada formato en el bloque de una operación y el documento que lo envuelve, para exportar un resultado o todo el historial con el mismo código. La exportación de un solo resultado no cambia; solo se añade al HTML un estilo que separa las secciones.
+- **Los catálogos de wxWidgets salen de `IDIOMAS`**: añadir un idioma ya no exige tocar `setup.py` ni `main.py`. Antes `setup.py` copiaba a mano solo `wx_locale/es` y `main.py` elegía entre `wx.LANGUAGE_SPANISH` y `wx.LANGUAGE_ENGLISH`, así que un idioma nuevo habría mostrado los botones Aceptar/Cancelar en inglés sin que nada avisara.
+  - `i18n.catalogos_wx()` da los idiomas que necesitan catálogo (todos menos el inglés, en el que wxWidgets escribe sus textos); `setup.py` copia uno por idioma y `main.py` busca el idioma con `wx.Locale.FindLanguageInfo(código)`.
+  - El ejecutable incluye exactamente lo mismo que antes (`wx_locale/es`).
+  - `tests/test_i18n.py`: 3 pruebas nuevas comprueban que wxWidgets reconoce cada idioma de `IDIOMAS` y trae su catálogo `wxstd.mo`.
 
 ### Corregido
 
@@ -187,4 +191,3 @@ Primera versión publicada con instalador para Windows: evaluación, simplificac
 
 - **Variables como reales**: es la convención adecuada para un curso de cálculo, pero los resultados con números complejos (por ejemplo, raíces de números negativos dentro de expresiones con variables) pueden diferir de los que daría SymPy por defecto.
 - **Traducción al inglés sin revisión nativa**: la escribió el desarrollador y no la ha revisado un hablante nativo de inglés ni un docente angloparlante (terminología de clase).
-- **Botones de wxWidgets en otros idiomas**: solo se incluye el catálogo de wxWidgets en español (el inglés no lo necesita). Al añadir un idioma, hay que agregar su carpeta en `setup.py`.

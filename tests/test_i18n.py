@@ -70,6 +70,20 @@ def test_ayuda_existe_en_cada_idioma():
         assert os.path.exists(os.path.join(RAIZ, "locales", f"ayuda_{codigo}.txt"))
 
 
+@pytest.mark.parametrize("codigo", sorted(i18n.IDIOMAS))
+def test_wxwidgets_conoce_cada_idioma(codigo):
+    """main.py busca el idioma de wx por su código y setup.py copia su catálogo."""
+    wx = pytest.importorskip("wx")
+    assert wx.Locale.FindLanguageInfo(codigo) is not None, codigo
+    if codigo in i18n.catalogos_wx():
+        catalogo = os.path.join(os.path.dirname(wx.__file__), "locale", codigo, "LC_MESSAGES", "wxstd.mo")
+        assert os.path.exists(catalogo), f"wxWidgets no trae catálogo para {codigo!r}"
+
+
+def test_catalogos_wx_excluyen_el_ingles():
+    assert i18n.catalogos_wx() == ["es"]
+
+
 # ---------------- Resultados en inglés ----------------
 
 @pytest.fixture

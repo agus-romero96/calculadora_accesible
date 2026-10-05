@@ -11,6 +11,7 @@ import wx
 from cx_Freeze import Executable, setup
 
 from _version import __version__
+from i18n import catalogos_wx
 
 # Carpeta de salida fija (no depende de la versión de Python); setup_script.iss la usa.
 CARPETA_BUILD = "build/CalculadoraAccesible"
@@ -41,10 +42,13 @@ build_exe_options = {
     # lib/library.zip; no se copian los .py):
     #  - locales/: traducciones de la calculadora y ayuda (F1) en cada idioma.
     #  - wx_locale/: catálogo de wxWidgets para los botones de sus diálogos
-    #    (Aceptar/Cancelar). Dentro del zip wxWidgets no podría leerlo.
+    #    (Aceptar/Cancelar), uno por idioma de i18n.IDIOMAS. Dentro del zip
+    #    wxWidgets no podría leerlo.
     "include_files": [
         "LICENSE", "README.md", "CHANGELOG.md", "locales",
-        (os.path.join(os.path.dirname(wx.__file__), "locale", "es"), os.path.join("wx_locale", "es")),
+    ] + [
+        (os.path.join(os.path.dirname(wx.__file__), "locale", codigo), os.path.join("wx_locale", codigo))
+        for codigo in catalogos_wx()
     ],
     "zip_include_packages": ["*"],
     "zip_exclude_packages": [],
