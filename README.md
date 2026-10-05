@@ -4,6 +4,8 @@ Calculadora científica y simbólica de escritorio diseñada **para usarse con l
 
 Está construida con **Python + wxPython** (interfaz nativa y accesible en Windows) y **SymPy** (motor de matemática simbólica).
 
+Disponible en **español e inglés** (interfaz, explicaciones y ayuda). Los resultados se pueden **copiar** y **exportar** a HTML con fórmulas MathML accesibles, LaTeX, Markdown, JSON o texto plano.
+
 ---
 
 ## Índice
@@ -16,6 +18,7 @@ Está construida con **Python + wxPython** (interfaz nativa y accesible en Windo
 - [Instalación y ejecución](#instalación-y-ejecución)
 - [Compilar el ejecutable e instalador](#compilar-el-ejecutable-e-instalador)
 - [Arquitectura](#arquitectura)
+- [Traducir a otro idioma](#traducir-a-otro-idioma)
 - [Pruebas](#pruebas)
 - [Limitaciones conocidas](#limitaciones-conocidas)
 - [Licencia](#licencia)
@@ -59,6 +62,30 @@ Está construida con **Python + wxPython** (interfaz nativa y accesible en Windo
 
 > Atajo inteligente: si en la entrada escribe **varias líneas que contienen `=`** y pulsa **Ctrl+Enter**, la calculadora detecta que es un sistema y lo resuelve por Gauss-Jordan automáticamente.
 
+### Copiar y exportar resultados (menú **Resultado**)
+
+| Opción | Qué hace |
+|---|---|
+| **Copiar resultado** | Copia solo el resultado en una línea: `x = 6, y = 4`, `(x - 1)*exp(x) + C`… |
+| **Copiar explicación completa** | Copia todo el informe paso a paso. |
+| **Copiar como LaTeX** | Copia el planteamiento y el resultado como en un libro: `\int x e^{x}\, dx = \left(x - 1\right) e^{x} + C`. |
+| **Copiar como MathML** | Lo mismo en MathML (XML válido), para pegarlo en editores de ecuaciones o páginas web. |
+| **Exportar a archivo** | Guarda el resultado en el formato elegido en el diálogo *Guardar*. |
+
+Formatos de exportación:
+
+- **HTML con fórmulas MathML** (recomendado): una página accesible que se abre en cualquier navegador. Los lectores de pantalla (NVDA con MathCAT, JAWS) pueden leer **y explorar** las fórmulas término a término.
+- **Texto plano**: el informe tal cual.
+- **Markdown**: con la fórmula en `$$…$$`, ideal para apuntes o GitHub.
+- **Documento LaTeX**: listo para compilar con XeLaTeX o LuaLaTeX.
+- **JSON**: datos estructurados (entrada, parámetros, resultado en texto/SymPy/LaTeX y explicación), con claves en inglés para que sea igual en todos los idiomas.
+
+Tras copiar, un diálogo confirma lo que se copió, para que el lector de pantalla lo anuncie.
+
+### Idioma
+
+El menú **Idioma / Language** cambia toda la calculadora entre **español** e **inglés**: menús, diálogos, explicaciones paso a paso, mensajes de error, ayuda (F1) y archivos exportados. La primera vez se elige según el idioma de Windows, y la elección se recuerda (en `%APPDATA%\CalculadoraAccesible\config.json`). En inglés también se acepta `infinity` como infinito.
+
 ---
 
 ## Accesibilidad
@@ -70,6 +97,7 @@ Está construida con **Python + wxPython** (interfaz nativa y accesible en Windo
 - **Diálogos de desambiguación**: si una expresión tiene varias variables (`x*y`), se pregunta respecto a cuál derivar o integrar en una lista navegable con flechas.
 - **Ayuda integrada (F1)**: un manual pensado para lectores de pantalla se muestra en el cuadro de resultados.
 - **La ventana nunca se congela**: los cálculos se ejecutan en segundo plano. Si uno tarda más de medio segundo, se abre el diálogo **"Calculando"** (NVDA lo anuncia), que muestra el tiempo transcurrido y tiene un botón **Cancelar** para abandonar el cálculo.
+- **Fórmulas accesibles fuera de la calculadora**: la exportación a HTML con MathML permite leer y explorar las fórmulas con el lector de pantalla en el navegador.
 - **Ejecutable sin consola**: la versión compilada no abre una ventana de consola que interfiera con NVDA.
 
 ---
@@ -88,8 +116,13 @@ Está construida con **Python + wxPython** (interfaz nativa y accesible en Windo
 | `Ctrl+G` | Resolver sistema por Gauss-Jordan |
 | `Ctrl+M` | Matriz inversa por cofactores |
 | `Ctrl+Retroceso` | Borrar entrada y resultados |
+| `Ctrl+Shift+C` | Copiar el resultado |
+| `Ctrl+Shift+A` | Copiar la explicación completa |
+| `Ctrl+Shift+L` | Copiar el resultado en LaTeX |
+| `Ctrl+Shift+M` | Copiar el resultado en MathML |
+| `Ctrl+E` | Exportar el resultado a un archivo |
 | `F1` | Ayuda |
-| `Alt` | Barra de menús (Operaciones, Cálculo, Álgebra, Ayuda) |
+| `Alt` | Barra de menús (Operaciones, Cálculo, Álgebra, Resultado, Idioma, Ayuda) |
 | `Alt+E` / `Alt+R` | Ir al cuadro de entrada / de resultados |
 
 ---
@@ -188,7 +221,11 @@ La versión se define **solo** en `_version.py`; el título de la ventana, el ej
 ```
 main.py                 Interfaz wxPython (ventana, menús, atajos, diálogos)
   │
-puente.py               Fachada: CoreMatematico orquesta los motores
+puente.py               Fachada: CoreMatematico orquesta los motores y devuelve
+  │                     ResultadoOperacion (texto + valor SymPy + planteamiento)
+exportar.py             Copiar/exportar: texto, Markdown, LaTeX, HTML+MathML, JSON
+i18n.py                 Traducción: tr(), N_(), idioma guardado y detectado
+locales/                en.json (catálogo inglés) y ayuda_es.txt / ayuda_en.txt
   │
 parser_matematico.py    ParserMatematico: parser único compartido (SymPy parse_expr)
   │
@@ -223,12 +260,23 @@ Principios de diseño:
 - **DTOs inmutables** (`@dataclass(frozen=True)`): cada motor devuelve un objeto de resultado (`ResultadoAritmetica`, `ResultadoCalculo`, `ResultadoGauss`, …) y un método `renderizar` lo convierte en texto accesible. La lógica matemática y la presentación están separadas.
 - **"La verdad la da SymPy"**: el resultado final siempre se calcula con SymPy; la explicación pedagógica se añade aparte y solo se muestra un patrón (por ejemplo, "diferencia de cuadrados") cuando se puede verificar.
 - **Patrón Strategy en límites**: cada técnica implementa `puede_resolver()` y `resolver()`. El enrutador las prueba en orden y la primera que llega a una conclusión gana.
+- **Traducción**: el código está escrito en español, y cada texto visible pasa por `tr("…")`, que busca su traducción en `locales/<idioma>.json`. Los textos que además funcionan como identificadores (nombres de estrategia que se comparan en el código) se marcan con `N_("…")` y se traducen solo al mostrarlos.
+- **Resultado estructurado**: la interfaz trabaja con `ResultadoOperacion` (texto, valor SymPy, planteamiento sin evaluar y `es_error`), lo que permite exportar `planteamiento = resultado` y detectar errores sin mirar el texto.
+
+---
+
+## Traducir a otro idioma
+
+1. Copie `locales/en.json` como `locales/<código>.json` (por ejemplo `fr.json`) y traduzca los **valores**. Las claves son el texto original en español y no se modifican; los marcadores entre llaves (`{variable}`) deben conservarse.
+2. Cree `locales/ayuda_<código>.txt` con la ayuda (F1) traducida.
+3. Añada el idioma a `IDIOMAS` en `i18n.py` (y, si quiere que se elija automáticamente, ajuste `detectar_idioma_sistema()`).
+4. Ejecute las pruebas: `tests/test_i18n.py` comprueba que el catálogo cubra **todos** los textos del programa y que los marcadores coincidan.
 
 ---
 
 ## Pruebas
 
-El proyecto tiene una suite de **pytest** en `tests/` (188 pruebas, unos 3 segundos) que cubre el parser y todos los motores: aritmética, cálculo, álgebra lineal, límites, y la detección de errores en la interfaz (sin abrir ventanas).
+El proyecto tiene una suite de **pytest** en `tests/` (más de 1600 pruebas, unos 10 segundos) que cubre el parser, todos los motores, la exportación, la traducción (cada texto del programa tiene traducción, y los resultados en inglés no dejan texto en español) y la detección de errores en la interfaz (sin abrir ventanas).
 
 ```bash
 pip install -r requirements-dev.txt
@@ -241,7 +289,7 @@ python -X utf8 -m pytest tests
 python -X utf8 tests_limites.py
 ```
 
-Para verificar la interfaz (abre la ventana real unos segundos y comprueba el cálculo en segundo plano, la cancelación, los menús y la ayuda):
+Para verificar la interfaz (abre la ventana real unos segundos y comprueba el cálculo en segundo plano, la cancelación, los menús, copiar, exportar, el cambio de idioma y la ayuda):
 
 ```bash
 python -X utf8 tests/verificar_ui.py

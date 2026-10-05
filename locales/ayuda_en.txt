@@ -1,0 +1,99 @@
+USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
+=============================================
+
+1. WHAT IS THIS TOOL?
+   It is an advanced calculator that works like a chat.
+   You type a math command in the box above,
+   press a key combination, and the result appears
+   down here, ready to be read.
+
+2. WORKFLOW (HOW TO USE IT)
+   Step A: Type your formula (e.g. 2+2) in the input box.
+   Step B: Choose what to do (Calculate, Differentiate, Integrate).
+           You can use the menu or the keyboard shortcuts.
+   Step C: Focus moves automatically to this box
+           so the result is read to you step by step.
+
+3. KEYBOARD SHORTCUTS (MEMORIZE THESE)
+   [Ctrl + Enter]     : CALCULATE (basic arithmetic, systems).
+   [Ctrl + S]         : SIMPLIFY an expression.
+   [Ctrl + F]         : FACTOR a polynomial.
+   [Ctrl + D]         : DIFFERENTIATE a function.
+   [Ctrl + Shift + D] : Nth-order DERIVATIVE.
+   [Ctrl + I]         : INTEGRATE a function.
+   [Ctrl + L]         : Calculate a LIMIT.
+   [Ctrl + G]         : Solve a SYSTEM by Gauss-Jordan.
+   [Ctrl + M]         : INVERSE MATRIX by cofactors.
+   [Ctrl + Backspace] : CLEAR the screen to start over.
+   [Ctrl + Shift + C] : COPY the result.
+   [Ctrl + E]         : EXPORT the result to a file.
+   [F1]               : Show this help.
+   [Alt]              : Open the menu bar.
+   2x2 systems by substitution, equalization or elimination:
+   Algebra menu, '2x2 system by classical method' submenu.
+
+   If a calculation takes a while, the 'Calculating' dialog opens.
+   You can press Cancel to abandon it.
+
+4. WRITING GUIDE (SYNTAX)
+   For the calculator to understand you, write like this:
+
+   * Multiplication: Use the asterisk, or write the number
+     right next to it: 2*x, 2x, 3sin(x) and 2(x+1) are valid.
+     IMPORTANT: between a variable and a function always
+     use the asterisk.
+     CORRECT: x*sin(x)     INCORRECT: xsin(x)
+
+   * Powers: Use the caret (^) or double asterisk (**).
+     Example: x^2  or  x**2
+
+   * Functions: Always use parentheses.
+     Example: sin(x), cos(x), ln(x), sqrt(x)
+
+   * Mathematical constants:
+     Type 'pi' for the number Pi.
+     Type 'e' for Euler's number.
+     Type 'oo' (double letter o) for Infinity.
+
+   * Matrices (for the inverse): one row per line,
+     with the numbers separated by spaces. Example:
+       1 2
+       3 4
+
+5. PRACTICAL EXAMPLES
+   - Differentiate: Type '3*x^2 + 5'. Press Ctrl+D.
+   - Integrate: Type 'sin(x)'. Press Ctrl+I.
+   - Limit: Type 'sin(x)/x'. Press Ctrl+L.
+     Variable: x. Approaches: 0.
+     For a one-sided limit, type the value followed by + or -,
+     for example 0+ (from the right) or 0- (from the left).
+     For infinity type oo, or -oo for minus infinity.
+   - 2x2 system: Type two lines:
+       x + y = 10
+       x - y = 2
+     Then press Ctrl+Enter.
+
+6. TROUBLESHOOTING
+   - Does it ask you for a variable? If you type 'x + y', the program
+     asks which one you want to work with. Use the arrow keys
+     to choose in the dialog and press Enter.
+   - Syntax error? Check that you closed all parentheses
+     and used '*' between a variable and a function.
+   - Does it say a calculation is in progress? Wait for it to finish,
+     or press Cancel in the 'Calculating' dialog.
+
+7. COPYING AND EXPORTING RESULTS (Result menu)
+   [Ctrl + Shift + C] : Copy only the result (e.g. x = 6, y = 4).
+   [Ctrl + Shift + A] : Copy the full explanation.
+   [Ctrl + Shift + L] : Copy the result as LaTeX.
+   [Ctrl + Shift + M] : Copy the result as MathML.
+   [Ctrl + E]         : Export to a file. Formats:
+     - HTML with MathML formulas: opens in the browser, and
+       the screen reader can read and explore the formulas.
+     - Plain text, Markdown, LaTeX document and JSON.
+   Choose the format in the 'Save as type' list of the Save dialog.
+
+8. LANGUAGE
+   The 'Idioma / Language' menu changes the language of the
+   calculator (Spanish or English). New results are shown in
+   the chosen language, and the choice is remembered on restart.

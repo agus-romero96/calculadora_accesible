@@ -4,8 +4,10 @@ Compilación del ejecutable con cx_Freeze.
 No lo ejecute directamente: use  python compilar.py  (compila, verifica el
 ejecutable con --autoprueba y genera el instalador). Ver guia_compilacion.txt.
 """
+import os
 import sys
 
+import wx
 from cx_Freeze import Executable, setup
 
 from _version import __version__
@@ -35,9 +37,15 @@ build_exe_options = {
         "lief", "pip", "setuptools", "redis", "jinja2", "requests", "urllib3",
         "psutil", "filelock", "win32ui", "win32com", "pythonwin", "sqlite3",
     ],
-    # Documentación que acompaña al ejecutable (el código fuente ya va compilado
-    # dentro de lib/library.zip; no se copian los .py).
-    "include_files": ["LICENSE", "README.md", "CHANGELOG.md"],
+    # Archivos junto al ejecutable (el código fuente ya va compilado dentro de
+    # lib/library.zip; no se copian los .py):
+    #  - locales/: traducciones de la calculadora y ayuda (F1) en cada idioma.
+    #  - wx_locale/: catálogo de wxWidgets para los botones de sus diálogos
+    #    (Aceptar/Cancelar). Dentro del zip wxWidgets no podría leerlo.
+    "include_files": [
+        "LICENSE", "README.md", "CHANGELOG.md", "locales",
+        (os.path.join(os.path.dirname(wx.__file__), "locale", "es"), os.path.join("wx_locale", "es")),
+    ],
     "zip_include_packages": ["*"],
     "zip_exclude_packages": [],
 }

@@ -41,10 +41,10 @@ def test_gauss_rechaza_doble_igual(core):
 
 # ---------------- Métodos clásicos 2x2 ----------------
 
-@pytest.mark.parametrize("metodo", ["sustitucion", "igualacion", "reduccion"])
-def test_sistemas_clasicos(core, metodo):
+@pytest.mark.parametrize("metodo, nombre", [("sustitucion", "Sustitución"), ("igualacion", "Igualación"), ("reduccion", "Reducción")])
+def test_sistemas_clasicos(core, metodo, nombre):
     salida = core.ResolverSistemaEducativo(["x + y = 10", "x - y = 2"], metodo)
-    assert f"RESOLUCIÓN POR {metodo.upper()}" in salida
+    assert f"RESOLUCIÓN POR {nombre.upper()}" in salida
     assert salida.rstrip().endswith("x = 6\ny = 4")
 
 

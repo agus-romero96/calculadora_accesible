@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 from typing import List, Any, Optional, Tuple
 from sympy import Integer, Float, Rational, Symbol
 
+from i18n import N_, tr
+
 
 # =============================================================
 # 1) DTO (Contrato de datos)
@@ -62,8 +64,9 @@ class Aritmetica:
 
             if expr.free_symbols:
                 syms = ", ".join(sorted([s.name for s in expr.free_symbols]))
-                return self._error("Evaluación Numérica", expr,
-                                   f"La expresión contiene variables ({syms}). Reemplace variables por números o use Simplificar.")
+                return self._error(N_("Evaluación Numérica"), expr,
+                                   tr("La expresión contiene variables ({variables}). Reemplace variables por números o use Simplificar.",
+                                      variables=syms))
 
             # "Evaluar" significa: ejecutar aritmética exacta primero
             exacto = sympy.simplify(expr)
@@ -85,26 +88,26 @@ class Aritmetica:
             # pero se conserva exacto como paso.
             if not es_trivial:
                 decimal = sympy.N(exacto, 20)
-                pasos.append(f"Valor exacto: {exacto}")
-                pasos.append(f"Aproximación decimal: {decimal:.10f}".rstrip("0").rstrip("."))
-                advertencias.append("Resultado aproximado: se muestra una evaluación decimal.")
+                pasos.append(tr("Valor exacto: {valor}", valor=exacto))
+                pasos.append(tr("Aproximación decimal: {valor}", valor=f"{decimal:.10f}".rstrip("0").rstrip(".")))
+                advertencias.append(tr("Resultado aproximado: se muestra una evaluación decimal."))
                 resultado_final = decimal
 
             return ResultadoAritmetica(
                 es_exitoso=True,
-                operacion="Evaluación Numérica",
+                operacion=N_("Evaluación Numérica"),
                 expresion_original=expr,
                 resultado=resultado_final,
-                diagnostico="Expresión numérica (sin variables).",
-                estrategia="Cálculo directo",
-                justificacion="Se simplifica la expresión para obtener el valor numérico.",
+                diagnostico=N_("Expresión numérica (sin variables)."),
+                estrategia=N_("Cálculo directo"),
+                justificacion=N_("Se simplifica la expresión para obtener el valor numérico."),
                 pasos=pasos,
                 advertencias=advertencias,
                 es_trivial=es_trivial,
             )
 
         except Exception as e:
-            return self._error("Evaluación Numérica", expresion, str(e))
+            return self._error(N_("Evaluación Numérica"), expresion, str(e))
 
     def simplificar(self, expresion: str) -> ResultadoAritmetica:
         """
@@ -117,8 +120,8 @@ class Aritmetica:
             # normal para que las comparaciones (¿cambió algo?) sean fiables.
             expr = self.parser.parsear(expresion).doit()
             pasos: List[str] = []
-            estrategia = "Simplificación general"
-            justificacion = "Aplicación de transformaciones equivalentes para reducir complejidad."
+            estrategia = N_("Simplificación general")
+            justificacion = N_("Aplicación de transformaciones equivalentes para reducir complejidad.")
 
             # Agrupación (solo univariado)
             syms = sorted(list(expr.free_symbols), key=lambda s: s.name)
@@ -126,25 +129,25 @@ class Aritmetica:
                 var = syms[0]
                 collected = sympy.collect(expr, var)
                 if collected != expr:
-                    pasos.append(f"Agrupación por potencias de {var}: {collected}")
-                    estrategia = "Agrupación (collect)"
+                    pasos.append(tr("Agrupación por potencias de {variable}: {expresion}", variable=var, expresion=collected))
+                    estrategia = N_("Agrupación (collect)")
 
             # Cancelación en racionales
             num, den = sympy.fraction(expr)
             if den != 1:
                 cancelado = sympy.cancel(expr)
                 if cancelado != expr:
-                    pasos.append(f"Cancelación de factores comunes: {cancelado}")
-                    estrategia = "Cancelación (cancel)"
+                    pasos.append(tr("Cancelación de factores comunes: {expresion}", expresion=cancelado))
+                    estrategia = N_("Cancelación (cancel)")
 
             # Verdad final
             resultado = sympy.simplify(expr)
             if resultado == expr and not pasos:
-                pasos.append("La expresión ya estaba en una forma simple (no hubo cambios detectables).")
+                pasos.append(tr("La expresión ya estaba en una forma simple (no hubo cambios detectables)."))
 
             return ResultadoAritmetica(
                 es_exitoso=True,
-                operacion="Simplificación",
+                operacion=N_("Simplificación"),
                 expresion_original=expr,
                 resultado=resultado,
                 diagnostico=self._diagnosticar_tipo(expr),
@@ -155,7 +158,7 @@ class Aritmetica:
             )
 
         except Exception as e:
-            return self._error("Simplificación", expresion, str(e))
+            return self._error(N_("Simplificación"), expresion, str(e))
 
     def factorizar(self, expresion: str) -> ResultadoAritmetica:
         """
@@ -182,7 +185,7 @@ class Aritmetica:
             var_principal = syms[0] if len(syms) == 1 else None
 
             if comun != expr:
-                pasos.append(f"Extracción de factor común: {comun}")
+                pasos.append(tr("Extracción de factor común: {expresion}", expresion=comun))
 
                 if comun.is_Mul and var_principal is not None:
                     consts = [a for a in comun.args if not a.has(var_principal)]
@@ -201,15 +204,15 @@ class Aritmetica:
 
             # Irreducible (en Q, según SymPy por defecto)
             if expr == resultado:
-                advertencias.append("No se encontraron factores más simples en los racionales (Q).")
+                advertencias.append(tr("No se encontraron factores más simples en los racionales (Q)."))
                 return ResultadoAritmetica(
                     es_exitoso=True,
-                    operacion="Factorización",
+                    operacion=N_("Factorización"),
                     expresion_original=expr,
                     resultado=resultado,
                     diagnostico=self._diagnosticar_tipo(expr),
-                    estrategia="Irreducible",
-                    justificacion="SymPy no encontró una factorización no trivial sobre los racionales.",
+                    estrategia=N_("Irreducible"),
+                    justificacion=N_("SymPy no encontró una factorización no trivial sobre los racionales."),
                     pasos=pasos,
                     advertencias=advertencias,
                     es_trivial=False
@@ -220,15 +223,15 @@ class Aritmetica:
             #  tiene 3 factores y ningún patrón de 2 factores se reconocería)
             caso, explicacion = self._inferir_caso(nucleo, sympy.factor(nucleo))
 
-            estrategia = caso or ("Factor común" if comun != expr else "Factorización general")
-            justificacion = explicacion if caso else "Factorización algebraica estándar (sin patrón escolar único verificable)."
+            estrategia = caso or (N_("Factor común") if comun != expr else N_("Factorización general"))
+            justificacion = explicacion if caso else N_("Factorización algebraica estándar (sin patrón escolar único verificable).")
 
             if caso:
-                pasos.append(f"Patrón identificado: {justificacion}")
+                pasos.append(tr("Patrón identificado: {patron}", patron=tr(justificacion)))
 
             return ResultadoAritmetica(
                 es_exitoso=True,
-                operacion="Factorización",
+                operacion=N_("Factorización"),
                 expresion_original=expr,
                 resultado=resultado,
                 diagnostico=self._diagnosticar_tipo(expr),
@@ -240,7 +243,7 @@ class Aritmetica:
             )
 
         except Exception as e:
-            return self._error("Factorización", expresion, str(e))
+            return self._error(N_("Factorización"), expresion, str(e))
 
     # ---------------------------------------------------------
     # Inferencia de patrones (sin inventar)
@@ -260,10 +263,10 @@ class Aritmetica:
             fact_exp = sympy.expand(factorizada)
             if sympy.simplify(nucleo_exp - fact_exp) != 0:
                 # Si ni siquiera coincide, no intentamos clasificar.
-                return None, "La factorización no coincide con el núcleo bajo expansión (no clasificable)."
+                return None, N_("La factorización no coincide con el núcleo bajo expansión (no clasificable).")
         except Exception:
             # Si falla la comparación, no afirmamos patrones
-            return None, "No se pudo verificar equivalencia estructural por expansión."
+            return None, N_("No se pudo verificar equivalencia estructural por expansión.")
 
         # Conteo de términos del núcleo
         try:
@@ -276,13 +279,13 @@ class Aritmetica:
         if factorizada.is_Pow and factorizada.exp == 2:
             base = sympy.expand(factorizada.base)
             if base.is_Add and len(sympy.Add.make_args(base)) == 2 and n_terms == 3:
-                return "Trinomio cuadrado perfecto", "Forma a^2 ± 2ab + b^2 = (a±b)^2 (verificado por estructura)."
+                return N_("Trinomio cuadrado perfecto"), N_("Forma a^2 ± 2ab + b^2 = (a±b)^2 (verificado por estructura).")
 
         # ---- 2) Cubo perfecto: (a±b)^3 y el núcleo tiene 4 términos
         if factorizada.is_Pow and factorizada.exp == 3:
             base = sympy.expand(factorizada.base)
             if base.is_Add and len(sympy.Add.make_args(base)) == 2 and n_terms == 4:
-                return "Cubo perfecto de binomio", "Forma (a±b)^3 (verificado por estructura)."
+                return N_("Cubo perfecto de binomio"), N_("Forma (a±b)^3 (verificado por estructura).")
 
         # ---- 3) Diferencia de cuadrados: (a-b)(a+b) y el núcleo es binomio con signos opuestos
         # Requisito fuerte: dos factores, ambos binomios, y son conjugados.
@@ -302,7 +305,7 @@ class Aritmetica:
                 # producto = A^2 - B^2
                 # Verificamos exactamente esa identidad
                 if sympy.simplify(sympy.expand(A**2 - B**2) - nucleo_exp) == 0:
-                    return "Diferencia de cuadrados", "Forma a^2 - b^2 = (a-b)(a+b) (verificada)."
+                    return N_("Diferencia de cuadrados"), N_("Forma a^2 - b^2 = (a-b)(a+b) (verificada).")
 
         # ---- 4) Suma/Diferencia de cubos: (a±b)(a^2 ∓ ab + b^2) con núcleo binomial
         # Requisito mínimo confiable: dos factores, uno lineal (binomio) y otro cuadrático (trinomio),
@@ -313,7 +316,7 @@ class Aritmetica:
             d2 = sympy.total_degree(f2)
             # Para cubos: grados típicos 1 y 2 (en univariado), o en general "menor" y "mayor"
             if {d1, d2} == {1, 2}:
-                return "Suma/diferencia de cubos", "Estructura (lineal)*(cuadrática) compatible con a^3 ± b^3 (verificación parcial)."
+                return N_("Suma/diferencia de cubos"), N_("Estructura (lineal)*(cuadrática) compatible con a^3 ± b^3 (verificación parcial).")
 
         # ---- 5) Trinomio cuadrático univariado: producto de dos lineales
         if factorizada.is_Mul and len(factorizada.args) == 2 and n_terms == 3:
@@ -327,12 +330,12 @@ class Aritmetica:
                         if all(sympy.Poly(sympy.expand(f), var).degree() == 1 for f in factorizada.args):
                             a = p.LC()
                             if a == 1:
-                                return "Trinomio x^2 + bx + c", "Factorización en dos binomios lineales (coeficiente líder 1)."
-                            return "Trinomio ax^2 + bx + c", "Factorización en dos binomios lineales (coeficiente líder ≠ 1)."
+                                return N_("Trinomio x^2 + bx + c"), N_("Factorización en dos binomios lineales (coeficiente líder 1).")
+                            return N_("Trinomio ax^2 + bx + c"), N_("Factorización en dos binomios lineales (coeficiente líder ≠ 1).")
                 except Exception:
                     pass
 
-        return None, "No se pudo verificar un patrón escolar único con rigor."
+        return None, N_("No se pudo verificar un patrón escolar único con rigor.")
 
     # ---------------------------------------------------------
     # Diagnóstico y errores
@@ -341,18 +344,18 @@ class Aritmetica:
     def _diagnosticar_tipo(self, expr) -> str:
         try:
             if expr.is_polynomial():
-                return f"Polinomio (Grado {sympy.total_degree(expr)})"
+                return tr("Polinomio (Grado {grado})", grado=sympy.total_degree(expr))
         except Exception:
             pass
 
         try:
             _, den = sympy.fraction(expr)
             if den != 1:
-                return "Expresión racional (fracción)"
+                return N_("Expresión racional (fracción)")
         except Exception:
             pass
 
-        return "Expresión algebraica"
+        return N_("Expresión algebraica")
 
     def _error(self, operacion: str, expr_original: Any, msg: str) -> ResultadoAritmetica:
         return ResultadoAritmetica(
@@ -360,9 +363,9 @@ class Aritmetica:
             operacion=operacion,
             expresion_original=expr_original,
             resultado=None,
-            diagnostico="Error",
-            estrategia="Ninguna",
-            justificacion="No se pudo completar la operación.",
+            diagnostico=N_("Error"),
+            estrategia=N_("Ninguna"),
+            justificacion=N_("No se pudo completar la operación."),
             pasos=[],
             advertencias=[],
             es_trivial=True,
@@ -375,38 +378,38 @@ class Aritmetica:
 
     def renderizar(self, dto: ResultadoAritmetica) -> str:
         if not dto.es_exitoso:
-            return f"ERROR ({dto.operacion}):\n{dto.mensaje_error}"
+            return tr("ERROR ({operacion}):", operacion=tr(dto.operacion)) + f"\n{dto.mensaje_error}"
 
         if dto.es_trivial:
             val = dto.resultado
             if isinstance(val, Float):
                 val = f"{val:.6f}".rstrip("0").rstrip(".")
-            return f"RESULTADO: {val}"
+            return tr("RESULTADO: {valor}", valor=val)
 
         txt = []
-        txt.append(f"OPERACIÓN: {dto.operacion.upper()}")
-        txt.append(f"Expresión: {dto.expresion_original}")
+        txt.append(tr("OPERACIÓN: {operacion}", operacion=tr(dto.operacion).upper()))
+        txt.append(tr("Expresión: {expresion}", expresion=dto.expresion_original))
         txt.append("-" * 30)
 
-        txt.append("1. DIAGNÓSTICO")
-        txt.append(f"   {dto.diagnostico}")
+        txt.append(tr("1. DIAGNÓSTICO"))
+        txt.append(f"   {tr(dto.diagnostico)}")
 
-        txt.append("\n2. ESTRATEGIA")
-        txt.append(f"   {dto.estrategia}")
-        txt.append(f"   Nota: {dto.justificacion}")
+        txt.append("\n" + tr("2. ESTRATEGIA"))
+        txt.append(f"   {tr(dto.estrategia)}")
+        txt.append("   " + tr("Nota: {nota}", nota=tr(dto.justificacion)))
 
         if dto.pasos:
-            txt.append("\n3. DESARROLLO")
+            txt.append("\n" + tr("3. DESARROLLO"))
             for p in dto.pasos:
                 txt.append(f"   • {p}")
 
         if dto.advertencias:
-            txt.append("\n[!] AVISOS:")
+            txt.append("\n" + tr("[!] AVISOS:"))
             for adv in dto.advertencias:
                 txt.append(f"   - {adv}")
 
         txt.append("-" * 30)
-        txt.append(f"RESULTADO FINAL: {dto.resultado}")
+        txt.append(tr("RESULTADO FINAL: {valor}", valor=dto.resultado))
         return "\n".join(txt)
 
     # Facades tipo “texto directo” (compatibilidad con tu estilo)

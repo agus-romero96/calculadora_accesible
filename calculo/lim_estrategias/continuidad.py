@@ -7,6 +7,7 @@ from sympy import S
 from sympy.assumptions import Q, ask
 
 from .trigonometria import LimitesTrigNotables
+from i18n import N_, tr
 from ._base import (
     Estrategia,
     ResultadoEstrategia,
@@ -35,7 +36,7 @@ class ContinuidadComposicion(Estrategia):
         self._trig = LimitesTrigNotables()
 
     def nombre(self) -> str:
-        return "Continuidad por composición"
+        return N_("Continuidad por composición")
 
     def puede_resolver(self, expr, var, punto, **kwargs) -> bool:
         # Solo si depende de var
@@ -52,7 +53,7 @@ class ContinuidadComposicion(Estrategia):
         dir_ = kwargs.get("dir", None)
 
         pasos: List[str] = []
-        pasos.append("Buscamos una forma compuesta f(g(x)) y aplicamos continuidad si corresponde.")
+        pasos.append(tr("Buscamos una forma compuesta f(g(x)) y aplicamos continuidad si corresponde."))
 
         outer, inner = self._extraer_compuesta(expr)
         if outer is None or inner is None:
@@ -61,18 +62,18 @@ class ContinuidadComposicion(Estrategia):
                 estado=ESTADO_NO_CONCLUYENTE,
                 resultado=None,
                 nombre_estrategia=self.nombre(),
-                explicacion="No se pudo identificar una composición directa f(g(x)).",
+                explicacion=N_("No se pudo identificar una composición directa f(g(x))."),
                 pasos=pasos,
                 expr_original=expr,
                 expr_trabajo=expr,
             )
 
-        pasos.append(f"Identificamos función externa: f(·) = {self._repr_outer(outer)}")
-        pasos.append(f"Identificamos función interna: g(x) = {inner}")
+        pasos.append(tr("Identificamos función externa: f(·) = {outer}", outer=self._repr_outer(outer)))
+        pasos.append(tr("Identificamos función interna: g(x) = {inner}", inner=inner))
 
         # 1) Calcular L = lim g(x) con ayuda V1.5
         L = self._limite_interno_mejorado(inner, var, punto, dir_, pasos)
-        pasos.append(f"Resultado para L = lim g(x): {L}")
+        pasos.append(tr("Resultado para L = lim g(x): {L}", L=L))
 
         if not self._es_limite_evaluable(L):
             return ResultadoEstrategia(
@@ -80,15 +81,15 @@ class ContinuidadComposicion(Estrategia):
                 estado=ESTADO_NO_CONCLUYENTE,
                 resultado=None,
                 nombre_estrategia=self.nombre(),
-                explicacion="No se pudo evaluar el límite de la función interna g(x).",
-                pasos=pasos + ["El límite interno quedó no evaluado (Limit) o falló."],
+                explicacion=N_("No se pudo evaluar el límite de la función interna g(x)."),
+                pasos=pasos + [tr("El límite interno quedó no evaluado (Limit) o falló.")],
                 expr_original=expr,
                 expr_trabajo=expr,
             )
 
         # 2) Verificar continuidad / dominio de f en L (guardrails)
         ok_cont, motivo = self._verificar_continuidad_y_dominio(outer, L)
-        pasos.append(f"Chequeo de continuidad/dominio en L: {motivo}")
+        pasos.append(tr("Chequeo de continuidad/dominio en L: {motivo}", motivo=motivo))
 
         if not ok_cont:
             return ResultadoEstrategia(
@@ -96,7 +97,7 @@ class ContinuidadComposicion(Estrategia):
                 estado=ESTADO_NO_CONCLUYENTE,
                 resultado=None,
                 nombre_estrategia=self.nombre(),
-                explicacion="No podemos garantizar continuidad (o el dominio) de f en el valor L.",
+                explicacion=N_("No podemos garantizar continuidad (o el dominio) de f en el valor L."),
                 pasos=pasos,
                 expr_original=expr,
                 expr_trabajo=expr,
@@ -111,14 +112,14 @@ class ContinuidadComposicion(Estrategia):
                 estado=ESTADO_NO_CONCLUYENTE,
                 resultado=None,
                 nombre_estrategia=self.nombre(),
-                explicacion="Falló la evaluación f(L) por una excepción.",
-                pasos=pasos + [f"Error evaluando f(L): {e}"],
+                explicacion=N_("Falló la evaluación f(L) por una excepción."),
+                pasos=pasos + [tr("Error evaluando f(L): {e}", e=e)],
                 expr_original=expr,
                 expr_trabajo=expr,
             )
 
-        pasos.append("Aplicamos el teorema: si g(x)->L y f es continua en L, entonces lim f(g(x)) = f(L).")
-        pasos.append(f"Evaluamos f(L) = {resultado}")
+        pasos.append(tr("Aplicamos el teorema: si g(x)->L y f es continua en L, entonces lim f(g(x)) = f(L)."))
+        pasos.append(tr("Evaluamos f(L) = {resultado}", resultado=resultado))
 
         # 4) Estado coherente
         estado = ESTADO_FINITO
@@ -130,7 +131,7 @@ class ContinuidadComposicion(Estrategia):
             estado=estado,
             resultado=sympy.simplify(resultado),
             nombre_estrategia=self.nombre(),
-            explicacion="Se evaluó el límite usando continuidad por composición.",
+            explicacion=N_("Se evaluó el límite usando continuidad por composición."),
             pasos=pasos,
             expr_original=expr,
             expr_trabajo=expr,
@@ -166,20 +167,20 @@ class ContinuidadComposicion(Estrategia):
             t = sympy.together(inner2)
             c = sympy.cancel(t)
             if sympy.srepr(c) != sympy.srepr(inner2):
-                pasos.append(f"(Inner) Normalizamos con together+cancel: {c}")
+                pasos.append(tr("(Inner) Normalizamos con together+cancel: {c}", c=c))
             inner2 = c
         except Exception as e:
-            pasos.append(f"(Inner) Aviso: together/cancel falló: {e}")
+            pasos.append(tr("(Inner) Aviso: together/cancel falló: {e}", e=e))
 
         # 2) Intento trig notable local si hay trig
         try:
             if inner2.has(sympy.sin) or inner2.has(sympy.cos) or inner2.has(sympy.tan):
                 L_trig = self._limite_trig_notable_local(inner2, var, punto, dir_, pasos)
                 if self._es_limite_evaluable(L_trig):
-                    pasos.append("(Inner) Se resolvió por trig notable local.")
+                    pasos.append(tr("(Inner) Se resolvió por trig notable local."))
                     return L_trig
         except Exception as e:
-            pasos.append(f"(Inner) Aviso: intento trig local falló: {e}")
+            pasos.append(tr("(Inner) Aviso: intento trig local falló: {e}", e=e))
 
         # 3) Límite directo con SymPy
         L = self._limite_seguro(inner2, var, punto, dir_)
@@ -212,8 +213,8 @@ class ContinuidadComposicion(Estrategia):
         for nombre, match, factor in nucleos:
             ok, u, resto, lim_resto = match(expr, var, punto, dir_)
             if ok:
-                pasos.append(f"(Inner) Núcleo trig local: {nombre} con u={u}")
-                pasos.append(f"(Inner) Resto R = {resto}, lim R = {lim_resto}")
+                pasos.append(tr("(Inner) Núcleo trig local: {nombre} con u={u}", nombre=nombre, u=u))
+                pasos.append(tr("(Inner) Resto R = {resto}, lim R = {lim_resto}", resto=resto, lim_resto=lim_resto))
                 return sympy.simplify(factor * lim_resto)
 
         return None
@@ -290,59 +291,59 @@ class ContinuidadComposicion(Estrategia):
             c = outer[1]
 
             if c.is_integer is True:
-                return True, f"Potencia con exponente entero ({c}): continua para todo L real."
+                return True, tr("Potencia con exponente entero ({c}): continua para todo L real.", c=c)
 
             if c.is_Rational:
                 q = int(c.q)
                 if q % 2 == 0:
                     if self._es_no_negativo(L):
-                        return True, f"Potencia racional ({c}) con denominador par: dominio real requiere L>=0, verificado."
-                    return False, f"Potencia racional ({c}) con denominador par: no podemos garantizar L>=0."
-                return True, f"Potencia racional ({c}) con denominador impar: continua para L real."
+                        return True, tr("Potencia racional ({c}) con denominador par: dominio real requiere L>=0, verificado.", c=c)
+                    return False, tr("Potencia racional ({c}) con denominador par: no podemos garantizar L>=0.", c=c)
+                return True, tr("Potencia racional ({c}) con denominador impar: continua para L real.", c=c)
 
-            return False, f"Potencia con exponente {c}: no podemos garantizar continuidad/dominio."
+            return False, tr("Potencia con exponente {c}: no podemos garantizar continuidad/dominio.", c=c)
 
         # 2) exp
         if outer == sympy.exp:
-            return True, "exp es continua para todo L real."
+            return True, tr("exp es continua para todo L real.")
 
         # 3) sin/cos/sinh/cosh/tanh/atan
         if outer in (sympy.sin, sympy.cos, sympy.sinh, sympy.cosh, sympy.tanh, sympy.atan):
-            return True, f"{outer.__name__} es continua para todo L real."
+            return True, tr("{funcion} es continua para todo L real.", funcion=outer.__name__)
 
         # 4) tan: cos(L) != 0
         if outer == sympy.tan:
             try:
                 c = sympy.cos(L)
                 if sympy.simplify(c) == 0:
-                    return False, "tan NO es continua cuando cos(L)=0 (asíntota vertical)."
+                    return False, tr("tan NO es continua cuando cos(L)=0 (asíntota vertical).")
             except Exception:
                 pass
-            return True, "tan es continua donde cos(L)≠0; no detectamos cos(L)=0."
+            return True, tr("tan es continua donde cos(L)≠0; no detectamos cos(L)=0.")
 
         # 5) log: L > 0
         if outer == sympy.log:
             if self._es_positivo(L):
-                return True, "log es continua en su dominio real; se verificó L>0."
-            return False, "log requiere L>0 para continuidad real; no podemos garantizarlo."
+                return True, tr("log es continua en su dominio real; se verificó L>0.")
+            return False, tr("log requiere L>0 para continuidad real; no podemos garantizarlo.")
 
         # 6) sqrt: L >= 0
         if outer == sympy.sqrt:
             if self._es_no_negativo(L):
-                return True, "sqrt es continua en su dominio real; se verificó L>=0."
-            return False, "sqrt requiere L>=0 para continuidad real; no podemos garantizarlo."
+                return True, tr("sqrt es continua en su dominio real; se verificó L>=0.")
+            return False, tr("sqrt requiere L>=0 para continuidad real; no podemos garantizarlo.")
 
         # 7) Abs
         if outer == sympy.Abs:
-            return True, "abs es continua para todo L real."
+            return True, tr("abs es continua para todo L real.")
 
         # 8) asin/acos: L en [-1,1]
         if outer in (sympy.asin, sympy.acos):
             if self._en_intervalo_menos1_1(L):
-                return True, f"{outer.__name__} es continua en [-1,1]; se verificó L en el intervalo."
-            return False, f"{outer.__name__} requiere L∈[-1,1] en reales; no podemos garantizarlo."
+                return True, tr("{funcion} es continua en [-1,1]; se verificó L en el intervalo.", funcion=outer.__name__)
+            return False, tr("{funcion} requiere L∈[-1,1] en reales; no podemos garantizarlo.", funcion=outer.__name__)
 
-        return False, "Función externa no soportada para chequeo de continuidad."
+        return False, tr("Función externa no soportada para chequeo de continuidad.")
 
     def _es_positivo(self, x: Any) -> bool:
         try:

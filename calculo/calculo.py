@@ -20,6 +20,8 @@ from typing import Any, List, Optional, Tuple
 import sympy
 from sympy import Symbol, Dummy
 
+from i18n import N_, tr
+
 # Reglas de integración manual (manualintegrate)
 from sympy.integrals.manualintegrate import (
     integral_steps,
@@ -42,7 +44,7 @@ class PasoCalculo:
 @dataclass(frozen=True)
 class ResultadoCalculo:
     es_exitoso: bool
-    tipo: str  # "DERIVADA", "INTEGRAL", "DERIVADA_ENECIMA"
+    tipo: str  # "DERIVADA", "INTEGRAL", "DERIVADA DE ORDEN N"
     expresion_input: str
     expr_sympy: Optional[Any]
     variable: Optional[Symbol]
@@ -86,9 +88,9 @@ class Calculo:
         if len(syms) == 0:
             if operacion == "INTEGRAL":
                 raise ValueError(
-                    "Ambigüedad en Integral: está intentando integrar una constante sin especificar la variable. Indíquela."
+                    tr("Ambigüedad en Integral: está intentando integrar una constante sin especificar la variable. Indíquela.")
                 )
-            advertencias.append("La expresión es constante. Se asume derivación respecto a 'x'.")
+            advertencias.append(tr("La expresión es constante. Se asume derivación respecto a 'x'."))
             return self.parser.simbolo("x"), advertencias
 
         # 4. Caso multivariable: política (preferir x si existe)
@@ -96,13 +98,14 @@ class Calculo:
         if "x" in nombres:
             x_sym = next(s for s in syms if s.name == "x")
             advertencias.append(
-                f"Ambigüedad: se detectaron varias variables ({', '.join(nombres)}). Se asume derivación respecto a 'x'."
+                tr("Ambigüedad: se detectaron varias variables ({variables}). Se asume derivación respecto a 'x'.",
+                   variables=", ".join(nombres))
             )
             return x_sym, advertencias
 
         raise ValueError(
-            f"Ambigüedad Matemática: la expresión tiene varias variables ({', '.join(nombres)}). "
-            "Especifique respecto a cuál desea operar."
+            tr("Ambigüedad Matemática: la expresión tiene varias variables ({variables}). "
+               "Especifique respecto a cuál desea operar.", variables=", ".join(nombres))
         )
 
     # ---------------------------------------------------------
@@ -125,11 +128,11 @@ class Calculo:
 
             # Aviso si SymPy no pudo “cerrar” (derivada formal)
             if derivada_final.has(sympy.Derivative):
-                avisos.append("NOTA: el resultado contiene Derivative(...): SymPy lo dejó en forma simbólica (no elemental o no simplificado).")
+                avisos.append(tr("NOTA: el resultado contiene Derivative(...): SymPy lo dejó en forma simbólica (no elemental o no simplificado)."))
 
             return ResultadoCalculo(
                 es_exitoso=True,
-                tipo="DERIVADA",
+                tipo=N_("DERIVADA"),
                 expresion_input=expresion,
                 expr_sympy=expr,
                 variable=var,
@@ -159,16 +162,16 @@ class Calculo:
         # A) Constante
         if not expr.has(var):
             return (
-                [PasoCalculo("Derivada de Constante", "La expresión no varía respecto a la variable.", "Resultado = 0")],
-                "Constante",
-                "Función constante.",
+                [PasoCalculo(tr("Derivada de Constante"), tr("La expresión no varía respecto a la variable."), tr("Resultado = 0"))],
+                N_("Constante"),
+                N_("Función constante."),
                 []
             )
 
         # B) Linealidad (Suma/Resta)
         if expr.is_Add:
             terminos = expr.args
-            pasos.append(PasoCalculo("Regla de Linealidad", f"Suma de derivadas ({len(terminos)} términos).", "(u+v)'=u'+v'"))
+            pasos.append(PasoCalculo(tr("Regla de Linealidad"), tr("Suma de derivadas ({n} términos).", n=len(terminos)), "(u+v)'=u'+v'"))
 
             for i, t in enumerate(terminos, 1):
                 _, strat_t, _, sec_t = self._analizar_estructura_derivada(t, var, profundidad + 1)
@@ -177,9 +180,9 @@ class Calculo:
                     secundarias.append(strat_t)
                 secundarias.extend(sec_t)
 
-                pasos.append(PasoCalculo(f"Derivada Término {i}", f"Estrategia: {strat_t}", f"d({t}) = {d_t}"))
+                pasos.append(PasoCalculo(tr("Derivada Término {i}", i=i), tr("Estrategia: {estrategia}", estrategia=tr(strat_t)), f"d({t}) = {d_t}"))
 
-            return pasos, "Linealidad", "Suma algebraica.", secundarias
+            return pasos, N_("Linealidad"), N_("Suma algebraica."), secundarias
 
         # C) Cociente (y detección de potencia negativa)
         num, den = expr.as_numer_denom()
@@ -187,14 +190,14 @@ class Calculo:
 
         if den != 1 and den.has(var):
             if es_potencia_negativa:
-                secundarias.append("Regla del Cociente (alternativa)")
+                secundarias.append(N_("Regla del Cociente (alternativa)"))
                 base, exp = expr.as_base_exp()
                 u = base
                 n = exp
                 du = sympy.diff(u, var)
-                pasos.append(PasoCalculo("Regla de Potencia Negativa", "Expresión recíproca/inversa.", f"u={u}, n={n}"))
-                pasos.append(PasoCalculo("Regla Generalizada", "n*u^(n-1)*u'", f"{n}*({u})^({n}-1)*({du})"))
-                return pasos, "Potencia Negativa", "Potencia con exponente negativo.", secundarias
+                pasos.append(PasoCalculo(tr("Regla de Potencia Negativa"), tr("Expresión recíproca/inversa."), f"u={u}, n={n}"))
+                pasos.append(PasoCalculo(tr("Regla Generalizada"), tr("n*u^(n-1)*u'"), f"{n}*({u})^({n}-1)*({du})"))
+                return pasos, N_("Potencia Negativa"), N_("Potencia con exponente negativo."), secundarias
 
             u = num
             v = den
@@ -206,10 +209,10 @@ class Calculo:
             secundarias.extend([s for s in (strat_u, strat_v) if s not in ("Constante", "Directa")])
             secundarias.extend(sec_u + sec_v)
 
-            pasos.append(PasoCalculo("Regla del Cociente", "Identificamos u y v.", f"u={u}\nv={v}"))
-            pasos.append(PasoCalculo("Derivadas", f"u' ({strat_u}) y v' ({strat_v}).", f"u'={du}\nv'={dv}"))
-            pasos.append(PasoCalculo("Aplicar Fórmula", "(u'v - uv')/v²", f"(({du})*({v}) - ({u})*({dv})) / ({v})^2"))
-            return pasos, "Regla del Cociente", "Función racional.", secundarias
+            pasos.append(PasoCalculo(tr("Regla del Cociente"), tr("Identificamos u y v."), f"u={u}\nv={v}"))
+            pasos.append(PasoCalculo(tr("Derivadas"), tr("u' ({estrategia_u}) y v' ({estrategia_v}).", estrategia_u=tr(strat_u), estrategia_v=tr(strat_v)), f"u'={du}\nv'={dv}"))
+            pasos.append(PasoCalculo(tr("Aplicar Fórmula"), tr("(u'v - uv')/v²"), f"(({du})*({v}) - ({u})*({dv})) / ({v})^2"))
+            return pasos, N_("Regla del Cociente"), N_("Función racional."), secundarias
 
         # D) Producto (constantes simbólicas separadas)
         if expr.is_Mul:
@@ -222,23 +225,23 @@ class Calculo:
                 coeff = sympy.Mul(*constantes)
                 if not variables:
                     return (
-                        [PasoCalculo("Derivada de Constante", "Expresión simbólica constante.", "0")],
-                        "Constante",
-                        "Constante simbólica.",
+                        [PasoCalculo(tr("Derivada de Constante"), tr("Expresión simbólica constante."), "0")],
+                        N_("Constante"),
+                        N_("Constante simbólica."),
                         []
                     )
 
                 resto = sympy.Mul(*variables)
                 sub_pasos, sub_strat, _, sub_sec = self._analizar_estructura_derivada(resto, var, profundidad + 1)
 
-                pasos.append(PasoCalculo("Constante por Función", f"Extraemos coeficiente {coeff}.", f"{coeff} * d({resto})"))
+                pasos.append(PasoCalculo(tr("Constante por Función"), tr("Extraemos coeficiente {coeficiente}.", coeficiente=coeff), f"{coeff} * d({resto})"))
                 pasos.extend(sub_pasos)
 
                 if sub_strat not in ("Constante", "Directa"):
                     secundarias.append(sub_strat)
                 secundarias.extend(sub_sec)
 
-                return pasos, "Multiplicación por Constante", "Coeficiente extraído.", secundarias
+                return pasos, N_("Multiplicación por Constante"), N_("Coeficiente extraído."), secundarias
 
             # Producto real
             if len(variables) >= 2:
@@ -253,10 +256,10 @@ class Calculo:
                 secundarias.extend([s for s in (strat_u, strat_v) if s not in ("Constante", "Directa")])
                 secundarias.extend(sec_u + sec_v)
 
-                pasos.append(PasoCalculo("Regla del Producto", "Identificamos u, v.", f"u={u}\nv={v}"))
-                pasos.append(PasoCalculo("Derivadas", f"u' ({strat_u}) y v' ({strat_v}).", f"u'={du}\nv'={dv}"))
-                pasos.append(PasoCalculo("Fórmula", "u'v + uv'", f"({du})*({v}) + ({u})*({dv})"))
-                return pasos, "Regla del Producto", "Producto de funciones.", secundarias
+                pasos.append(PasoCalculo(tr("Regla del Producto"), tr("Identificamos u, v."), f"u={u}\nv={v}"))
+                pasos.append(PasoCalculo(tr("Derivadas"), tr("u' ({estrategia_u}) y v' ({estrategia_v}).", estrategia_u=tr(strat_u), estrategia_v=tr(strat_v)), f"u'={du}\nv'={dv}"))
+                pasos.append(PasoCalculo(tr("Fórmula"), tr("u'v + uv'"), f"({du})*({v}) + ({u})*({dv})"))
+                return pasos, N_("Regla del Producto"), N_("Producto de funciones."), secundarias
 
         # E) Potencias
         if expr.is_Pow:
@@ -273,9 +276,9 @@ class Calculo:
                 u = exp
                 du = sympy.diff(u, var)
 
-                pasos.append(PasoCalculo("Exponencial General", "Base constante a, exponente u(x).", f"y = {a}^{u}"))
-                pasos.append(PasoCalculo("Regla", "d(a^u) = a^u ln(a) u'", f"{a}^{u} * ln({a}) * ({du})"))
-                return pasos, "Exponencial", "Función exponencial.", secundarias
+                pasos.append(PasoCalculo(tr("Exponencial General"), tr("Base constante a, exponente u(x)."), f"y = {a}^{u}"))
+                pasos.append(PasoCalculo(tr("Regla"), tr("d(a^u) = a^u ln(a) u'"), f"{a}^{u} * ln({a}) * ({du})"))
+                return pasos, N_("Exponencial"), N_("Función exponencial."), secundarias
 
             # Caso 2: u(x)^v(x) — CIERRE COMPLETO (V4.3)
             if base.has(var) and exp.has(var):
@@ -287,14 +290,14 @@ class Calculo:
                 # Fórmula final: y' = u^v * (v' ln(u) + v * u'/u)
                 formula = sympy.simplify((u**v) * (dv * sympy.log(u) + v * du / u))
 
-                pasos.append(PasoCalculo("Potencia General", "Base y exponente dependen de x.", f"y = ({u})^({v})"))
-                pasos.append(PasoCalculo("Logaritmación", "Aplicamos ln a ambos lados.", "ln(y) = v * ln(u)"))
-                pasos.append(PasoCalculo("Derivada Implícita", "Derivamos ambos lados.", "y'/y = (v*ln(u))'"))
-                pasos.append(PasoCalculo("Producto + Cadena", "Expandimos (v*ln(u))'.", "v'*ln(u) + v*(u'/u)"))
-                pasos.append(PasoCalculo("Cierre", "Multiplicamos por y.", f"y' = y*(v'*ln(u) + v*u'/u) = {formula}"))
+                pasos.append(PasoCalculo(tr("Potencia General"), tr("Base y exponente dependen de x."), f"y = ({u})^({v})"))
+                pasos.append(PasoCalculo(tr("Logaritmación"), tr("Aplicamos ln a ambos lados."), "ln(y) = v * ln(u)"))
+                pasos.append(PasoCalculo(tr("Derivada Implícita"), tr("Derivamos ambos lados."), "y'/y = (v*ln(u))'"))
+                pasos.append(PasoCalculo(tr("Producto + Cadena"), tr("Expandimos (v*ln(u))'."), "v'*ln(u) + v*(u'/u)"))
+                pasos.append(PasoCalculo(tr("Cierre"), tr("Multiplicamos por y."), f"y' = y*(v'*ln(u) + v*u'/u) = {formula}"))
 
-                secundarias.extend(["Regla del Producto", "Regla de la Cadena"])
-                return pasos, "Potencia General (Logarítmica)", "Función elevado a función.", secundarias
+                secundarias.extend([N_("Regla del Producto"), N_("Regla de la Cadena")])
+                return pasos, N_("Potencia General (Logarítmica)"), N_("Función elevado a función."), secundarias
 
             # Caso 3: u(x)^n
             if base.has(var) and (not exp.has(var)):
@@ -304,9 +307,9 @@ class Calculo:
 
                 if u == var:
                     return (
-                        [PasoCalculo("Regla de la Potencia", "Polinomio simple.", f"{n}*{var}^({n}-1)")],
-                        "Potencia",
-                        "Polinomio.",
+                        [PasoCalculo(tr("Regla de la Potencia"), tr("Polinomio simple."), f"{n}*{var}^({n}-1)")],
+                        N_("Potencia"),
+                        N_("Polinomio."),
                         []
                     )
 
@@ -315,9 +318,9 @@ class Calculo:
                 if strat_u != "Directa":
                     secundarias.append(strat_u)
 
-                pasos.append(PasoCalculo("Cadena (Potencia)", "u(x)^n con n constante.", f"u={u}, n={n}"))
-                pasos.append(PasoCalculo("Regla", "n*u^(n-1)*u'", f"{n}*({u})^({n}-1)*({du})"))
-                return pasos, "Regla de la Cadena", "Potencia de función.", secundarias
+                pasos.append(PasoCalculo(tr("Cadena (Potencia)"), tr("u(x)^n con n constante."), f"u={u}, n={n}"))
+                pasos.append(PasoCalculo(tr("Regla"), tr("n*u^(n-1)*u'"), f"{n}*({u})^({n}-1)*({du})"))
+                return pasos, N_("Regla de la Cadena"), N_("Potencia de función."), secundarias
 
         # F) Cadena para funciones generales f(g(x))
         if expr.is_Function:
@@ -331,23 +334,23 @@ class Calculo:
 
                 msg_externa = str(derivada_externa_visible)
                 if derivada_externa.has(sympy.Derivative):
-                    msg_externa += " (Forma Simbólica)"
+                    msg_externa += " " + tr("(Forma Simbólica)")
 
                 _, strat_in, _, sec_in = self._analizar_estructura_derivada(arg, var, profundidad + 1)
                 secundarias.extend(sec_in)
                 if strat_in != "Directa":
                     secundarias.append(strat_in)
 
-                pasos.append(PasoCalculo("Regla de la Cadena", "Composición f(g(x)).", f"Externa: {expr.func.__name__}, Interna u={arg}"))
-                pasos.append(PasoCalculo("Derivar Externa", "Derivada de f respecto a u.", msg_externa))
-                pasos.append(PasoCalculo("Derivar Interna", "Multiplicamos por u'.", f"* ({derivada_interna})"))
-                return pasos, "Regla de la Cadena", "Composición.", secundarias
+                pasos.append(PasoCalculo(tr("Regla de la Cadena"), tr("Composición f(g(x))."), tr("Externa: {externa}, Interna u={interna}", externa=expr.func.__name__, interna=arg)))
+                pasos.append(PasoCalculo(tr("Derivar Externa"), tr("Derivada de f respecto a u."), msg_externa))
+                pasos.append(PasoCalculo(tr("Derivar Interna"), tr("Multiplicamos por u'."), f"* ({derivada_interna})"))
+                return pasos, N_("Regla de la Cadena"), N_("Composición."), secundarias
 
         # Fallback
         return (
-            [PasoCalculo("Derivada Directa", "Regla estándar.", str(sympy.diff(expr, var)))],
-            "Directa",
-            "Elemental.",
+            [PasoCalculo(tr("Derivada Directa"), tr("Regla estándar."), str(sympy.diff(expr, var)))],
+            N_("Directa"),
+            N_("Elemental."),
             []
         )
 
@@ -365,31 +368,31 @@ class Calculo:
                 pasos_rule = integral_steps(expr, var)
             except Exception as ex:
                 # No lo ocultes: informa, pero sigue con integrate()
-                avisos.append(f"NOTA: no se pudieron generar pasos manuales (manualintegrate): {type(ex).__name__}.")
+                avisos.append(tr("NOTA: no se pudieron generar pasos manuales (manualintegrate): {error}.", error=type(ex).__name__))
 
             integral = sympy.integrate(expr, var)
 
-            estrategia = "Directa / Algorítmica"
+            estrategia = N_("Directa / Algorítmica")
             pasos_dto: List[PasoCalculo] = []
 
             if pasos_rule:
                 estrategia = self._obtener_nombre_regla(pasos_rule)
                 pasos_dto = self._regla_a_pasos(pasos_rule, var)
             else:
-                pasos_dto = [PasoCalculo("Cálculo Avanzado", "Sin pasos manuales simples.", "Algoritmo / heurísticas de SymPy")]
+                pasos_dto = [PasoCalculo(tr("Cálculo Avanzado"), tr("Sin pasos manuales simples."), tr("Algoritmo / heurísticas de SymPy"))]
 
             if integral.has(sympy.Integral):
-                avisos.append("ADVERTENCIA: SymPy no encontró solución cerrada (resultado queda como Integral(...)).")
+                avisos.append(tr("ADVERTENCIA: SymPy no encontró solución cerrada (resultado queda como Integral(...))."))
 
             # Detección segura de funciones especiales
             special_names = ["erf", "Ei", "Si", "Ci", "li", "fresnels", "fresnelc"]
             funciones_especiales = [getattr(sympy, name) for name in special_names if getattr(sympy, name, None)]
             if funciones_especiales and integral.has(*funciones_especiales):
-                avisos.append("NOTA: el resultado contiene funciones especiales no elementales.")
+                avisos.append(tr("NOTA: el resultado contiene funciones especiales no elementales."))
 
             return ResultadoCalculo(
                 es_exitoso=True,
-                tipo="INTEGRAL",
+                tipo=N_("INTEGRAL"),
                 expresion_input=expresion,
                 expr_sympy=expr,
                 variable=var,
@@ -412,12 +415,12 @@ class Calculo:
         pasos: List[PasoCalculo] = []
 
         if isinstance(rule, ConstantTimesRule):
-            pasos.append(PasoCalculo("Extraer Constante", f"Sacamos {rule.constant} fuera de la integral.", "k∫f = ∫kf"))
+            pasos.append(PasoCalculo(tr("Extraer Constante"), tr("Sacamos {constante} fuera de la integral.", constante=rule.constant), "k∫f = ∫kf"))
             pasos.extend(self._regla_a_pasos(rule.substep, var, nivel + 1))
             return pasos
 
         if isinstance(rule, AddRule):
-            pasos.append(PasoCalculo("Linealidad", "Separamos la integral en suma de integrales.", "∫(u+v)=∫u+∫v"))
+            pasos.append(PasoCalculo(tr("Linealidad"), tr("Separamos la integral en suma de integrales."), "∫(u+v)=∫u+∫v"))
             for sub in rule.substeps:
                 pasos.extend(self._regla_a_pasos(sub, var, nivel + 1))
             return pasos
@@ -425,31 +428,46 @@ class Calculo:
         if isinstance(rule, URule):
             u = rule.u_func
             du = sympy.diff(u, var)
-            pasos.append(PasoCalculo("Sustitución (u)", f"Elegimos u = {u}", f"du = d({u}) = {du}"))
+            pasos.append(PasoCalculo(tr("Sustitución (u)"), tr("Elegimos u = {u}", u=u), f"du = d({u}) = {du}"))
             # No cambiamos var a 'u' artificialmente: describimos el subpaso
-            pasos.append(PasoCalculo("Integrar en función de u", "Reescribimos la integral en u y resolvemos.", f"Subpaso: {self._obtener_nombre_regla(rule.substep)}"))
+            pasos.append(PasoCalculo(tr("Integrar en función de u"), tr("Reescribimos la integral en u y resolvemos."), tr("Subpaso: {regla}", regla=tr(self._obtener_nombre_regla(rule.substep)))))
             pasos.extend(self._regla_a_pasos(rule.substep, var, nivel + 1))
-            pasos.append(PasoCalculo("Revertir Sustitución", "Volvemos a la variable original.", f"u → {u}"))
+            pasos.append(PasoCalculo(tr("Revertir Sustitución"), tr("Volvemos a la variable original."), f"u → {u}"))
             return pasos
 
         if isinstance(rule, PartsRule):
-            pasos.append(PasoCalculo("Integración por Partes", f"Elegimos u={rule.u} y dv={rule.dv}", "∫u dv = uv - ∫v du"))
+            pasos.append(PasoCalculo(tr("Integración por Partes"), tr("Elegimos u={u} y dv={dv}", u=rule.u, dv=rule.dv), "∫u dv = uv - ∫v du"))
             pasos.extend(self._regla_a_pasos(rule.second_step, var, nivel + 1))
             return pasos
 
         if isinstance(rule, (PowerRule, TrigRule, ExpRule, ReciprocalRule, ConstantRule)):
-            pasos.append(PasoCalculo("Integral Inmediata", f"Aplicamos regla: {self._obtener_nombre_regla(rule)}.", "Tabla de integrales"))
+            pasos.append(PasoCalculo(tr("Integral Inmediata"), tr("Aplicamos regla: {regla}.", regla=tr(self._obtener_nombre_regla(rule))), tr("Tabla de integrales")))
             return pasos
 
         if isinstance(rule, DontKnowRule):
-            pasos.append(PasoCalculo("Método Desconocido", "No hay regla manual clara para este caso.", "Se requiere técnica avanzada / CAS"))
+            pasos.append(PasoCalculo(tr("Método Desconocido"), tr("No hay regla manual clara para este caso."), tr("Se requiere técnica avanzada / CAS")))
             return pasos
 
-        pasos.append(PasoCalculo("Paso Intermedio", f"Regla detectada: {type(rule).__name__}", ""))
+        pasos.append(PasoCalculo(tr("Paso Intermedio"), tr("Regla detectada: {regla}", regla=type(rule).__name__), ""))
         return pasos
 
+    # Nombres de las reglas de manualintegrate (clase sin "Rule") en lenguaje de clase.
+    NOMBRES_REGLAS = {
+        "ConstantTimes": N_("Constante por función"),
+        "Add": N_("Linealidad"),
+        "U": N_("Sustitución"),
+        "Parts": N_("Integración por partes"),
+        "Power": N_("Regla de la potencia"),
+        "Trig": N_("Integral trigonométrica inmediata"),
+        "Exp": N_("Integral exponencial inmediata"),
+        "Reciprocal": N_("Integral de 1/x"),
+        "Constant": N_("Integral de una constante"),
+        "DontKnow": N_("Sin regla conocida"),
+    }
+
     def _obtener_nombre_regla(self, rule: Any) -> str:
-        return type(rule).__name__.replace("Rule", "")
+        nombre = type(rule).__name__.replace("Rule", "")
+        return self.NOMBRES_REGLAS.get(nombre, nombre)
 
     # ---------------------------------------------------------
     # 4) DERIVADAS SUCESIVAS (CONTROL DE EXPLOSIÓN)
@@ -459,14 +477,14 @@ class Calculo:
         try:
             n = int(orden)
             if n < 1:
-                raise ValueError("El orden de derivación debe ser 1 o mayor.")
+                raise ValueError(tr("El orden de derivación debe ser 1 o mayor."))
 
             expr = self.parser.parsear(expresion)
             var, avisos = self._resolver_variable(expr, variable, "DERIVADA")
 
             pasos: List[PasoCalculo] = []
             actual = expr
-            pasos.append(PasoCalculo("Inicio", "Función original.", str(actual)))
+            pasos.append(PasoCalculo(tr("Inicio"), tr("Función original."), str(actual)))
 
             # Política: simplificar cada k pasos, no siempre (evita explosión de costo)
             simplificar_cada = 2 if n <= 6 else 3
@@ -477,25 +495,25 @@ class Calculo:
                 if i % simplificar_cada == 0 or i == n:
                     actual = sympy.simplify(actual)
 
-                pasos.append(PasoCalculo(f"Derivada {i}", "Resultado iterativo.", str(actual)))
+                pasos.append(PasoCalculo(tr("Derivada {i}", i=i), tr("Resultado iterativo."), str(actual)))
 
             if actual.has(sympy.Derivative):
-                avisos.append("NOTA: la derivada enésima contiene Derivative(...): quedó en forma simbólica.")
+                avisos.append(tr("NOTA: la derivada enésima contiene Derivative(...): quedó en forma simbólica."))
 
             return ResultadoCalculo(
                 es_exitoso=True,
-                tipo="DERIVADA_ENECIMA",
+                tipo=N_("DERIVADA DE ORDEN N"),
                 expresion_input=expresion,
                 expr_sympy=expr,
                 variable=var,
                 resultado=actual,
-                estrategia_principal="Iteración",
+                estrategia_principal=N_("Iteración"),
                 pasos=pasos,
                 advertencias=avisos
             )
 
         except Exception as e:
-            return ResultadoCalculo(False, "DERIVADA_ENECIMA", expresion, None, None, None, mensaje_error=str(e))
+            return ResultadoCalculo(False, "DERIVADA DE ORDEN N", expresion, None, None, None, mensaje_error=str(e))
 
     # ---------------------------------------------------------
     # 5) RENDERIZADO ACCESIBLE (RESULTADO PRIMERO)
@@ -503,7 +521,7 @@ class Calculo:
 
     def RenderizarTexto(self, res: ResultadoCalculo) -> str:
         if not res.es_exitoso:
-            return f"Error Matemático:\n{res.mensaje_error}"
+            return tr("Error Matemático:") + f"\n{res.mensaje_error}"
 
         txt: List[str] = []
 
@@ -511,33 +529,33 @@ class Calculo:
         res_str = str(res.resultado)
         if res.requiere_constante:
             res_str += " + C"
-        txt.append(f"RESULTADO: {res_str}")
+        txt.append(tr("RESULTADO: {valor}", valor=res_str))
         txt.append("=" * 30)
 
-        txt.append(f"OPERACIÓN: {res.tipo}")
-        txt.append(f"Expresión: {res.expresion_input}")
+        txt.append(tr("OPERACIÓN: {operacion}", operacion=tr(res.tipo)))
+        txt.append(tr("Expresión: {expresion}", expresion=res.expresion_input))
         if res.variable:
-            txt.append(f"Variable: {res.variable}")
+            txt.append(tr("Variable: {variable}", variable=res.variable))
 
         if res.diagnostico or res.estrategia_principal:
-            txt.append("\nANÁLISIS:")
+            txt.append("\n" + tr("ANÁLISIS:"))
             if res.estrategia_principal:
-                txt.append(f"Estrategia Principal: {res.estrategia_principal}")
+                txt.append(tr("Estrategia Principal: {estrategia}", estrategia=tr(res.estrategia_principal)))
             if res.estrategias_secundarias:
-                txt.append(f"Estrategias Secundarias: {', '.join(res.estrategias_secundarias)}")
+                txt.append(tr("Estrategias Secundarias: {estrategias}", estrategias=", ".join(tr(e) for e in res.estrategias_secundarias)))
             if res.diagnostico:
-                txt.append(f"Diagnóstico: {res.diagnostico}")
+                txt.append(tr("Diagnóstico: {diagnostico}", diagnostico=tr(res.diagnostico)))
 
         if res.pasos:
-            txt.append("\nPASO A PASO:")
+            txt.append("\n" + tr("PASO A PASO:"))
             for i, p in enumerate(res.pasos, 1):
-                linea = f"{i}. {p.titulo}. {p.descripcion}"
+                linea = f"{i}. {tr(p.titulo)}. {tr(p.descripcion)}"
                 if p.expresion_matematica:
-                    linea += f"\n   [Fórmula]: {p.expresion_matematica}"
+                    linea += "\n   " + tr("[Fórmula]: {formula}", formula=p.expresion_matematica)
                 txt.append(linea)
 
         if res.advertencias:
-            txt.append("\n[!] AVISOS:")
+            txt.append("\n" + tr("[!] AVISOS:"))
             for adv in res.advertencias:
                 txt.append(f" - {adv}")
 

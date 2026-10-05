@@ -11,6 +11,7 @@ el ejecutable usa Win32GUI y no tiene consola, así que el informe va a un archi
 """
 from typing import Callable, List, Optional, Tuple
 
+import i18n
 from puente import CoreMatematico
 
 
@@ -30,12 +31,24 @@ def _casos(core: CoreMatematico) -> List[Tuple[str, Callable[[], str], str]]:
         ("Gauss-Jordan", lambda: core.ResolverSistemaGauss(["x + y = 10", "x - y = 2"]), "x = 6"),
         ("Sistema clásico", lambda: core.ResolverSistemaEducativo(["x + y = 10", "x - y = 2"], "reduccion"), "y = 4"),
         ("Matriz inversa", lambda: core.MatrizInversaCofactores("1 2\n3 4"), "3/2"),
+        # Traducción: comprueba que locales/en.json está junto al ejecutable
+        ("Inglés", lambda: _en_ingles(lambda: core.Derivar("x^3")), "RESULT: 3*x**2"),
     ]
+
+
+def _en_ingles(llamada):
+    i18n.establecer_idioma("en")
+    try:
+        return llamada()
+    finally:
+        i18n.establecer_idioma(i18n.IDIOMA_ORIGEN)
 
 
 def ejecutar(ruta_informe: Optional[str] = None) -> int:
     lineas: List[str] = []
     fallos = 0
+    # Los textos esperados están en español (idioma de origen)
+    i18n.establecer_idioma(i18n.IDIOMA_ORIGEN)
     try:
         core = CoreMatematico()
         for nombre, llamada, esperado in _casos(core):

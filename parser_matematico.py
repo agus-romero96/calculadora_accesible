@@ -1,5 +1,7 @@
 import sympy
 from sympy.core.function import AppliedUndef
+
+from i18n import tr
 from sympy.parsing.sympy_parser import (
     _token_splittable,
     convert_xor,
@@ -79,6 +81,7 @@ class ParserMatematico:
             "oo": sympy.oo,
             "inf": sympy.oo,
             "infinito": sympy.oo,
+            "infinity": sympy.oo,
 
             # Logaritmos
             "log": sympy.log,      # natural
@@ -103,10 +106,10 @@ class ParserMatematico:
 
     def parsear(self, expresion: str):
         if not expresion or not expresion.strip():
-            raise ValueError("La expresión está vacía.")
+            raise ValueError(tr("La expresión está vacía."))
 
         if expresion.count("(") != expresion.count(")"):
-            raise ValueError("Paréntesis desbalanceados.")
+            raise ValueError(tr("Paréntesis desbalanceados."))
 
         txt = expresion.lower().strip()
 
@@ -118,7 +121,7 @@ class ParserMatematico:
                 evaluate=False,  # 🔴 CLAVE: no reescribas nada
             )
         except Exception as e:
-            raise ValueError(f"No se pudo interpretar la expresión: {e}")
+            raise ValueError(tr("No se pudo interpretar la expresión: {error}", error=e))
 
         self._validar_nombres(resultado, txt)
         return resultado
@@ -168,8 +171,8 @@ class ParserMatematico:
     def _mensaje_nombre(self, nombre: str, escrito: str, args) -> str:
         partes = _contiene_funcion(nombre)
         if not partes:
-            return (f"No se reconoce la función '{nombre}' en '{escrito}'. "
-                    f"Si quería multiplicar, use '*'.")
+            return tr("No se reconoce la función '{nombre}' en '{escrito}'. Si quería multiplicar, use '*'.",
+                      nombre=nombre, escrito=escrito)
 
         antes, funcion, despues = partes
         if args is not None and not despues:
@@ -184,8 +187,8 @@ class ParserMatematico:
         else:
             sugerencia = None
 
-        msg = f"No se reconoce '{escrito}'."
+        msg = tr("No se reconoce '{escrito}'.", escrito=escrito)
         if sugerencia:
-            msg += f" ¿Quiso decir {sugerencia}?"
-        return (msg + " Escriba '*' entre una variable y una función, "
-                "y el argumento de la función entre paréntesis.")
+            msg += " " + tr("¿Quiso decir {sugerencia}?", sugerencia=sugerencia)
+        return msg + " " + tr("Escriba '*' entre una variable y una función, "
+                              "y el argumento de la función entre paréntesis.")

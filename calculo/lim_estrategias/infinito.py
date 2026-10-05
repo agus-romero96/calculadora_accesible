@@ -5,6 +5,7 @@ from typing import Any, Optional, Tuple, List
 import sympy
 from sympy import S
 
+from i18n import N_, tr
 from ._base import (
     Estrategia,
     ResultadoEstrategia,
@@ -29,7 +30,7 @@ class LimiteRacionalInfinito(Estrategia):
     """
 
     def nombre(self) -> str:
-        return "Comparación de grados (racionales en infinito)"
+        return N_("Comparación de grados (racionales en infinito)")
 
     def puede_resolver(self, expr, var, punto, **kwargs) -> bool:
         if punto not in (S.Infinity, S.NegativeInfinity):
@@ -55,7 +56,7 @@ class LimiteRacionalInfinito(Estrategia):
         n, d = expr.as_numer_denom()
 
         pasos: List[str] = []
-        pasos.append("Identificamos un cociente de polinomios en infinito.")
+        pasos.append(tr("Identificamos un cociente de polinomios en infinito."))
 
         deg_n, deg_d = self._safe_degree_pair(n, d, var)
         if deg_n is None or deg_d is None:
@@ -64,25 +65,25 @@ class LimiteRacionalInfinito(Estrategia):
                 estado=ESTADO_NO_CONCLUYENTE,
                 resultado=None,
                 nombre_estrategia=self.nombre(),
-                explicacion="No se pudieron determinar grados de forma segura.",
-                pasos=pasos + ["No se pudo calcular degree() para numerador/denominador."],
-                avisos=["Se requiere fallback CAS u otra estrategia."],
+                explicacion=N_("No se pudieron determinar grados de forma segura."),
+                pasos=pasos + [tr("No se pudo calcular degree() para numerador/denominador.")],
+                avisos=[tr("Se requiere fallback CAS u otra estrategia.")],
                 expr_original=expr,
                 expr_trabajo=expr,
             )
 
-        pasos.append(f"Grado del numerador: {deg_n}")
-        pasos.append(f"Grado del denominador: {deg_d}")
+        pasos.append(tr("Grado del numerador: {deg_n}", deg_n=deg_n))
+        pasos.append(tr("Grado del denominador: {deg_d}", deg_d=deg_d))
 
         # Caso 1: deg(n) < deg(d) -> 0
         if deg_n < deg_d:
-            pasos.append("Como el grado del denominador es mayor, el cociente tiende a 0.")
+            pasos.append(tr("Como el grado del denominador es mayor, el cociente tiende a 0."))
             return ResultadoEstrategia(
                 aplica=True,
                 estado=ESTADO_FINITO,
                 resultado=sympy.Integer(0),
                 nombre_estrategia=self.nombre(),
-                explicacion="En infinito domina el término de mayor grado del denominador.",
+                explicacion=N_("En infinito domina el término de mayor grado del denominador."),
                 pasos=pasos,
                 expr_original=expr,
                 expr_trabajo=expr,
@@ -96,27 +97,27 @@ class LimiteRacionalInfinito(Estrategia):
                 estado=ESTADO_NO_CONCLUYENTE,
                 resultado=None,
                 nombre_estrategia=self.nombre(),
-                explicacion="No se pudieron determinar coeficientes líderes de forma segura.",
-                pasos=pasos + ["No se pudo calcular LC() para numerador/denominador."],
-                avisos=["Se requiere fallback CAS u otra estrategia."],
+                explicacion=N_("No se pudieron determinar coeficientes líderes de forma segura."),
+                pasos=pasos + [tr("No se pudo calcular LC() para numerador/denominador.")],
+                avisos=[tr("Se requiere fallback CAS u otra estrategia.")],
                 expr_original=expr,
                 expr_trabajo=expr,
             )
 
-        pasos.append(f"Coeficiente líder numerador: {lc_n}")
-        pasos.append(f"Coeficiente líder denominador: {lc_d}")
+        pasos.append(tr("Coeficiente líder numerador: {lc_n}", lc_n=lc_n))
+        pasos.append(tr("Coeficiente líder denominador: {lc_d}", lc_d=lc_d))
 
         # Caso 2: deg(n) == deg(d) -> cociente de líderes
         if deg_n == deg_d:
             res = sympy.simplify(lc_n / lc_d)
-            pasos.append("Grados iguales: el límite es la razón de coeficientes principales.")
-            pasos.append(f"Límite = {lc_n}/{lc_d} = {res}")
+            pasos.append(tr("Grados iguales: el límite es la razón de coeficientes principales."))
+            pasos.append(tr("Límite = {lc_n}/{lc_d} = {res}", lc_n=lc_n, lc_d=lc_d, res=res))
             return ResultadoEstrategia(
                 aplica=True,
                 estado=ESTADO_FINITO,
                 resultado=res,
                 nombre_estrategia=self.nombre(),
-                explicacion="Grados iguales → razón de coeficientes líderes.",
+                explicacion=N_("Grados iguales → razón de coeficientes líderes."),
                 pasos=pasos,
                 expr_original=expr,
                 expr_trabajo=expr,
@@ -126,20 +127,20 @@ class LimiteRacionalInfinito(Estrategia):
         k = int(deg_n - deg_d)
         ratio = sympy.simplify(lc_n / lc_d)
 
-        pasos.append(f"El numerador tiene mayor grado. Diferencia k = {k}.")
-        pasos.append("En infinito, domina el término principal: (LC(n)/LC(d)) * x^k.")
-        pasos.append(f"Ratio dominante = {ratio}")
+        pasos.append(tr("El numerador tiene mayor grado. Diferencia k = {k}.", k=k))
+        pasos.append(tr("En infinito, domina el término principal: (LC(n)/LC(d)) * x^k."))
+        pasos.append(tr("Ratio dominante = {ratio}", ratio=ratio))
 
         # 3A) Intento: decidir signo totalmente
         inf = self._infinito_con_signo(ratio, k, punto)
         if inf is not None:
-            pasos.append(f"Como el signo se puede decidir, el límite diverge hacia {inf}.")
+            pasos.append(tr("Como el signo se puede decidir, el límite diverge hacia {inf}.", inf=inf))
             return ResultadoEstrategia(
                 aplica=True,
                 estado=ESTADO_INFINITO,
                 resultado=inf,
                 nombre_estrategia=self.nombre(),
-                explicacion="Grado arriba mayor → divergencia tipo ratio*x^k (signo según paridad y tendencia).",
+                explicacion=N_("Grado arriba mayor → divergencia tipo ratio*x^k (signo según paridad y tendencia)."),
                 pasos=pasos,
                 expr_original=expr,
                 expr_trabajo=expr,
@@ -148,30 +149,30 @@ class LimiteRacionalInfinito(Estrategia):
         # 3B) Si no se puede decidir el signo, intentamos diagnóstico condicional
         cond = self._diagnostico_condicional(ratio, k, punto)
         if cond:
-            pasos.append("El signo depende de parámetros y no se puede fijar sin hipótesis.")
+            pasos.append(tr("El signo depende de parámetros y no se puede fijar sin hipótesis."))
             pasos.extend([f"• {linea}" for linea in cond])
             return ResultadoEstrategia(
                 aplica=True,
                 estado=ESTADO_NO_CONCLUYENTE,
                 resultado=None,
                 nombre_estrategia=self.nombre(),
-                explicacion="Diverge en magnitud, pero el signo depende de parámetros.",
+                explicacion=N_("Diverge en magnitud, pero el signo depende de parámetros."),
                 pasos=pasos,
-                avisos=["Se requiere suponer el signo del coeficiente dominante para decidir +∞ o −∞."],
+                avisos=[tr("Se requiere suponer el signo del coeficiente dominante para decidir +∞ o −∞.")],
                 expr_original=expr,
                 expr_trabajo=expr,
             )
 
         # 3C) Último: no concluyente
-        pasos.append("Conclusión: el límite diverge en magnitud (|f|→∞), pero no se pudo determinar el signo.")
+        pasos.append(tr("Conclusión: el límite diverge en magnitud (|f|→∞), pero no se pudo determinar el signo."))
         return ResultadoEstrategia(
             aplica=True,
             estado=ESTADO_NO_CONCLUYENTE,
             resultado=None,
             nombre_estrategia=self.nombre(),
-            explicacion="Diverge (grado mayor arriba), pero el signo no pudo determinarse.",
+            explicacion=N_("Diverge (grado mayor arriba), pero el signo no pudo determinarse."),
             pasos=pasos,
-            avisos=["No se pudo decidir el signo de LC(n)/LC(d)."],
+            avisos=[tr("No se pudo decidir el signo de LC(n)/LC(d).")],
             expr_original=expr,
             expr_trabajo=expr,
         )
@@ -270,20 +271,20 @@ class LimiteRacionalInfinito(Estrategia):
         # Condiciones “de libro”
         if k % 2 == 0:
             return [
-                f"Si {ratio_s} > 0 entonces el límite → +∞",
-                f"Si {ratio_s} < 0 entonces el límite → −∞",
+                tr("Si {ratio_s} > 0 entonces el límite → +∞", ratio_s=ratio_s),
+                tr("Si {ratio_s} < 0 entonces el límite → −∞", ratio_s=ratio_s),
             ]
 
         # k impar: depende del lado del infinito
         if punto == S.Infinity:
             return [
-                f"Si {ratio_s} > 0 entonces el límite → +∞",
-                f"Si {ratio_s} < 0 entonces el límite → −∞",
+                tr("Si {ratio_s} > 0 entonces el límite → +∞", ratio_s=ratio_s),
+                tr("Si {ratio_s} < 0 entonces el límite → −∞", ratio_s=ratio_s),
             ]
         if punto == S.NegativeInfinity:
             return [
-                f"Si {ratio_s} > 0 entonces el límite → −∞",
-                f"Si {ratio_s} < 0 entonces el límite → +∞",
+                tr("Si {ratio_s} > 0 entonces el límite → −∞", ratio_s=ratio_s),
+                tr("Si {ratio_s} < 0 entonces el límite → +∞", ratio_s=ratio_s),
             ]
 
         return []

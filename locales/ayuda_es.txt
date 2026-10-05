@@ -1,0 +1,99 @@
+MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
+===================================================
+
+1. ¿QUÉ ES ESTA HERRAMIENTA?
+   Es una calculadora avanzada que funciona como un chat.
+   Usted escribe una orden matemática en el cuadro de arriba,
+   presiona una combinación de teclas, y el resultado aparece
+   aquí abajo, listo para ser leído.
+
+2. FLUJO DE TRABAJO (CÓMO USARLA)
+   Paso A: Escriba su fórmula (ej: 2+2) en la entrada.
+   Paso B: Elija qué hacer (Calcular, Derivar, Integrar).
+           Puede usar el menú o los atajos de teclado.
+   Paso C: El foco saltará automáticamente a este cuadro
+           para leerle el resultado paso a paso.
+
+3. ATAJOS DE TECLADO (MEMORIZAR ESTOS)
+   [Ctrl + Enter]     : CALCULAR (Aritmética básica, Sistemas).
+   [Ctrl + S]         : SIMPLIFICAR una expresión.
+   [Ctrl + F]         : FACTORIZAR un polinomio.
+   [Ctrl + D]         : DERIVAR una función.
+   [Ctrl + Mayús + D] : DERIVADA de orden N.
+   [Ctrl + I]         : INTEGRAR una función.
+   [Ctrl + L]         : Calcular LÍMITE.
+   [Ctrl + G]         : Resolver SISTEMA por Gauss-Jordan.
+   [Ctrl + M]         : MATRIZ INVERSA por cofactores.
+   [Ctrl + Retroceso] : LIMPIAR pantalla para empezar de cero.
+   [Ctrl + Mayús + C] : COPIAR el resultado.
+   [Ctrl + E]         : EXPORTAR el resultado a un archivo.
+   [F1]               : Ver esta ayuda.
+   [Alt]              : Acceder a la barra de menús.
+   Sistemas 2x2 por sustitución, igualación o reducción:
+   menú Álgebra, submenú 'Sistema 2x2 por método clásico'.
+
+   Si un cálculo tarda, se abre el diálogo 'Calculando'.
+   Puede pulsar Cancelar para abandonarlo.
+
+4. GUÍA DE ESCRITURA (SINTAXIS)
+   Para que la calculadora le entienda, escriba así:
+
+   * Multiplicación: Puede usar el asterisco o escribir
+     el número pegado: 2*x, 2x, 3sin(x) y 2(x+1) son válidos.
+     IMPORTANTE: entre una variable y una función use
+     siempre el asterisco.
+     CORRECTO: x*sin(x)     INCORRECTO: xsin(x)
+
+   * Potencias: Use el sombrero (^) o doble asterisco (**).
+     Ejemplo: x^2  o  x**2
+
+   * Funciones: Use paréntesis siempre.
+     Ejemplo: sin(x), cos(x), ln(x), sqrt(x)
+
+   * Constantes matemáticas:
+     Escriba 'pi' para el número Pi.
+     Escriba 'e' para el número de Euler.
+     Escriba 'oo' (doble letra o) para Infinito.
+
+   * Matrices (para la inversa): una fila por línea,
+     con los números separados por espacios. Ejemplo:
+       1 2
+       3 4
+
+5. EJEMPLOS PRÁCTICOS
+   - Derivar: Escriba '3*x^2 + 5'. Pulse Ctrl+D.
+   - Integrar: Escriba 'sin(x)'. Pulse Ctrl+I.
+   - Límite: Escriba 'sin(x)/x'. Pulse Ctrl+L.
+     Variable: x. Tendencia: 0.
+     Para un límite lateral escriba la tendencia con + o -,
+     por ejemplo 0+ (por la derecha) o 0- (por la izquierda).
+     Para infinito escriba oo, o -oo para menos infinito.
+   - Sistema 2x2: Escriba dos líneas:
+       x + y = 10
+       x - y = 2
+     Luego pulse Ctrl+Enter.
+
+6. SOLUCIÓN DE PROBLEMAS
+   - ¿Le pregunta por variables? Si escribe 'x + y', el sistema
+     le preguntará con cuál desea trabajar. Use las flechas
+     para elegir en el diálogo y pulse Enter.
+   - ¿Error de Sintaxis? Verifique que cerró todos los paréntesis
+     y que usó '*' entre una variable y una función.
+   - ¿Dice que hay un cálculo en curso? Espere a que termine,
+     o pulse Cancelar en el diálogo 'Calculando'.
+
+7. COPIAR Y EXPORTAR RESULTADOS (menú Resultado)
+   [Ctrl + Mayús + C] : Copiar solo el resultado (ej: x = 6, y = 4).
+   [Ctrl + Mayús + A] : Copiar la explicación completa.
+   [Ctrl + Mayús + L] : Copiar el resultado en LaTeX.
+   [Ctrl + Mayús + M] : Copiar el resultado en MathML.
+   [Ctrl + E]         : Exportar a un archivo. Formatos:
+     - HTML con fórmulas MathML: se abre en el navegador y el
+       lector de pantalla puede leer y explorar las fórmulas.
+     - Texto plano, Markdown, documento LaTeX y JSON.
+   Elija el formato en la lista 'Tipo' del diálogo Guardar.
+
+8. IDIOMA
+   El menú 'Idioma / Language' cambia el idioma de la
+   calculadora (español o inglés). Los resultados nuevos se
+   muestran en el idioma elegido, y se recuerda al reiniciar.

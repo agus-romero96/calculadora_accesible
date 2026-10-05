@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Any, Tuple
 import sympy
 
+from i18n import N_, tr
+
 # --- ESTRUCTURAS DE DATOS (DTOs Inmutables) ---
 
 @dataclass(frozen=True)
@@ -26,6 +28,8 @@ class ResultadoGauss:
     solucion_texto: str = "" 
     mensaje_error: str = ""
     advertencias: List[str] = field(default_factory=list) # Avisos no bloqueantes
+    # Solución como objetos SymPy (para exportar): lista de Eq(variable, valor) o EmptySet
+    solucion: Any = None
 
 # --- CLASE PRINCIPAL ---
 
@@ -68,7 +72,7 @@ class MotorGauss:
                 if "=" in txt:
                     parts = txt.split("=")
                     if len(parts) != 2:
-                        raise ValueError(f"La ecuación '{txt.strip()}' debe tener exactamente un signo '='.")
+                        raise ValueError(tr("La ecuación '{strip}' debe tener exactamente un signo '='.", strip=txt.strip()))
                     izq = self.parser.parsear(parts[0])
                     der = self.parser.parsear(parts[1])
                     eq = sympy.Eq(izq, der)
@@ -81,7 +85,7 @@ class MotorGauss:
                 todas_vars.update(eq.free_symbols)
             
             if not ecuaciones_sympy:
-                raise ValueError("No se detectaron ecuaciones válidas.")
+                raise ValueError(tr("No se detectaron ecuaciones válidas."))
 
             # Ordenar variables alfabéticamente para consistencia (x, y, z)
             variables = sorted(list(todas_vars), key=lambda s: s.name)
@@ -93,7 +97,7 @@ class MotorGauss:
             return M_aumentada, [v.name for v in variables]
 
         except Exception as e:
-            raise ValueError(f"No se pudo interpretar el sistema: {str(e)}")
+            raise ValueError(tr("No se pudo interpretar el sistema: {e}", e=str(e)))
 
     def _resolver_core_gauss(self, matriz_inicial: sympy.Matrix, variables: List[str]) -> ResultadoGauss:
         """Motor algorítmico con Pivoteo Inteligente (Prioridad a 1 y -1)."""
@@ -105,7 +109,7 @@ class MotorGauss:
 
         # --- VALIDACIÓN DE TAMAÑO (NO BLOQUEANTE) ---
         if rows > 5:
-            advertencias.append(f"Sistema grande ({rows} ecuaciones). La explicación detallada puede ser extensa.")
+            advertencias.append(tr("Sistema grande ({rows} ecuaciones). La explicación detallada puede ser extensa.", rows=rows))
 
         pivot_row = 0
         
@@ -128,8 +132,8 @@ class MotorGauss:
             if candidato_row != pivot_row:
                 M.row_swap(pivot_row, candidato_row)
                 pasos_historial.append(PasoGauss(
-                    titulo=f"Intercambio de Filas (Columna {col+1})",
-                    descripcion=f"Para evitar fracciones complejas, intercambiamos Fila {pivot_row+1} con Fila {candidato_row+1} (buscando un 1 o pivote simple).",
+                    titulo=tr("Intercambio de Filas (Columna {col})", col=col + 1),
+                    descripcion=tr("Para evitar fracciones complejas, intercambiamos Fila {pivot_row} con Fila {candidato_row} (buscando un 1 o pivote simple).", pivot_row=pivot_row + 1, candidato_row=candidato_row + 1),
                     operacion_matematica=f"F{pivot_row+1} <-> F{candidato_row+1}",
                     matriz_resultante=M.copy()
                 ))
@@ -142,8 +146,8 @@ class MotorGauss:
             if not self._es_cero(pivot_val - 1): 
                 M.row_op(pivot_row, lambda v, j: v / pivot_val)
                 pasos_historial.append(PasoGauss(
-                    titulo=f"Normalizar Fila {pivot_row+1}",
-                    descripcion=f"Dividimos la fila entre {pivot_val} para obtener un 1 principal.",
+                    titulo=tr("Normalizar Fila {pivot_row}", pivot_row=pivot_row + 1),
+                    descripcion=tr("Dividimos la fila entre {pivot_val} para obtener un 1 principal.", pivot_val=pivot_val),
                     operacion_matematica=f"F{pivot_row+1} -> F{pivot_row+1} / ({pivot_val})",
                     matriz_resultante=M.copy()
                 ))
@@ -164,8 +168,8 @@ class MotorGauss:
             
             if cambios_realizados:
                 pasos_historial.append(PasoGauss(
-                    titulo=f"Eliminación en Columna {col+1}",
-                    descripcion="Hacemos ceros arriba y abajo del pivote para limpiar la columna.",
+                    titulo=tr("Eliminación en Columna {col}", col=col + 1),
+                    descripcion=tr("Hacemos ceros arriba y abajo del pivote para limpiar la columna."),
                     operacion_matematica=", ".join(descripciones_elim),
                     matriz_resultante=M.copy()
                 ))
@@ -183,21 +187,25 @@ class MotorGauss:
         
         tipo = ""
         sol_txt = ""
+        solucion = None
 
         if rank_A < rank_Aumentada:
-            tipo = "INCONSISTENTE"
-            sol_txt = "El sistema NO tiene solución. Las ecuaciones plantean una contradicción matemática (ej: 0 = 5)."
+            tipo = N_("INCONSISTENTE")
+            sol_txt = tr("El sistema NO tiene solución. Las ecuaciones plantean una contradicción matemática (ej: 0 = 5).")
+            solucion = sympy.EmptySet
         elif rank_A == rank_Aumentada:
             if rank_A == num_vars:
-                tipo = "UNICA"
+                tipo = N_("UNICA")
                 sol_parts = []
+                solucion = []
                 for i, var in enumerate(variables):
                     # En solución única, la última columna de la RREF tiene los valores
                     val = matriz_rref_verdadera[i, -1]
                     sol_parts.append(f"{var} = {val}")
-                sol_txt = "Solución Única:\n" + "\n".join(sol_parts)
+                    solucion.append(sympy.Eq(self.parser.simbolo(var), val))
+                sol_txt = "\n".join([tr("Solución Única:")] + sol_parts)
             else:
-                tipo = "INFINITA"
+                tipo = N_("INFINITA")
                 # Parametrización formal usando linsolve
                 A_sys = matriz_inicial[:, :-1]
                 B_sys = matriz_inicial[:, -1]
@@ -207,12 +215,14 @@ class MotorGauss:
                 if sol_set:
                     sol_tuple = list(sol_set)[0]
                     lines = [f"{v} = {expr}" for v, expr in zip(variables, sol_tuple)]
+                    solucion = [sympy.Eq(s, expr, evaluate=False) for s, expr in zip(sym_vars, sol_tuple)]
                     params = set().union(*(expr.free_symbols for expr in sol_tuple))
-                    sol_txt = (f"Infinitas Soluciones (Grados de libertad: {len(params)}).\n"
-                               f"Variables libres (parámetros): {', '.join([str(p) for p in params])}\n"
-                               + "\n".join(lines))
+                    sol_txt = "\n".join([
+                        tr("Infinitas Soluciones (Grados de libertad: {grados}).", grados=len(params)),
+                        tr("Variables libres (parámetros): {parametros}", parametros=", ".join(str(p) for p in params)),
+                    ] + lines)
                 else:
-                    sol_txt = "Infinitas soluciones (Error al generar parametrización explícita)."
+                    sol_txt = tr("Infinitas soluciones (Error al generar parametrización explícita).")
 
         return ResultadoGauss(
             tipo_solucion=tipo,
@@ -221,7 +231,8 @@ class MotorGauss:
             matriz_rref_final=matriz_rref_verdadera,
             pasos=pasos_historial,
             solucion_texto=sol_txt,
-            advertencias=advertencias
+            advertencias=advertencias,
+            solucion=solucion,
         )
 
     def _buscar_mejor_pivote(self, matriz: sympy.Matrix, col: int, fila_inicio: int, total_filas: int) -> int:
@@ -275,6 +286,10 @@ class MotorGauss:
         """
         Entrada: Lista de strings. Puede ser ["2x+y=1", "x-y=2"] o ["[[2,1,1],[1,-1,2]]"]
         """
+        return self.resolver(lista_entradas)[0]
+
+    def resolver(self, lista_entradas: List[str]) -> Tuple[str, Any, bool]:
+        """Devuelve (texto accesible, solución SymPy o None, es_error)."""
         try:
             # 1. Parsing Inteligente
             M_inicial, variables = self._parsear_sistema_mixto(lista_entradas)
@@ -285,34 +300,35 @@ class MotorGauss:
             
             # 3. Narrativa
             narrativa = []
-            narrativa.append("MÉTODO DE GAUSS-JORDAN (Reducción por filas)")
+            narrativa.append(tr("MÉTODO DE GAUSS-JORDAN (Reducción por filas)"))
             
             if res.advertencias:
-                narrativa.append("AVISO: " + " ".join(res.advertencias))
+                narrativa.append(tr("AVISO: {avisos}", avisos=" ".join(res.advertencias)))
                 
-            narrativa.append(f"Sistema de {rows} ecuaciones con {cols-1} variables: {', '.join(variables)}.")
-            narrativa.append(f"Matriz Aumentada Inicial:\n{self._matriz_a_texto(res.matriz_aumentada_inicial)}\n")
+            narrativa.append(tr("Sistema de {ecuaciones} ecuaciones con {n} variables: {variables}.",
+                                ecuaciones=rows, n=cols - 1, variables=", ".join(variables)))
+            narrativa.append(tr("Matriz Aumentada Inicial:\n{matriz_aumentada_inicial}\n", matriz_aumentada_inicial=self._matriz_a_texto(res.matriz_aumentada_inicial)))
             
-            narrativa.append("--- PASOS DE REDUCCIÓN ---")
+            narrativa.append(tr("--- PASOS DE REDUCCIÓN ---"))
             if not res.pasos:
-                narrativa.append("(No se requirieron pasos, la matriz ya estaba escalonada).")
+                narrativa.append(tr("(No se requirieron pasos, la matriz ya estaba escalonada)."))
             
             for i, paso in enumerate(res.pasos, 1):
-                narrativa.append(f"\nPaso {i}: {paso.titulo}")
+                narrativa.append(tr("\nPaso {i}: {titulo}", i=i, titulo=paso.titulo))
                 narrativa.append(f"   {paso.descripcion}")
-                narrativa.append(f"   Operación: {paso.operacion_matematica}")
-                narrativa.append(f"   Estado:\n{self._matriz_a_texto(paso.matriz_resultante)}")
+                narrativa.append(tr("   Operación: {operacion_matematica}", operacion_matematica=paso.operacion_matematica))
+                narrativa.append(tr("   Estado:\n{matriz_resultante}", matriz_resultante=self._matriz_a_texto(paso.matriz_resultante)))
             
-            narrativa.append("\n--- ESTADO FINAL (RREF) ---")
-            narrativa.append(f"Forma Escalonada Reducida (Calculada canónicamente):\n{self._matriz_a_texto(res.matriz_rref_final)}")
+            narrativa.append(tr("\n--- ESTADO FINAL (RREF) ---"))
+            narrativa.append(tr("Forma Escalonada Reducida (Calculada canónicamente):\n{matriz_rref_final}", matriz_rref_final=self._matriz_a_texto(res.matriz_rref_final)))
             
-            narrativa.append(f"\nCONCLUSIÓN: {res.tipo_solucion}")
+            narrativa.append("\n" + tr("CONCLUSIÓN: {tipo}", tipo=tr(res.tipo_solucion)))
             if res.tipo_solucion == "INCONSISTENTE":
-                narrativa.append("Existe una contradicción (fila de ceros igualada a un número).")
+                narrativa.append(tr("Existe una contradicción (fila de ceros igualada a un número)."))
             
             narrativa.append(f"\n{res.solucion_texto}")
 
-            return "\n".join(narrativa)
+            return "\n".join(narrativa), res.solucion, False
 
         except Exception as e:
-            return f"Error procesando el sistema: {str(e)}"
+            return tr("Error procesando el sistema: {e}", e=str(e)), None, True

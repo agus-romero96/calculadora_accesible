@@ -4,6 +4,7 @@ from typing import Any, List, Optional, Tuple
 import sympy
 from sympy import S
 
+from i18n import N_, tr
 from ._base import (
     Estrategia,
     ResultadoEstrategia,
@@ -29,7 +30,7 @@ class RacionalizacionRaices(Estrategia):
     """
 
     def nombre(self) -> str:
-        return "Racionalización"
+        return N_("Racionalización")
 
     def puede_resolver(self, expr, var, punto, **kwargs) -> bool:
         expr_s = self._prep(expr)
@@ -53,8 +54,8 @@ class RacionalizacionRaices(Estrategia):
         expr_s = self._prep(expr)
 
         pasos: List[str] = []
-        pasos.append("Análisis: se detectaron raíces cuadradas. Intentaremos racionalizar con conjugados.")
-        pasos.append("Objetivo: eliminar indeterminaciones tipo 0/0 o ∞-∞ provocadas por raíces.")
+        pasos.append(tr("Análisis: se detectaron raíces cuadradas. Intentaremos racionalizar con conjugados."))
+        pasos.append(tr("Objetivo: eliminar indeterminaciones tipo 0/0 o ∞-∞ provocadas por raíces."))
 
         num, den = expr_s.as_numer_denom()
 
@@ -68,9 +69,9 @@ class RacionalizacionRaices(Estrategia):
             bloques_num.extend(self._find_blocks(expr_s))
 
         for b in bloques_num:
-            intentos.append(("Numerador", b))
+            intentos.append((N_("Numerador"), b))
         for b in bloques_den:
-            intentos.append(("Denominador", b))
+            intentos.append((N_("Denominador"), b))
 
         if not intentos:
             return ResultadoEstrategia(
@@ -78,20 +79,20 @@ class RacionalizacionRaices(Estrategia):
                 estado=ESTADO_NO_CONCLUYENTE,
                 resultado=None,
                 nombre_estrategia=self.nombre(),
-                explicacion="No se encontraron binomios conjugables claros para racionalizar.",
+                explicacion=N_("No se encontraron binomios conjugables claros para racionalizar."),
                 pasos=pasos,
                 expr_original=expr,
                 expr_trabajo=expr_s,
             )
 
-        pasos.append(f"Se encontraron {len(intentos)} candidato(s) a racionalizar (binomios con raíz).")
+        pasos.append(tr("Se encontraron {intentos} candidato(s) a racionalizar (binomios con raíz).", intentos=len(intentos)))
 
         # 2) Probar racionalizar: el primero que produzca un límite evaluable gana
         for ubicacion, bloque in intentos:
             bloque_norm, conj = self._normalize_and_conjugate(bloque)
 
-            pasos.append(f"Probando racionalización en {ubicacion} con bloque: {bloque_norm}")
-            pasos.append(f"Conjugado propuesto: {conj}")
+            pasos.append(tr("Probando racionalización en {ubicacion} con bloque: {bloque_norm}", ubicacion=tr(ubicacion).lower(), bloque_norm=bloque_norm))
+            pasos.append(tr("Conjugado propuesto: {conj}", conj=conj))
 
             try:
                 # Racionalizamos multiplicando por conj/conj.
@@ -109,7 +110,7 @@ class RacionalizacionRaices(Estrategia):
                 nueva_expr_simp = sympy.cancel(nueva_expr)
 
             except Exception as e:
-                pasos.append(f"Este intento falló al transformar la expresión: {e}")
+                pasos.append(tr("Este intento falló al transformar la expresión: {e}", e=e))
                 continue
 
             limite_candidato = self._limite_seguro(nueva_expr_simp, var, punto, dir_)
@@ -117,11 +118,11 @@ class RacionalizacionRaices(Estrategia):
             if self._es_resuelto(limite_candidato, var):
                 res_final = sympy.simplify(limite_candidato)
 
-                pasos.append("Intento exitoso ✅")
-                pasos.append(f"1) Multiplicamos y dividimos por el conjugado: {conj}")
-                pasos.append("2) Aplicamos producto notable (A+B)(A-B) = A² - B².")
-                pasos.append(f"3) Expresión transformada y simplificada: {nueva_expr_simp}")
-                pasos.append(f"4) Evaluamos el límite: {res_final}")
+                pasos.append(tr("Intento exitoso ✅"))
+                pasos.append(tr("1) Multiplicamos y dividimos por el conjugado: {conj}", conj=conj))
+                pasos.append(tr("2) Aplicamos producto notable (A+B)(A-B) = A² - B²."))
+                pasos.append(tr("3) Expresión transformada y simplificada: {nueva_expr_simp}", nueva_expr_simp=nueva_expr_simp))
+                pasos.append(tr("4) Evaluamos el límite: {res_final}", res_final=res_final))
 
                 estado = ESTADO_FINITO
                 if res_final in (S.Infinity, S.NegativeInfinity) or getattr(res_final, "is_infinite", False):
@@ -132,20 +133,20 @@ class RacionalizacionRaices(Estrategia):
                     estado=estado,
                     resultado=res_final,
                     nombre_estrategia=self.nombre(),
-                    explicacion=f"Racionalización del {ubicacion}: el conjugado eliminó la indeterminación.",
+                    explicacion=tr("Racionalización del {ubicacion}: el conjugado eliminó la indeterminación.", ubicacion=tr(ubicacion).lower()),
                     pasos=pasos,
                     expr_original=expr,
                     expr_trabajo=nueva_expr_simp,
                 )
 
-            pasos.append("Este intento no produjo un límite evaluable (o quedó indeterminado).")
+            pasos.append(tr("Este intento no produjo un límite evaluable (o quedó indeterminado)."))
 
         return ResultadoEstrategia(
             aplica=True,
             estado=ESTADO_NO_CONCLUYENTE,
             resultado=None,
             nombre_estrategia=self.nombre(),
-            explicacion="Se intentaron racionalizaciones posibles, pero ninguna permitió evaluar el límite.",
+            explicacion=N_("Se intentaron racionalizaciones posibles, pero ninguna permitió evaluar el límite."),
             pasos=pasos,
             expr_original=expr,
             expr_trabajo=expr_s,

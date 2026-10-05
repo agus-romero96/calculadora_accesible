@@ -6,7 +6,39 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Sin publicar]
 
-(Nada todavía.)
+### Añadido
+
+- **Interfaz y resultados en inglés.** Nuevo menú **Idioma / Language** para cambiar entre español e inglés en cualquier momento: menús, etiquetas, diálogos, explicaciones paso a paso de todos los motores, mensajes de error, ayuda (F1) y archivos exportados.
+  - La primera vez se elige según el idioma de Windows, y la elección se guarda en `%APPDATA%\CalculadoraAccesible\config.json`.
+  - Los botones propios de wxWidgets (Aceptar/Cancelar en los diálogos) también se traducen. Antes salían en inglés incluso en la versión en español, porque el ejecutable no incluía el catálogo de wxWidgets.
+  - En inglés se acepta `infinity` como infinito, en expresiones y en la tendencia de un límite.
+- **Copiar resultados** (menú **Resultado**): el resultado en una línea (`Ctrl+Shift+C`), la explicación completa (`Ctrl+Shift+A`), en LaTeX (`Ctrl+Shift+L`) o en MathML (`Ctrl+Shift+M`). Un diálogo confirma lo copiado, para que el lector de pantalla lo anuncie.
+- **Exportar resultados** (`Ctrl+E`) a **HTML con fórmulas MathML**, **texto plano**, **Markdown**, **documento LaTeX** y **JSON**.
+  - El HTML es el formato más accesible: los lectores de pantalla pueden leer y explorar las fórmulas en el navegador.
+  - LaTeX y MathML muestran el **planteamiento = resultado** como en un libro (por ejemplo `\int x e^{x}\, dx = (x-1)e^{x} + C`), con `≈` cuando el resultado es decimal.
+- `i18n.py` (traducción), `exportar.py` (formatos) y `locales/` (`en.json` con unas 620 traducciones, `ayuda_es.txt` y `ayuda_en.txt`).
+- Pruebas nuevas:
+  - `tests/test_i18n.py`: cada texto marcado en el código tiene traducción con los mismos marcadores, no hay traducciones sin uso y 41 operaciones en inglés no dejan texto en español.
+  - `tests/test_exportar.py`: los 5 formatos para 14 tipos de resultado, JSON válido, MathML como XML válido y LaTeX esperado.
+  - La suite pasa de 188 a 1620 pruebas.
+  - `tests/verificar_ui.py` comprueba también copiar (leyendo el portapapeles real), exportar y cambiar de idioma: 35 comprobaciones.
+- La autoprueba del ejecutable incluye un caso en inglés, que comprueba que las traducciones están en el paquete.
+
+### Cambiado
+
+- **Fachada con resultados estructurados**: `puente.py` ofrece una API de objetos (`evaluar()`, `derivar()`, `limite()`…) que devuelve un `ResultadoOperacion` con el texto, el valor SymPy, el planteamiento sin evaluar, los parámetros y `es_error`. La API de texto anterior (`Evaluar()`, `Derivar()`…) se mantiene.
+- **La interfaz detecta los errores con `es_error`** en lugar de mirar cómo empieza el texto. La detección anterior dependía de que cada mensaje empezara por "Error…", y eso no habría funcionado al traducir.
+- Gauss-Jordan y los métodos clásicos devuelven también la solución como ecuaciones SymPy (`resolver()`); el enrutador de límites, el valor del límite (`calcular()`).
+- La ayuda (F1) pasa de estar dentro del código a `locales/ayuda_<idioma>.txt`, con dos secciones nuevas: copiar/exportar e idioma.
+- Las estrategias de integración se muestran con nombres en español ("Integración por partes", "Regla de la potencia"…). Antes aparecían los nombres internos de SymPy en inglés (`Parts`, `Power`, `ConstantTimes`).
+- "OPERACIÓN: DERIVADA_ENECIMA" pasa a "OPERACIÓN: DERIVADA DE ORDEN N", y los métodos clásicos se muestran con tilde ("RESOLUCIÓN POR SUSTITUCIÓN").
+- Menú y atajos: el nuevo menú **Resultado** usa `Alt+U` para no chocar con `Alt+E` (cuadro de entrada); el botón Borrar indica "Ctrl+Retroceso".
+
+### Corregido
+
+- **Copiar al portapapeles podía fallar sin avisar**: en Windows, el historial del portapapeles o el lector de pantalla lo ocupan un instante tras cada cambio. Ahora se reintenta, se comprueba que la copia funcionó y el texto sigue disponible aunque se cierre la calculadora.
+- **El MathML de SymPy no era XML válido**: usaba entidades con nombre de HTML (`&pi;`, `&InvisibleTimes;`), que fallan al pegar en otros programas, y `<mfenced>`, que los navegadores actuales ya no dibujan. Ahora usa referencias numéricas y la forma de MathML Core.
+- Se mantiene la salida en español: una batería de 148 operaciones da exactamente el mismo texto que la versión 1.1.0, salvo las mejoras indicadas arriba.
 
 ## [1.1.0] - 2026-10-05
 
@@ -111,6 +143,7 @@ Primera versión publicada con instalador para Windows: evaluación, simplificac
 - **Continuidad con raíces**: `sqrt(x^2+9)` cuando x→4 no se resuelve por continuidad (`sqrt` se representa como potencia `1/2`) y cae en el modo general.
 - **Variables como reales**: es la convención adecuada para un curso de cálculo, pero los resultados con números complejos (por ejemplo, raíces de números negativos dentro de expresiones con variables) pueden diferir de los que daría SymPy por defecto.
 - **Cancelar un cálculo** no lo detiene: el hilo sigue usando el procesador hasta terminar, porque Python no permite detener un hilo. Para detenerlo de verdad habría que ejecutar los cálculos en un proceso aparte.
-- **Interfaz**: falta un historial de operaciones y una forma rápida de copiar solo la línea del resultado.
-- **Prueba con NVDA real**: el diálogo "Calculando" y el nuevo submenú se verificaron de forma automática (`tests/verificar_ui.py`), pero no todavía con el lector de pantalla. El botón Cancelar del diálogo tampoco se ha pulsado físicamente: la prueba invoca directamente la función que ejecuta.
-- **Instalador sin probar instalado**: el instalador nuevo se generó y el ejecutable compilado pasó la autoprueba, pero no se ha ejecutado la instalación ni la actualización sobre una 1.0.0 instalada, para no modificar el sistema.
+- **Interfaz**: falta un historial de operaciones (copiar el resultado ya es posible).
+- **Traducción al inglés sin revisión nativa**: la escribió el desarrollador y no la ha revisado un hablante nativo de inglés ni un docente angloparlante (terminología de clase).
+- **Lectura de fórmulas exportadas**: el HTML con MathML se comprobó como XML válido, pero no se ha probado todavía su lectura con NVDA + MathCAT o JAWS.
+- **Botones de wxWidgets en otros idiomas**: solo se incluye el catálogo de wxWidgets en español (el inglés no lo necesita). Al añadir un idioma, hay que agregar su carpeta en `setup.py`.

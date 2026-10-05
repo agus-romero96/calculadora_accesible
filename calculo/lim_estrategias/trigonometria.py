@@ -5,6 +5,7 @@ from typing import Any, Tuple, List, Optional
 import sympy
 from sympy import S
 
+from i18n import N_, tr
 from ._base import (
     Estrategia,
     ResultadoEstrategia,
@@ -30,7 +31,7 @@ class LimitesTrigNotables(Estrategia):
     """
 
     def nombre(self) -> str:
-        return "Límites trigonométricos notables"
+        return N_("Límites trigonométricos notables")
 
     def puede_resolver(self, expr, var, punto, **kwargs) -> bool:
         if not (expr.has(sympy.sin) or expr.has(sympy.cos) or expr.has(sympy.tan)):
@@ -51,52 +52,52 @@ class LimitesTrigNotables(Estrategia):
         dir_ = kwargs.get("dir", None)
 
         pasos: List[str] = []
-        pasos.append("Buscamos un núcleo trigonométrico notable (sin series).")
+        pasos.append(tr("Buscamos un núcleo trigonométrico notable (sin series)."))
 
         ok, u, resto, lim_resto = self._match_sin(expr, var, punto, dir_)
         if ok:
-            pasos.append("Detectamos un candidato tipo sin(u).")
+            pasos.append(tr("Detectamos un candidato tipo sin(u)."))
             pasos.append(f"  • u = {u}")
-            pasos.append("Construimos el núcleo K = sin(u)/u, cuyo límite es 1 si u→0.")
-            pasos.append("Separamos: expr = K * R, donde R = expr / K.")
+            pasos.append(tr("Construimos el núcleo K = sin(u)/u, cuyo límite es 1 si u→0."))
+            pasos.append(tr("Separamos: expr = K * R, donde R = expr / K."))
             pasos.append(f"  • R = {resto}")
-            pasos.append(f"Calculamos lim R = {lim_resto}")
-            pasos.append("Aplicamos: lim sin(u)/u = 1.")
+            pasos.append(tr("Calculamos lim R = {lim_resto}", lim_resto=lim_resto))
+            pasos.append(tr("Aplicamos: lim sin(u)/u = 1."))
             res = sympy.simplify(lim_resto)
-            pasos.append(f"Resultado final: 1 * {lim_resto} = {res}")
-            return self._ok(expr, pasos, res, f"Extracción de núcleo sin(u)/u con u={u}")
+            pasos.append(tr("Resultado final: 1 * {lim_resto} = {res}", lim_resto=lim_resto, res=res))
+            return self._ok(expr, pasos, res, tr("Extracción de núcleo sin(u)/u con u={u}", u=u))
 
         ok, u, resto, lim_resto = self._match_tan(expr, var, punto, dir_)
         if ok:
-            pasos.append("Detectamos un candidato tipo tan(u).")
+            pasos.append(tr("Detectamos un candidato tipo tan(u)."))
             pasos.append(f"  • u = {u}")
-            pasos.append("Construimos el núcleo K = tan(u)/u, cuyo límite es 1 si u→0.")
-            pasos.append(f"R = expr / K = {resto}")
-            pasos.append(f"Calculamos lim R = {lim_resto}")
-            pasos.append("Aplicamos: lim tan(u)/u = 1.")
+            pasos.append(tr("Construimos el núcleo K = tan(u)/u, cuyo límite es 1 si u→0."))
+            pasos.append(tr("R = expr / K = {resto}", resto=resto))
+            pasos.append(tr("Calculamos lim R = {lim_resto}", lim_resto=lim_resto))
+            pasos.append(tr("Aplicamos: lim tan(u)/u = 1."))
             res = sympy.simplify(lim_resto)
-            pasos.append(f"Resultado final: {res}")
-            return self._ok(expr, pasos, res, f"Extracción de núcleo tan(u)/u con u={u}")
+            pasos.append(tr("Resultado final: {res}", res=res))
+            return self._ok(expr, pasos, res, tr("Extracción de núcleo tan(u)/u con u={u}", u=u))
 
         ok, u, resto, lim_resto = self._match_one_minus_cos(expr, var, punto, dir_)
         if ok:
-            pasos.append("Detectamos un candidato tipo (1 - cos(u)).")
+            pasos.append(tr("Detectamos un candidato tipo (1 - cos(u))."))
             pasos.append(f"  • u = {u}")
-            pasos.append("Construimos el núcleo K = (1 - cos(u))/u^2, cuyo límite es 1/2 si u→0.")
-            pasos.append(f"R = expr / K = {resto}")
-            pasos.append(f"Calculamos lim R = {lim_resto}")
-            pasos.append("Aplicamos: lim (1-cos(u))/u^2 = 1/2.")
+            pasos.append(tr("Construimos el núcleo K = (1 - cos(u))/u^2, cuyo límite es 1/2 si u→0."))
+            pasos.append(tr("R = expr / K = {resto}", resto=resto))
+            pasos.append(tr("Calculamos lim R = {lim_resto}", lim_resto=lim_resto))
+            pasos.append(tr("Aplicamos: lim (1-cos(u))/u^2 = 1/2."))
             res = sympy.simplify(sympy.Rational(1, 2) * lim_resto)
-            pasos.append(f"Resultado final: 1/2 * {lim_resto} = {res}")
-            return self._ok(expr, pasos, res, f"Extracción de núcleo (1-cos(u))/u^2 con u={u}")
+            pasos.append(tr("Resultado final: 1/2 * {lim_resto} = {res}", lim_resto=lim_resto, res=res))
+            return self._ok(expr, pasos, res, tr("Extracción de núcleo (1-cos(u))/u^2 con u={u}", u=u))
 
         return ResultadoEstrategia(
             aplica=True,
             estado=ESTADO_NO_CONCLUYENTE,
             resultado=None,
             nombre_estrategia=self.nombre(),
-            pasos=["Parecía trigonométrico, pero no se pudo aislar un núcleo notable con un resto evaluable."],
-            avisos=["Requiere identidad adicional, encaje u otro método."],
+            pasos=[tr("Parecía trigonométrico, pero no se pudo aislar un núcleo notable con un resto evaluable.")],
+            avisos=[tr("Requiere identidad adicional, encaje u otro método.")],
             expr_original=expr,
             expr_trabajo=expr,
         )
