@@ -8,6 +8,10 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Añadido
 
+- **Cálculos en segundo plano**: ningún cálculo bloquea ya la ventana. Si uno tarda más de 0,6 s, se abre el diálogo **"Calculando"**, que NVDA anuncia, con tiempo transcurrido y botón **Cancelar**. Mientras hay un cálculo en curso no se puede lanzar otro, y se avisa de ello antes de pedir variables u otros datos.
+- **Menú para los sistemas 2×2 por método clásico**: submenú *Álgebra → Sistema 2×2 por método clásico* con Sustitución, Igualación y Reducción. El motor ya existía, pero no se podía usar desde la interfaz.
+- Atajo **Ctrl+G** para resolver sistemas por Gauss-Jordan.
+- `tests/verificar_ui.py`: verificación automática de la interfaz real (19 comprobaciones: segundo plano, diálogo "Calculando", cancelación, errores del hilo, menús y ayuda). Se ejecuta a mano porque abre la ventana.
 - **Suite de pruebas `pytest`** en `tests/` (151 pruebas, se ejecuta en unos 3 segundos):
   - `test_aritmetica.py`: evaluar, simplificar y factorizar (incluido el reconocimiento de cada caso escolar).
   - `test_calculo.py`: derivadas por estrategia, derivada de orden N e integrales (comprueba que la derivada de la integral devuelve la función original).
@@ -20,6 +24,9 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Cambiado
 
+- **Ayuda (F1) actualizada**: lista todos los atajos (antes faltaban Ctrl+S, Ctrl+F, Ctrl+Mayús+D y Ctrl+M) y explica los límites laterales, la entrada de matrices y el diálogo "Calculando". También corrige la regla de multiplicación: decía que `2x` era incorrecto, pero se acepta. Ahora advierte del caso que sí falla: `xsin(x)` hay que escribirlo `x*sin(x)`.
+- La interfaz ya no llama directamente a `core.calculo`: derivar e integrar pasan por la fachada `puente.py`, cuyos métodos `Derivar` e `Integrar` aceptan ahora la variable elegida.
+- El diálogo de tendencia del límite explica el formato (`0`, `oo`, `-oo`, `0+`, `0-`).
 - **Orden de las estrategias de límites** (`calculo/router.py`): ahora van de la más específica a la más general: trigonométricos notables → racionalización → comparación de grados → continuidad → simplificación. Antes "Simplificación y cancelación" iba primera y se atribuía casos que en realidad resolvía SymPy, de modo que la explicación mostrada no correspondía al método adecuado. La auditoría `tests_limites.py` pasa de **22/65 a 65/65**.
 - **"Simplificación y cancelación" solo se aplica cuando corresponde**: la sustitución directa debe dar `0/0` en un punto finito y, tras cancelar, la sustitución debe dar un valor finito. Si no, deja paso a otra estrategia.
 - Las cinco copias de `_limite_seguro` y las tres de `_es_limite_evaluable` repartidas por las estrategias y `limite.py` se sustituyen por una única implementación en `_base.py`.
@@ -28,6 +35,8 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Corregido
 
+- **Derivada de orden N**: un `except:` sin tipo hacía que cualquier error, incluida una expresión mal escrita, se mostrara como "El orden debe ser un número entero". Ahora solo ese caso da ese mensaje; el resto de errores se muestran tal cual.
+- Los diálogos de texto de Derivada N y Límite se destruyen tras usarse (antes quedaban en memoria).
 - **Límites bilaterales incorrectos.** `sympy.limit()` sin dirección calcula solo el límite **por la derecha**, así que la aplicación daba resultados matemáticamente falsos:
   - `lim abs(x)/x` cuando x→0 decía `1` (correcto: no existe, laterales −1 y 1).
   - `lim 1/x` cuando x→0 decía `+∞` (correcto: no existe, −∞ por la izquierda y +∞ por la derecha).
@@ -62,9 +71,11 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 ## Pendiente (problemas conocidos)
 
 - **Símbolos complejos**: el parser crea variables sin la suposición de ser reales, así que algunos pasos muestran `re(x)` e `im(x)`; por ejemplo, al aplicar L'Hôpital a `abs(x)/x`. El resultado es correcto, pero la explicación es confusa.
-- **Interfaz bloqueada**: los cálculos se ejecutan en el hilo de la interfaz, así que un cálculo pesado congela la ventana sin avisar a NVDA.
-- **Ayuda (F1)**: dice que `2x` es incorrecto, pero el parser lo acepta.
-- **Sistemas clásicos 2×2**: los métodos de sustitución, igualación y reducción no tienen entrada en el menú.
-- **Fachada**: `main.py` llama directamente a `core.calculo` en lugar de usar `puente.py`.
-- **Parser**: convierte todo a minúsculas, así que la entrada `Matrix(...)` no funciona, y su nombre (`parser.py`) coincide con el de un antiguo módulo de la biblioteca estándar.
+- **Parser**:
+  - `xsin(x)` se interpreta en silencio como `i·n·s·x·x` (separa las letras al multiplicar sin `*`). Debería avisar o reconocer el nombre de la función.
+  - Convierte todo a minúsculas, así que la entrada `Matrix(...)` no funciona.
+  - Su nombre (`parser.py`) coincide con el de un antiguo módulo de la biblioteca estándar.
+- **Cancelar un cálculo** no lo detiene: el hilo sigue usando el procesador hasta terminar, porque Python no permite detener un hilo. Para detenerlo de verdad habría que ejecutar los cálculos en un proceso aparte.
+- **Interfaz**: falta un historial de operaciones y una forma rápida de copiar solo la línea del resultado.
+- **Prueba con NVDA real**: el diálogo "Calculando" y el nuevo submenú se verificaron de forma automática (`tests/verificar_ui.py`), pero no todavía con el lector de pantalla. El botón Cancelar del diálogo tampoco se ha pulsado físicamente: la prueba invoca directamente la función que ejecuta.
 - **Empaquetado**: hay dos sistemas en paralelo (cx_Freeze y PyInstaller), la versión está duplicada en `setup_script.iss` y `requirements.txt` no fija versiones.

@@ -1,13 +1,30 @@
+import threading
+
 import wx
 import wx.lib.dialogs
 from puente import CoreMatematico
 from _version import __version__
 
+TEXTO_INFO = "Escriba su expresión. F1 Ayuda. Alt para menús."
+
+
 class CalculadoraAccesible(wx.Frame):
+    # Si un cálculo tarda más que esto, se abre el diálogo "Calculando…" (NVDA lo anuncia)
+    MS_ANTES_DE_AVISAR = 600
+
     def __init__(self):
         super().__init__(parent=None, title=f"Jansen Calculator v{__version__}", size=(800, 750))
-        
+
         self.core = CoreMatematico()
+
+        # Estado del cálculo en segundo plano. _calculo_actual es un "token" único por
+        # cálculo: si el usuario cancela, se pone a None y el resultado tardío se descarta.
+        self._calculo_actual = None
+        self._dlg_progreso = None
+        self._timer_aviso = None
+        self._timer_pulso = wx.Timer(self)
+        self.Bind(wx.EVT_TIMER, self._on_pulso, self._timer_pulso)
+
         self.init_ui()
         self.crear_menus()
         self.crear_atajos()
@@ -19,7 +36,7 @@ class CalculadoraAccesible(wx.Frame):
         sizer_main = wx.BoxSizer(wx.VERTICAL)
 
         # Info
-        self.lbl_info = wx.TextCtrl(panel, value="Escriba su expresión. F1 Ayuda. Alt para menús.", style=wx.TE_READONLY | wx.BORDER_NONE)
+        self.lbl_info = wx.TextCtrl(panel, value=TEXTO_INFO, style=wx.TE_READONLY | wx.BORDER_NONE)
         self.lbl_info.SetBackgroundColour(panel.GetBackgroundColour())
         sizer_main.Add(self.lbl_info, flag=wx.EXPAND | wx.ALL, border=10)
 
@@ -80,7 +97,15 @@ class CalculadoraAccesible(wx.Frame):
 
         # Álgebra y Ayuda
         m_alg = wx.Menu()
-        self.Bind(wx.EVT_MENU, self.on_sistema_gauss, m_alg.Append(wx.ID_ANY, "Sistemas (Gauss)"))
+        self.Bind(wx.EVT_MENU, self.on_sistema_gauss, m_alg.Append(wx.ID_ANY, "Sistemas (Gauss-Jordan)\tCtrl+G"))
+
+        # Sistemas 2x2 por métodos clásicos (submenú)
+        m_clasicos = wx.Menu()
+        for metodo, nombre in (("sustitucion", "Sustitución"), ("igualacion", "Igualación"), ("reduccion", "Reducción")):
+            item = m_clasicos.Append(wx.ID_ANY, nombre)
+            self.Bind(wx.EVT_MENU, lambda e, m=metodo, n=nombre: self.on_sistema_clasico(m, n.lower()), item)
+        m_alg.AppendSubMenu(m_clasicos, "Sistema 2x2 por &método clásico")
+
         m_alg.AppendSeparator()
         self.Bind(wx.EVT_MENU, self.on_inversa_cofactores, m_alg.Append(wx.ID_ANY, "Matriz Inversa (Cofactores)\tCtrl+M"))
         
@@ -96,6 +121,11 @@ class CalculadoraAccesible(wx.Frame):
     # --- LÓGICA DE UX MEJORADA ---
 
     def obtener_texto(self):
+        # Comprobar antes de mostrar diálogos de variable/orden para no pedir datos en vano
+        if self._calculo_actual is not None:
+            wx.MessageBox("Ya hay un cálculo en curso. Espere a que termine o cancélelo.",
+                          "Calculadora ocupada", wx.OK | wx.ICON_INFORMATION)
+            return None
         txt = self.input_text.GetValue().strip()
         if not txt:
             # ERROR EN DIÁLOGO (User Request)
@@ -117,6 +147,82 @@ class CalculadoraAccesible(wx.Frame):
             self.output_text.SetValue(str(texto))
             self.output_text.SetInsertionPoint(0)
             self.output_text.SetFocus()
+
+    # --- CÁLCULO EN SEGUNDO PLANO ---
+    # SymPy puede tardar segundos (o no terminar) en simplify/limit/integrate.
+    # Si se ejecutara en el hilo de la interfaz, la ventana se congelaría sin que
+    # el lector de pantalla anuncie nada. Por eso: los diálogos de datos se muestran
+    # aquí (hilo de UI), y solo el cálculo va a un hilo aparte.
+
+    def _ejecutar(self, tarea, descripcion):
+        """
+        Ejecuta tarea() (que devuelve el texto del resultado) en un hilo aparte.
+        Si tarda más de MS_ANTES_DE_AVISAR, muestra un diálogo "Calculando…" con
+        botón Cancelar. El resultado se presenta en el hilo de la interfaz.
+        """
+        if self._calculo_actual is not None:
+            wx.MessageBox("Ya hay un cálculo en curso. Espere a que termine o cancélelo.",
+                          "Calculadora ocupada", wx.OK | wx.ICON_INFORMATION)
+            return
+
+        token = object()
+        self._calculo_actual = token
+        self.lbl_info.SetValue(f"Calculando: {descripcion}...")
+
+        def trabajo():
+            try:
+                resultado = tarea()
+            except Exception as e:
+                resultado = f"Error inesperado: {e}"
+            wx.CallAfter(self._finalizar_calculo, token, resultado)
+
+        threading.Thread(target=trabajo, daemon=True).start()
+        self._timer_aviso = wx.CallLater(self.MS_ANTES_DE_AVISAR, self._mostrar_progreso, token, descripcion)
+
+    def _mostrar_progreso(self, token, descripcion):
+        if token is not self._calculo_actual:
+            return  # ya terminó (o se canceló) antes de hacer falta el aviso
+        self._dlg_progreso = wx.ProgressDialog(
+            "Calculando",
+            f"Calculando {descripcion}. Puede tardar unos segundos.\n"
+            "Pulse Cancelar para abandonar este cálculo.",
+            parent=self,
+            style=wx.PD_APP_MODAL | wx.PD_CAN_ABORT | wx.PD_ELAPSED_TIME,
+        )
+        self._timer_pulso.Start(200)
+
+    def _on_pulso(self, event):
+        if self._dlg_progreso is None:
+            self._timer_pulso.Stop()
+            return
+        continuar, _ = self._dlg_progreso.Pulse()
+        if not continuar:
+            self._cancelar_calculo()
+
+    def _cerrar_progreso(self):
+        if self._timer_aviso is not None:
+            self._timer_aviso.Stop()
+            self._timer_aviso = None
+        self._timer_pulso.Stop()
+        if self._dlg_progreso is not None:
+            self._dlg_progreso.Destroy()
+            self._dlg_progreso = None
+
+    def _cancelar_calculo(self):
+        # Python no permite detener un hilo: el cálculo sigue en segundo plano,
+        # pero su resultado se descartará (el token deja de coincidir).
+        self._calculo_actual = None
+        self._cerrar_progreso()
+        self.lbl_info.SetValue("Cálculo cancelado. " + TEXTO_INFO)
+        self.input_text.SetFocus()
+
+    def _finalizar_calculo(self, token, resultado):
+        if token is not self._calculo_actual:
+            return  # cálculo cancelado: se ignora el resultado tardío
+        self._calculo_actual = None
+        self._cerrar_progreso()
+        self.lbl_info.SetValue(TEXTO_INFO)
+        self.presentar_resultado(resultado)
 
     def _resolver_ambiguedad_variable(self, txt, operacion):
         """
@@ -149,114 +255,113 @@ class CalculadoraAccesible(wx.Frame):
         return None 
 
     # --- HANDLERS ---
+    # Patrón: 1) pedir datos con diálogos (hilo de UI)  2) _ejecutar(cálculo)
+
+    def _pedir_texto(self, mensaje, titulo, valor=""):
+        """Diálogo de texto. Devuelve el texto (sin espacios extremos) o None si se cancela."""
+        dlg = wx.TextEntryDialog(self, mensaje, titulo, valor)
+        try:
+            if dlg.ShowModal() != wx.ID_OK:
+                return None
+            return dlg.GetValue().strip()
+        finally:
+            dlg.Destroy()
 
     def on_evaluar_inteligente(self, event):
         txt = self.obtener_texto()
         if not txt: return
-        try:
-            if "\n" in txt and "=" in txt:
-                self.presentar_resultado(self.core.ResolverSistemaGauss(txt.split('\n')))
-            else:
-                self.presentar_resultado(self.core.Evaluar(txt))
-        except Exception as e:
-            self.presentar_resultado(f"Error: {e}")
+        if "\n" in txt and "=" in txt:
+            lineas = txt.split('\n')
+            self._ejecutar(lambda: self.core.ResolverSistemaGauss(lineas), "el sistema por Gauss-Jordan")
+        else:
+            self._ejecutar(lambda: self.core.Evaluar(txt), "la evaluación")
 
     def on_simplificar(self, event):
         txt = self.obtener_texto()
-        if txt: self.presentar_resultado(self.core.Simplificar(txt))
+        if txt: self._ejecutar(lambda: self.core.Simplificar(txt), "la simplificación")
 
     def on_factorizar(self, event):
         txt = self.obtener_texto()
-        if txt: self.presentar_resultado(self.core.Factorizar(txt))
+        if txt: self._ejecutar(lambda: self.core.Factorizar(txt), "la factorización")
 
     # --- CÁLCULO INTELIGENTE ---
 
     def on_derivar(self, event):
         txt = self.obtener_texto()
         if not txt: return
-        
-        # Pregunta preventiva
+
+        # Pregunta preventiva si hay varias variables
         var_elegida = self._resolver_ambiguedad_variable(txt, "derivar")
-        
-        # Si var_elegida es None, puede ser que:
-        # 1. Usuario canceló -> no hacemos nada.
-        # 2. No había ambigüedad -> llamamos a Derivar normalmente (Core usará default).
-        
-        # Verificamos si el usuario canceló el diálogo (si hubo diálogo)
-        # (Lógica simplificada: Si hay multivariable y devuelve None, es cancel)
+
+        # Si había varias variables y no eligió ninguna, el usuario canceló.
+        # Si no había ambigüedad, var_elegida es None y el motor infiere la variable.
         vars_detectadas = self.core.DetectarVariables(txt)
         if len(vars_detectadas) > 1 and var_elegida is None:
-            return # Cancelado
+            return
 
-        # Llamada al core (si var_elegida es None, el core usa su lógica default 'x')
-        res = self.core.calculo.CalcularDerivada(txt, variable=var_elegida)
-        self.presentar_resultado(self.core.calculo.RenderizarTexto(res))
+        self._ejecutar(lambda: self.core.Derivar(txt, var_elegida), "la derivada")
 
     def on_integrar(self, event):
         txt = self.obtener_texto()
         if not txt: return
 
         var_elegida = self._resolver_ambiguedad_variable(txt, "integrar")
-        
+
         vars_detectadas = self.core.DetectarVariables(txt)
         # Si era ambigua o constante y no eligió nada (Cancel), salimos
         if (len(vars_detectadas) > 1 or len(vars_detectadas) == 0) and var_elegida is None:
             return
 
-        res = self.core.calculo.CalcularIntegral(txt, variable=var_elegida)
-        self.presentar_resultado(self.core.calculo.RenderizarTexto(res))
+        self._ejecutar(lambda: self.core.Integrar(txt, var_elegida), "la integral")
 
     def on_derivada_enecima(self, event):
         expr = self.obtener_texto()
         if not expr: return
-        
-        # Aquí siempre preguntamos porque es avanzado
-        dlg_var = wx.TextEntryDialog(self, "Variable:", "Derivada N")
-        if dlg_var.ShowModal() != wx.ID_OK: return
-        var = dlg_var.GetValue()
 
-        dlg_ord = wx.TextEntryDialog(self, "Orden (número):", "Derivada N")
-        if dlg_ord.ShowModal() != wx.ID_OK: return
-        
+        # Aquí siempre preguntamos porque es avanzado
+        var = self._pedir_texto("Variable:", "Derivada N")
+        if var is None: return
+
+        orden_txt = self._pedir_texto("Orden (número entero mayor o igual que 1):", "Derivada N")
+        if orden_txt is None: return
         try:
-            orden = int(dlg_ord.GetValue())
-            self.presentar_resultado(self.core.DerivadaEnecima(expr, var, orden))
-        except:
+            orden = int(orden_txt)
+        except ValueError:
             wx.MessageBox("El orden debe ser un número entero.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        self._ejecutar(lambda: self.core.DerivadaEnecima(expr, var, orden), f"la derivada de orden {orden}")
 
     def on_limite(self, event):
         expr = self.obtener_texto()
         if not expr: return
-        
-        dlg_var = wx.TextEntryDialog(self, "Variable:", "Límite")
-        if dlg_var.ShowModal() != wx.ID_OK: return
-        var = dlg_var.GetValue()
-        
-        dlg_ten = wx.TextEntryDialog(self, "Tendencia:", "Límite")
-        if dlg_ten.ShowModal() != wx.ID_OK: return
-        
-        self.presentar_resultado(self.core.CalcularLimite(expr, var, dlg_ten.GetValue()))
+
+        var = self._pedir_texto("Variable:", "Límite")
+        if var is None: return
+
+        tendencia = self._pedir_texto(
+            "Tendencia (ej: 0, 2, oo, -oo; para un límite lateral agregue + o -, ej: 0+):",
+            "Límite")
+        if tendencia is None: return
+
+        self._ejecutar(lambda: self.core.CalcularLimite(expr, var, tendencia), "el límite")
 
     def on_sistema_gauss(self, event):
         txt = self.obtener_texto()
-        if txt: self.presentar_resultado(self.core.ResolverSistemaGauss(txt.split('\n')))
+        if not txt: return
+        lineas = txt.split('\n')
+        self._ejecutar(lambda: self.core.ResolverSistemaGauss(lineas), "el sistema por Gauss-Jordan")
+
+    def on_sistema_clasico(self, metodo, nombre):
+        """Sistema 2x2 por sustitución, igualación o reducción."""
+        txt = self.obtener_texto()
+        if not txt: return
+        lineas = txt.split('\n')
+        self._ejecutar(lambda: self.core.ResolverSistemaEducativo(lineas, metodo), f"el sistema por {nombre}")
 
     def on_inversa_cofactores(self, event):
-        """
-        Manejador para el cálculo de Matriz Inversa por Cofactores.
-        """
         txt = self.obtener_texto()
-        if not txt: 
-            return
-            
-        try:
-            # Llamamos al puente. Asegúrate de que tu puente.py tenga este método expuesto.
-            resultado = self.core.MatrizInversaCofactores(txt)
-            self.presentar_resultado(resultado)
-        except AttributeError:
-            self.presentar_resultado("Error: El núcleo matemático (puente.py) no tiene conectado el módulo de matrices.")
-        except Exception as e:
-            self.presentar_resultado(f"Error de cálculo: {str(e)}")
+        if txt: self._ejecutar(lambda: self.core.MatrizInversaCofactores(txt), "la matriz inversa")
 
     def on_limpiar(self, event):
         self.input_text.Clear()
@@ -284,18 +389,31 @@ class CalculadoraAccesible(wx.Frame):
             "           para leerle el resultado paso a paso.\n\n"
 
             "3. ATAJOS DE TECLADO (MEMORIZAR ESTOS)\n"
-            "   [Ctrl + Enter] : CALCULAR (Aritmética básica, Sistemas).\n"
-            "   [Ctrl + D]     : DERIVAR una función.\n"
-            "   [Ctrl + I]     : INTEGRAR una función.\n"
-            "   [Ctrl + L]     : Calcular LÍMITE.\n"
-            "   [Ctrl + Borrar]: LIMPIAR pantalla para empezar de cero.\n"
-            "   [F1]           : Ver esta ayuda.\n"
-            "   [Alt]          : Acceder a la barra de menús.\n\n"
+            "   [Ctrl + Enter]     : CALCULAR (Aritmética básica, Sistemas).\n"
+            "   [Ctrl + S]         : SIMPLIFICAR una expresión.\n"
+            "   [Ctrl + F]         : FACTORIZAR un polinomio.\n"
+            "   [Ctrl + D]         : DERIVAR una función.\n"
+            "   [Ctrl + Mayús + D] : DERIVADA de orden N.\n"
+            "   [Ctrl + I]         : INTEGRAR una función.\n"
+            "   [Ctrl + L]         : Calcular LÍMITE.\n"
+            "   [Ctrl + G]         : Resolver SISTEMA por Gauss-Jordan.\n"
+            "   [Ctrl + M]         : MATRIZ INVERSA por cofactores.\n"
+            "   [Ctrl + Borrar]    : LIMPIAR pantalla para empezar de cero.\n"
+            "   [F1]               : Ver esta ayuda.\n"
+            "   [Alt]              : Acceder a la barra de menús.\n"
+            "   Sistemas 2x2 por sustitución, igualación o reducción:\n"
+            "   menú Álgebra, submenú 'Sistema 2x2 por método clásico'.\n\n"
+
+            "   Si un cálculo tarda, se abre el diálogo 'Calculando'.\n"
+            "   Puede pulsar Cancelar para abandonarlo.\n\n"
 
             "4. GUÍA DE ESCRITURA (SINTAXIS)\n"
             "   Para que la calculadora le entienda, escriba así:\n\n"
-            "   * Multiplicación: Use siempre el asterisco.\n"
-            "     CORRECTO: 2*x     INCORRECTO: 2x\n\n"
+            "   * Multiplicación: Puede usar el asterisco o escribir\n"
+            "     el número pegado: 2*x, 2x, 3sin(x) y 2(x+1) son válidos.\n"
+            "     IMPORTANTE: entre una variable y una función use\n"
+            "     siempre el asterisco.\n"
+            "     CORRECTO: x*sin(x)     INCORRECTO: xsin(x)\n\n"
             "   * Potencias: Use el sombrero (^) o doble asterisco (**).\n"
             "     Ejemplo: x^2  o  x**2\n\n"
             "   * Funciones: Use paréntesis siempre.\n"
@@ -304,10 +422,19 @@ class CalculadoraAccesible(wx.Frame):
             "     Escriba 'pi' para el número Pi.\n"
             "     Escriba 'e' para el número de Euler.\n"
             "     Escriba 'oo' (doble letra o) para Infinito.\n\n"
+            "   * Matrices (para la inversa): una fila por línea,\n"
+            "     con los números separados por espacios. Ejemplo:\n"
+            "       1 2\n"
+            "       3 4\n\n"
 
             "5. EJEMPLOS PRÁCTICOS\n"
             "   - Derivar: Escriba '3*x^2 + 5'. Pulse Ctrl+D.\n"
             "   - Integrar: Escriba 'sin(x)'. Pulse Ctrl+I.\n"
+            "   - Límite: Escriba 'sin(x)/x'. Pulse Ctrl+L.\n"
+            "     Variable: x. Tendencia: 0.\n"
+            "     Para un límite lateral escriba la tendencia con + o -,\n"
+            "     por ejemplo 0+ (por la derecha) o 0- (por la izquierda).\n"
+            "     Para infinito escriba oo, o -oo para menos infinito.\n"
             "   - Sistema 2x2: Escriba dos líneas:\n"
             "       x + y = 10\n"
             "       x - y = 2\n"
@@ -318,7 +445,9 @@ class CalculadoraAccesible(wx.Frame):
             "     le preguntará con cuál desea trabajar. Use las flechas\n"
             "     para elegir en el diálogo y pulse Enter.\n"
             "   - ¿Error de Sintaxis? Verifique que cerró todos los paréntesis\n"
-            "     y que usó '*' para multiplicar."
+            "     y que usó '*' entre una variable y una función.\n"
+            "   - ¿Dice que hay un cálculo en curso? Espere a que termine,\n"
+            "     o pulse Cancelar en el diálogo 'Calculando'."
         )
         
         # En lugar de MessageBox, usamos presentar_resultado.

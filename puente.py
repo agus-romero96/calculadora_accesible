@@ -80,13 +80,13 @@ class CoreMatematico:
     # 3. DELEGACIÓN: CÁLCULO (ACTUALIZADO V4.2)
     # ==========================================
 
-    def Derivar(self, expresion):
+    def Derivar(self, expresion, variable=None):
         """
         Calcula la derivada y devuelve el informe accesible.
-        La UI no envía variable (None), así que el motor inferirá o usará 'x'.
+        Si variable es None, el motor la infiere (o usa 'x').
         """
         # 1. Obtenemos el objeto rico (DTO)
-        resultado_dto = self.calculo.CalcularDerivada(expresion, variable=None)
+        resultado_dto = self.calculo.CalcularDerivada(expresion, variable=variable)
         # 2. Lo convertimos a texto para la UI
         return self.calculo.RenderizarTexto(resultado_dto)
 
@@ -98,12 +98,12 @@ class CoreMatematico:
         resultado_dto = self.calculo.DerivadaEnecima(expresion, variable, orden)
         return self.calculo.RenderizarTexto(resultado_dto)
 
-    def Integrar(self, expresion):
+    def Integrar(self, expresion, variable=None):
         """
         Calcula integral indefinida.
-        Advertencia: Si el usuario no puso variable en la UI, el motor V4.2 dará error (correcto).
+        Si variable es None y la expresión es constante, el motor devuelve error (correcto).
         """
-        resultado_dto = self.calculo.CalcularIntegral(expresion, variable=None)
+        resultado_dto = self.calculo.CalcularIntegral(expresion, variable=variable)
         return self.calculo.RenderizarTexto(resultado_dto)
 
     def CalcularLimite(self, expresion, variable, tendencia):

@@ -54,11 +54,10 @@ Está construida con **Python + wxPython** (interfaz nativa y accesible en Windo
 | Operación | Qué hace |
 |---|---|
 | **Sistemas (Gauss-Jordan)** | Resuelve sistemas lineales de cualquier tamaño, escritos como ecuaciones (una por línea) o como matriz aumentada `[[1,1,10],[1,-1,2]]`. Muestra cada operación de fila (intercambio, normalización, eliminación) con la matriz resultante, y prefiere pivotes `1` o `-1` para evitar fracciones. Diagnostica con el teorema de Rouché-Frobenius: solución **única**, **infinitas** (con parametrización y grados de libertad) o **sin solución**. |
+| **Sistema 2×2 por método clásico** | Resuelve sistemas de dos ecuaciones con dos incógnitas por **sustitución**, **igualación** o **reducción** (submenú *Álgebra → Sistema 2×2 por método clásico*), explicando cada paso como en clase: despeje, sustitución, eliminación y comprobación final. Detecta sistemas incompatibles e indeterminados. |
 | **Matriz inversa (cofactores)** | Calcula la inversa por el método de la adjunta, para matrices de hasta 4×4: determinante por expansión de la fila 1, ejemplo detallado del cofactor C₁₁, matriz de cofactores, adjunta e inversa final. Detecta matrices singulares y no cuadradas. |
 
 > Atajo inteligente: si en la entrada escribe **varias líneas que contienen `=`** y pulsa **Ctrl+Enter**, la calculadora detecta que es un sistema y lo resuelve por Gauss-Jordan automáticamente.
-
-> El núcleo también incluye la resolución de sistemas 2×2 por **sustitución, igualación y reducción** (`algebra/classic_systems.py`), aunque todavía no tiene una entrada en el menú.
 
 ---
 
@@ -70,6 +69,7 @@ Está construida con **Python + wxPython** (interfaz nativa y accesible en Windo
 - **Texto plano estructurado**: secciones numeradas, viñetas y matrices fila por fila (`[ 1, 2 | 3 ]`), sin depender de imágenes ni de notación visual.
 - **Diálogos de desambiguación**: si una expresión tiene varias variables (`x*y`), se pregunta respecto a cuál derivar o integrar en una lista navegable con flechas.
 - **Ayuda integrada (F1)**: un manual pensado para lectores de pantalla se muestra en el cuadro de resultados.
+- **La ventana nunca se congela**: los cálculos se ejecutan en segundo plano. Si uno tarda más de medio segundo, se abre el diálogo **"Calculando"** (NVDA lo anuncia), que muestra el tiempo transcurrido y tiene un botón **Cancelar** para abandonar el cálculo.
 - **Ejecutable sin consola**: la versión compilada no abre una ventana de consola que interfiera con NVDA.
 
 ---
@@ -85,6 +85,7 @@ Está construida con **Python + wxPython** (interfaz nativa y accesible en Windo
 | `Ctrl+Shift+D` | Derivada de orden N |
 | `Ctrl+I` | Integrar |
 | `Ctrl+L` | Límite |
+| `Ctrl+G` | Resolver sistema por Gauss-Jordan |
 | `Ctrl+M` | Matriz inversa por cofactores |
 | `Ctrl+Retroceso` | Borrar entrada y resultados |
 | `F1` | Ayuda |
@@ -97,7 +98,7 @@ Está construida con **Python + wxPython** (interfaz nativa y accesible en Windo
 
 | Concepto | Sintaxis | Ejemplo |
 |---|---|---|
-| Multiplicación | `*` (se recomienda; `2x` también se acepta) | `3*x^2` |
+| Multiplicación | `*`, o el número pegado a una letra o paréntesis | `3*x^2`, `2x`, `3sin(x)`, `2(x+1)` |
 | Potencia | `^` o `**` | `x^3`, `x**3` |
 | Raíz cuadrada | `sqrt()` | `sqrt(x+1)` |
 | Trigonométricas | `sin`, `cos`, `tan`, `asin`, … | `sin(2*x)` |
@@ -107,6 +108,7 @@ Está construida con **Python + wxPython** (interfaz nativa y accesible en Windo
 | Constantes | `pi`, `e` | `e^(2*x)` |
 | Infinito | `oo`, `inf` o `infinito` (en la tendencia de un límite también `∞`) | límite hacia `oo` o `-oo` |
 
+- **Entre una variable y una función use siempre `*`**: `x*sin(x)`. Si escribe `xsin(x)`, se interpreta como el producto de las letras `x·s·i·n` por `x`.
 - La entrada **no distingue mayúsculas de minúsculas** (todo se convierte a minúsculas).
 - Los paréntesis deben estar balanceados.
 - **Límites laterales**: en el diálogo *Tendencia*, escriba el punto seguido de `+` o `-` (`0+`, `4-`).
@@ -234,6 +236,12 @@ python -X utf8 -m pytest tests
 python -X utf8 tests_limites.py
 ```
 
+Para verificar la interfaz (abre la ventana real unos segundos y comprueba el cálculo en segundo plano, la cancelación, los menús y la ayuda):
+
+```bash
+python -X utf8 tests/verificar_ui.py
+```
+
 Estado actual: todas las pruebas pasan y la auditoría da 65/65.
 
 Los cambios del proyecto se documentan en [`CHANGELOG.md`](CHANGELOG.md).
@@ -242,8 +250,8 @@ Los cambios del proyecto se documentan en [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Limitaciones conocidas
 
-- Los cálculos se ejecutan en el hilo de la interfaz: una operación simbólica pesada puede congelar la ventana temporalmente.
-- La resolución de sistemas por sustitución, igualación y reducción todavía no aparece en el menú.
+- Al cancelar un cálculo, el programa deja de esperarlo, pero ese cálculo sigue usando el procesador en segundo plano hasta que termina, porque Python no permite detener un hilo.
+- Los métodos clásicos (sustitución, igualación, reducción) solo admiten sistemas 2×2. Para otros tamaños, use Gauss-Jordan.
 - La inversa por cofactores está limitada a 4×4 (para matrices mayores, use Gauss-Jordan).
 
 ---
