@@ -309,7 +309,7 @@ class GestorLimites:
         avisos: List[str] = []
 
         if var_str and str(var_str).strip():
-            return Symbol(str(var_str).strip()), avisos
+            return self.parser.simbolo(var_str), avisos
 
         syms = sorted(list(expr.free_symbols), key=lambda s: s.name)
         if len(syms) == 1:

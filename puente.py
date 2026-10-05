@@ -6,7 +6,7 @@ Su responsabilidad es orquestar las llamadas y asegurar que la UI reciba texto l
 """
 
 # --- 1. IMPORTACIONES DE HERRAMIENTAS COMUNES ---
-from parser import ParserMatematico
+from parser_matematico import ParserMatematico
 
 # --- 2. IMPORTACIONES DE LOS ESPECIALISTAS ---
 from aritmetica import Aritmetica

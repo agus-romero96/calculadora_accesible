@@ -1,7 +1,8 @@
 import sympy as sp
 import pytest
 
-x = sp.Symbol("x")
+# Mismas variables reales que crea el parser
+x = sp.Symbol("x", real=True)
 
 
 # ---------------- Evaluar ----------------

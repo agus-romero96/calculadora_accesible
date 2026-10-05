@@ -46,7 +46,7 @@ class MotorGauss:
         """
         
         # Caso 1: Entrada única que parece matriz
-        if len(lista_entradas) == 1 and ("[[" in lista_entradas[0] or "Matrix" in lista_entradas[0]):
+        if len(lista_entradas) == 1 and ("[[" in lista_entradas[0] or "matrix" in lista_entradas[0].lower()):
             try:
                 expr = self.parser.parsear(lista_entradas[0])
                 if isinstance(expr, list) or isinstance(expr, sympy.Matrix):
@@ -201,7 +201,7 @@ class MotorGauss:
                 # Parametrización formal usando linsolve
                 A_sys = matriz_inicial[:, :-1]
                 B_sys = matriz_inicial[:, -1]
-                sym_vars = [sympy.Symbol(v) for v in variables]
+                sym_vars = [self.parser.simbolo(v) for v in variables]
                 sol_set = sympy.linsolve((A_sys, B_sys), sym_vars)
                 
                 if sol_set:

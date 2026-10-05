@@ -3,7 +3,8 @@ import pytest
 
 from conftest import primera_linea
 
-x, t = sp.symbols("x t")
+# Mismas variables reales que crea el parser
+x, t, y = sp.symbols("x t y", real=True)
 
 
 # ---------------- Derivadas ----------------
@@ -32,7 +33,7 @@ def test_regla_potencia_usa_la_variable_real(core):
 
 def test_derivada_multivariable_con_variable_elegida(core):
     res = core.calculo.CalcularDerivada("x*y^2", variable="y")
-    assert res.resultado == 2 * x * sp.Symbol("y")
+    assert res.resultado == 2 * x * y
 
 
 def test_derivada_enecima(core):

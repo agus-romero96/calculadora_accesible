@@ -6,6 +6,7 @@ import sympy
 from sympy import S
 from sympy.assumptions import Q, ask
 
+from .trigonometria import LimitesTrigNotables
 from ._base import (
     Estrategia,
     ResultadoEstrategia,
@@ -28,6 +29,10 @@ class ContinuidadComposicion(Estrategia):
         2) intento local de trig notable (sin(u)/u, tan(u)/u, (1-cos(u))/u^2)
         3) sympy.limit
     """
+
+    def __init__(self):
+        # Reutiliza los núcleos trigonométricos para calcular el límite interno
+        self._trig = LimitesTrigNotables()
 
     def nombre(self) -> str:
         return "Continuidad por composición"
@@ -189,117 +194,29 @@ class ContinuidadComposicion(Estrategia):
         pasos: Optional[List[str]] = None,
     ) -> Any:
         """
-        Intento local:
+        Intento local con los núcleos de LimitesTrigNotables (sin duplicar su lógica):
           - sin(u)/u -> 1
           - tan(u)/u -> 1
           - (1-cos(u))/u^2 -> 1/2
 
-        Si encuentra núcleo y el resto es evaluable, devuelve el límite.
-        Si no, devuelve Limit(...) (no evaluado).
+        Si encuentra núcleo y el resto es evaluable, devuelve el límite; si no, None.
         """
         if pasos is None:
             pasos = []
 
-        expr_s = self._prep_interno(expr)
+        nucleos = (
+            ("sin(u)/u", self._trig._match_sin, 1),
+            ("tan(u)/u", self._trig._match_tan, 1),
+            ("(1-cos(u))/u^2", self._trig._match_one_minus_cos, sympy.Rational(1, 2)),
+        )
+        for nombre, match, factor in nucleos:
+            ok, u, resto, lim_resto = match(expr, var, punto, dir_)
+            if ok:
+                pasos.append(f"(Inner) Núcleo trig local: {nombre} con u={u}")
+                pasos.append(f"(Inner) Resto R = {resto}, lim R = {lim_resto}")
+                return sympy.simplify(factor * lim_resto)
 
-        # A) sin(u)/u
-        ok, u, resto, lim_resto = self._match_generic_local(expr_s, var, punto, dir_, sympy.sin)
-        if ok:
-            pasos.append(f"(Inner) Núcleo trig local: sin(u)/u con u={u}")
-            pasos.append(f"(Inner) Resto R = {resto}, lim R = {lim_resto}")
-            return sympy.simplify(lim_resto)
-
-        # B) tan(u)/u
-        ok, u, resto, lim_resto = self._match_generic_local(expr_s, var, punto, dir_, sympy.tan)
-        if ok:
-            pasos.append(f"(Inner) Núcleo trig local: tan(u)/u con u={u}")
-            pasos.append(f"(Inner) Resto R = {resto}, lim R = {lim_resto}")
-            return sympy.simplify(lim_resto)
-
-        # C) (1-cos(u))/u^2
-        ok, u, resto, lim_resto = self._match_one_minus_cos_local(expr_s, var, punto, dir_)
-        if ok:
-            pasos.append(f"(Inner) Núcleo trig local: (1-cos(u))/u^2 con u={u}")
-            pasos.append(f"(Inner) Resto R = {resto}, lim R = {lim_resto}")
-            return sympy.simplify(sympy.Rational(1, 2) * lim_resto)
-
-        return sympy.Limit(expr_s, var, punto, dir=dir_) if dir_ in ("+", "-") else sympy.Limit(expr_s, var, punto)
-
-    def _prep_interno(self, expr: Any) -> Any:
-        """Prep suave para inner: no simplify()."""
-        try:
-            return sympy.together(sympy.cancel(expr))
-        except Exception:
-            return expr
-
-    def _match_generic_local(
-        self,
-        expr: Any,
-        var: sympy.Symbol,
-        punto: Any,
-        dir_: Optional[str],
-        func_type,
-    ) -> Tuple[bool, Any, Any, Any]:
-        """
-        Escribe expr = (func(u)/u) * R  =>  R = expr * (u/func(u))
-
-        Requisitos:
-          - u -> 0 (mismo dir)
-          - lim R evaluable
-        """
-        num, _ = expr.as_numer_denom()
-        candidates = [t for t in sympy.preorder_traversal(num) if getattr(t, "func", None) == func_type]
-
-        for term in candidates:
-            u = term.args[0]
-            if not self._u_tiende_a_0_local(u, var, punto, dir_):
-                continue
-
-            try:
-                resto_expr = sympy.simplify(expr * (u / term))
-            except Exception:
-                continue
-
-            lim_resto = self._limite_seguro(resto_expr, var, punto, dir_)
-            if self._es_limite_evaluable(lim_resto):
-                return True, u, resto_expr, sympy.simplify(lim_resto)
-
-        return False, None, None, None
-
-    def _match_one_minus_cos_local(
-        self,
-        expr: Any,
-        var: sympy.Symbol,
-        punto: Any,
-        dir_: Optional[str],
-    ) -> Tuple[bool, Any, Any, Any]:
-        candidates = [t for t in sympy.preorder_traversal(expr) if getattr(t, "func", None) == sympy.cos]
-
-        for cos_u in candidates:
-            u = cos_u.args[0]
-            if not self._u_tiende_a_0_local(u, var, punto, dir_):
-                continue
-
-            denom = (1 - cos_u)
-            try:
-                resto_expr = sympy.simplify(expr * (u**2) / denom)
-            except Exception:
-                continue
-
-            lim_resto = self._limite_seguro(resto_expr, var, punto, dir_)
-            if self._es_limite_evaluable(lim_resto):
-                return True, u, resto_expr, sympy.simplify(lim_resto)
-
-        return False, None, None, None
-
-    def _u_tiende_a_0_local(self, u: Any, var: sympy.Symbol, punto: Any, dir_: Optional[str]) -> bool:
-        lu = self._limite_seguro(u, var, punto, dir_)
-        if not self._es_limite_evaluable(lu):
-            return False
-        try:
-            return sympy.simplify(lu) == 0
-        except Exception:
-            return False
+        return None
 
     # --------------------------
     # Extracción de composición

@@ -74,7 +74,7 @@ class Calculo:
 
         # 1. Prioridad: usuario explícito
         if var_str and str(var_str).strip():
-            return Symbol(str(var_str).strip()), advertencias
+            return self.parser.simbolo(var_str), advertencias
 
         # 2. Inferencia
         syms = sorted(list(expr.free_symbols), key=lambda s: s.name)
@@ -89,7 +89,7 @@ class Calculo:
                     "Ambigüedad en Integral: está intentando integrar una constante sin especificar la variable. Indíquela."
                 )
             advertencias.append("La expresión es constante. Se asume derivación respecto a 'x'.")
-            return Symbol("x"), advertencias
+            return self.parser.simbolo("x"), advertencias
 
         # 4. Caso multivariable: política (preferir x si existe)
         nombres = [s.name for s in syms]

@@ -53,7 +53,7 @@ Fase 2: Crear la Aplicación Ejecutable con cx_Freeze
          base = "Win32GUI"
 
      include_files = [
-         'aritmetica.py', 'parser.py', 'puente.py',
+         'aritmetica.py', 'parser_matematico.py', 'puente.py',
          'algebra/', 'calculo/', '_version.py',
          'LICENSE', 'README.md'
      ]

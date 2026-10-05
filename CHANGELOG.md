@@ -8,6 +8,9 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Añadido
 
+- **Sugerencias para funciones mal escritas**: `xsin(x)`, `xcos(2*x)` o `sinx` ya no se interpretan en silencio como productos de letras (`i·n·s·x·x`). Ahora dan un error que propone la corrección, por ejemplo "¿Quiso decir x*sin(x)?".
+- Se acepta la notación `sin^2(x)` (antes daba error) y la entrada `Matrix([[1,2],[3,4]])` en Gauss-Jordan y en la inversa (antes era imposible porque el parser pasa todo a minúsculas).
+- `tests/test_parser.py`: 36 pruebas de sintaxis, sugerencias y efecto de las variables reales. La suite llega a 187 pruebas.
 - **Cálculos en segundo plano**: ningún cálculo bloquea ya la ventana. Si uno tarda más de 0,6 s, se abre el diálogo **"Calculando"**, que NVDA anuncia, con tiempo transcurrido y botón **Cancelar**. Mientras hay un cálculo en curso no se puede lanzar otro, y se avisa de ello antes de pedir variables u otros datos.
 - **Menú para los sistemas 2×2 por método clásico**: submenú *Álgebra → Sistema 2×2 por método clásico* con Sustitución, Igualación y Reducción. El motor ya existía, pero no se podía usar desde la interfaz.
 - Atajo **Ctrl+G** para resolver sistemas por Gauss-Jordan.
@@ -24,6 +27,15 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Cambiado
 
+- **Las variables son números reales** (`Symbol(..., real=True)`). Con variables complejas, que era el comportamiento por defecto de SymPy:
+  - la derivada de `abs(x)` era un `Piecewise` con `re(x)`, `im(x)` y `Derivative(re(x), x)`; ahora es `sign(x)`;
+  - `sqrt(x^2)` no se simplificaba; ahora da `Abs(x)`;
+  - `∫abs(x)` quedaba sin resolver; ahora se resuelve;
+  - L'Hôpital sobre `abs(x)/x` mostraba `re(x)` e `im(x)`.
+
+  Todos los módulos que crean una variable a partir de su nombre (calculo, limite, router, gauss) usan ahora `ParserMatematico.simbolo()`. Si no, la `x` que escribe el usuario en un diálogo sería distinta de la `x` del parser, y por ejemplo una derivada daría 0.
+- `parser.py` pasa a llamarse **`parser_matematico.py`**, para no coincidir con el nombre de un antiguo módulo de la biblioteca estándar. Se actualizaron `puente.py`, `setup.py`, `guia_compilacion.txt` y el README.
+- `continuidad.py` reutiliza los núcleos trigonométricos de `LimitesTrigNotables` en lugar de tener su propia copia: unas 100 líneas menos. Se verificó que los resultados de una batería de límites por composición son idénticos antes y después.
 - **Ayuda (F1) actualizada**: lista todos los atajos (antes faltaban Ctrl+S, Ctrl+F, Ctrl+Mayús+D y Ctrl+M) y explica los límites laterales, la entrada de matrices y el diálogo "Calculando". También corrige la regla de multiplicación: decía que `2x` era incorrecto, pero se acepta. Ahora advierte del caso que sí falla: `xsin(x)` hay que escribirlo `x*sin(x)`.
 - La interfaz ya no llama directamente a `core.calculo`: derivar e integrar pasan por la fachada `puente.py`, cuyos métodos `Derivar` e `Integrar` aceptan ahora la variable elegida.
 - El diálogo de tendencia del límite explica el formato (`0`, `oo`, `-oo`, `0+`, `0-`).
@@ -70,11 +82,9 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## Pendiente (problemas conocidos)
 
-- **Símbolos complejos**: el parser crea variables sin la suposición de ser reales, así que algunos pasos muestran `re(x)` e `im(x)`; por ejemplo, al aplicar L'Hôpital a `abs(x)/x`. El resultado es correcto, pero la explicación es confusa.
-- **Parser**:
-  - `xsin(x)` se interpreta en silencio como `i·n·s·x·x` (separa las letras al multiplicar sin `*`). Debería avisar o reconocer el nombre de la función.
-  - Convierte todo a minúsculas, así que la entrada `Matrix(...)` no funciona.
-  - Su nombre (`parser.py`) coincide con el de un antiguo módulo de la biblioteca estándar.
+- **Explicaciones de la estrategia trigonométrica**: puede atribuir un límite a un núcleo que no aparece como factor en la expresión. Por ejemplo, `cos(1/x)` cuando x→∞ se explica con `(1−cos u)/u²`, y `exp(sin(x)/x)` cuando x→0 con `sin(u)/u` sobre un resto que contiene `exp`. Los valores son correctos, pero la explicación no corresponde al método que usaría un estudiante.
+- **Continuidad con raíces**: `sqrt(x^2+9)` cuando x→4 no se resuelve por continuidad (`sqrt` se representa como potencia `1/2`) y cae en el modo general.
+- **Variables como reales**: es la convención adecuada para un curso de cálculo, pero los resultados con números complejos (por ejemplo, raíces de números negativos dentro de expresiones con variables) pueden diferir de los que daría SymPy por defecto.
 - **Cancelar un cálculo** no lo detiene: el hilo sigue usando el procesador hasta terminar, porque Python no permite detener un hilo. Para detenerlo de verdad habría que ejecutar los cálculos en un proceso aparte.
 - **Interfaz**: falta un historial de operaciones y una forma rápida de copiar solo la línea del resultado.
 - **Prueba con NVDA real**: el diálogo "Calculando" y el nuevo submenú se verificaron de forma automática (`tests/verificar_ui.py`), pero no todavía con el lector de pantalla. El botón Cancelar del diálogo tampoco se ha pulsado físicamente: la prueba invoca directamente la función que ejecuta.

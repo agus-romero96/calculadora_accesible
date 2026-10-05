@@ -99,7 +99,7 @@ Está construida con **Python + wxPython** (interfaz nativa y accesible en Windo
 | Concepto | Sintaxis | Ejemplo |
 |---|---|---|
 | Multiplicación | `*`, o el número pegado a una letra o paréntesis | `3*x^2`, `2x`, `3sin(x)`, `2(x+1)` |
-| Potencia | `^` o `**` | `x^3`, `x**3` |
+| Potencia | `^` o `**` | `x^3`, `x**3`, `sin^2(x)` |
 | Raíz cuadrada | `sqrt()` | `sqrt(x+1)` |
 | Trigonométricas | `sin`, `cos`, `tan`, `asin`, … | `sin(2*x)` |
 | Logaritmo natural | `ln()` o `log()` | `ln(x)` |
@@ -108,11 +108,12 @@ Está construida con **Python + wxPython** (interfaz nativa y accesible en Windo
 | Constantes | `pi`, `e` | `e^(2*x)` |
 | Infinito | `oo`, `inf` o `infinito` (en la tendencia de un límite también `∞`) | límite hacia `oo` o `-oo` |
 
-- **Entre una variable y una función use siempre `*`**: `x*sin(x)`. Si escribe `xsin(x)`, se interpreta como el producto de las letras `x·s·i·n` por `x`.
+- **Entre una variable y una función use siempre `*`**: `x*sin(x)`. Si escribe `xsin(x)` o se olvida los paréntesis (`sinx`), la calculadora da un error con la corrección sugerida ("¿Quiso decir x*sin(x)?").
+- Las variables se tratan como **números reales**: por ejemplo, la derivada de `abs(x)` es `sign(x)` y `sqrt(x^2)` se simplifica a `Abs(x)`.
 - La entrada **no distingue mayúsculas de minúsculas** (todo se convierte a minúsculas).
 - Los paréntesis deben estar balanceados.
 - **Límites laterales**: en el diálogo *Tendencia*, escriba el punto seguido de `+` o `-` (`0+`, `4-`).
-- **Matrices** para la inversa: una fila por línea, con números separados por espacios o comas, o bien en formato `[[1,2],[3,4]]`. Se aceptan fracciones y raíces (`1/2`, `sqrt(2)`).
+- **Matrices** para la inversa: una fila por línea, con números separados por espacios o comas, o bien en formato `[[1,2],[3,4]]` o `Matrix([[1,2],[3,4]])`. Se aceptan fracciones y raíces (`1/2`, `sqrt(2)`).
 
 ---
 
@@ -192,7 +193,7 @@ main.py                 Interfaz wxPython (ventana, menús, atajos, diálogos)
   │
 puente.py               Fachada: CoreMatematico orquesta los motores
   │
-parser.py               ParserMatematico: parser único compartido (SymPy parse_expr)
+parser_matematico.py    ParserMatematico: parser único compartido (SymPy parse_expr)
   │
 ├── aritmetica.py               Evaluar / Simplificar / Factorizar
 ├── algebra/
@@ -223,7 +224,7 @@ Principios de diseño:
 
 ## Pruebas
 
-El proyecto tiene una suite de **pytest** en `tests/` (151 pruebas, unos 3 segundos) que cubre todos los motores: aritmética, cálculo, álgebra lineal, límites, y la detección de errores en la interfaz (sin abrir ventanas).
+El proyecto tiene una suite de **pytest** en `tests/` (187 pruebas, unos 3 segundos) que cubre el parser y todos los motores: aritmética, cálculo, álgebra lineal, límites, y la detección de errores en la interfaz (sin abrir ventanas).
 
 ```bash
 pip install -r requirements-dev.txt

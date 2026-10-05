@@ -122,13 +122,13 @@ class RouterMatematico:
     # Helpers existentes
     # -------------------------
     def _resolver_var(self, expr, v_str):
-        if v_str:
-            return Symbol(v_str)
+        # parser.simbolo() crea la misma variable real que el parser
+        if v_str and v_str.strip():
+            return self.parser.simbolo(v_str)
+        x = self.parser.simbolo("x")
         s = list(expr.free_symbols)
-        if not s:
-            return Symbol("x")
-        if Symbol("x") in s:
-            return Symbol("x")
+        if not s or x in s:
+            return x
         return s[0]
 
     def _parsear_tendencia(self, t_str):

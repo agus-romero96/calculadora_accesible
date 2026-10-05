@@ -14,7 +14,7 @@ if sys.platform == "win32":
 # We need to explicitly include our math modules
 include_files = [
     'aritmetica.py',
-    'parser.py',
+    'parser_matematico.py',
     'puente.py',
     'algebra/',
     'calculo/',

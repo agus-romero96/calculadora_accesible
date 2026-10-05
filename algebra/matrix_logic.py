@@ -49,7 +49,7 @@ class MotorMatrices:
 
         # --- INTENTO 1: Entrada Natural (Tu formato: 1 2 3) ---
         # Si no empieza con corchete ni 'Matrix', asumimos que es texto plano
-        if not texto.startswith("[") and "Matrix" not in texto:
+        if not texto.startswith("[") and "matrix" not in texto.lower():
             try:
                 # Separamos por líneas (filas)
                 filas_txt = texto.split('\n')
