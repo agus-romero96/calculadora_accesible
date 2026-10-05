@@ -221,13 +221,22 @@ Principios de diseño:
 
 ## Pruebas
 
-`tests_limites.py` es un script de auditoría con 65 casos de límites (trigonométricos, racionalización, infinito y fallback). Para cada caso comprueba el **valor** y la **estrategia** usada:
+El proyecto tiene una suite de **pytest** en `tests/` (151 pruebas, unos 3 segundos) que cubre todos los motores: aritmética, cálculo, álgebra lineal, límites, y la detección de errores en la interfaz (sin abrir ventanas).
+
+```bash
+pip install -r requirements-dev.txt
+python -X utf8 -m pytest tests
+```
+
+`tests_limites.py` es además un script de auditoría independiente con 65 casos de límites (trigonométricos, racionalización, infinito y fallback). Para cada caso comprueba el **valor** y la **estrategia** usada, e imprime un informe detallado:
 
 ```bash
 python -X utf8 tests_limites.py
 ```
 
-> Estado actual: los 65 valores son correctos, pero el script marca 43 casos como fallidos porque la estrategia "Simplificación y cancelación" (la primera del enrutador) resuelve casos que el test espera ver resueltos por la estrategia específica (trigonométrica, racionalización o grados).
+Estado actual: todas las pruebas pasan y la auditoría da 65/65.
+
+Los cambios del proyecto se documentan en [`CHANGELOG.md`](CHANGELOG.md).
 
 ---
 
