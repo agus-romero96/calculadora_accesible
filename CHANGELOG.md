@@ -6,6 +6,12 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Sin publicar]
 
+(Nada todavía.)
+
+## [1.1.0] - 2026-10-05
+
+Versión de calidad: corrige resultados matemáticos incorrectos (límites bilaterales, factorización), evita que la ventana se congele, añade 188 pruebas automáticas y reduce el instalador de 80 MB a 36 MB.
+
 ### Añadido
 
 - **`compilar.py`**: un solo comando para todo el proceso de publicación: pruebas, ejecutable con cx_Freeze, **verificación del ejecutable compilado** e instalador con Inno Setup. Se detiene en el primer fallo y admite `--sin-pruebas`, `--sin-instalador` y `--salida`.
@@ -71,7 +77,7 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 - `compilar.spec` (PyInstaller): el proceso real de publicación era cx_Freeze + Inno Setup, y PyInstaller ni siquiera estaba instalado. Con dos sistemas en paralelo, uno quedaba siempre desactualizado. Se puede recuperar del historial de git si hiciera falta.
 
-### Cambios anteriores (ya en el historial de git)
+### Primeros cambios de esta versión
 
 #### Corregido — commit `7be2f58`
 
@@ -89,6 +95,13 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 #### Eliminado — commit `9823725`
 
 - Dejan de versionarse `Paquetes/` (librerías copiadas en el proyecto), `__pycache__/` y `.vscode/`. Se amplía `.gitignore` y se añaden al repositorio los archivos de versión, dependencias, compilación y la auditoría de límites.
+
+## [1.0.0] - 2025-12-27
+
+Primera versión publicada con instalador para Windows: evaluación, simplificación y factorización; derivadas, integrales y límites con explicación paso a paso; sistemas por Gauss-Jordan e inversa por cofactores; interfaz accesible para NVDA.
+
+[Sin publicar]: https://github.com/agus-romero96/calculadora_accesible/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/agus-romero96/calculadora_accesible/compare/9de0952...v1.1.0
 
 ---
 
