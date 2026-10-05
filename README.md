@@ -1,2 +1,244 @@
-# calculadora_accesible
- una pequeña calculadora con muchas operaciones matemáticas
+# Calculadora Accesible (Jansen Calculator)
+
+Calculadora científica y simbólica de escritorio diseñada **para usarse con lector de pantalla** (NVDA, JAWS) y solo con teclado. No se limita a dar el resultado: explica **paso a paso** cómo se llega a él, en texto plano y ordenado para que se pueda leer línea por línea.
+
+Está construida con **Python + wxPython** (interfaz nativa y accesible en Windows) y **SymPy** (motor de matemática simbólica).
+
+---
+
+## Índice
+
+- [Funcionalidades](#funcionalidades)
+- [Accesibilidad](#accesibilidad)
+- [Atajos de teclado](#atajos-de-teclado)
+- [Cómo escribir expresiones](#cómo-escribir-expresiones)
+- [Ejemplos de uso](#ejemplos-de-uso)
+- [Instalación y ejecución](#instalación-y-ejecución)
+- [Compilar el ejecutable e instalador](#compilar-el-ejecutable-e-instalador)
+- [Arquitectura](#arquitectura)
+- [Pruebas](#pruebas)
+- [Limitaciones conocidas](#limitaciones-conocidas)
+- [Licencia](#licencia)
+
+---
+
+## Funcionalidades
+
+### Aritmética y álgebra básica (menú **Operaciones**)
+
+| Operación | Qué hace |
+|---|---|
+| **Evaluar** | Calcula expresiones numéricas. Si el resultado es entero o una fracción simple, lo muestra directamente; si es irracional (por ejemplo `2*pi` o `sqrt(2)`), muestra el valor exacto **y** una aproximación decimal. Rechaza expresiones con variables y sugiere usar *Simplificar*. |
+| **Simplificar** | Reduce expresiones algebraicas. Informa la estrategia usada: agrupación por potencias (`collect`), cancelación de factores en fracciones (`cancel`) o simplificación general. |
+| **Factorizar** | Factoriza polinomios sobre los racionales y **reconoce el caso escolar** solo cuando puede verificarlo: factor común, trinomio cuadrado perfecto, cubo perfecto, diferencia de cuadrados, suma/diferencia de cubos, trinomio `x²+bx+c` y `ax²+bx+c`. Avisa si el polinomio es irreducible. |
+
+### Cálculo (menú **Cálculo**)
+
+| Operación | Qué hace |
+|---|---|
+| **Derivar** | Deriva y explica qué regla aplica: constante, linealidad, constante por función, producto, cociente, potencia, potencia negativa, regla de la cadena, exponencial `a^u(x)` y potencia general `u(x)^v(x)` (derivación logarítmica). También lista las reglas secundarias usadas en los subtérminos. |
+| **Derivada de orden N** | Calcula derivadas sucesivas mostrando cada derivada intermedia. Simplifica cada pocos pasos para que el resultado no crezca sin control. |
+| **Integrar** | Integral indefinida (con `+ C`). Cuando es posible, muestra los pasos: extracción de constante, linealidad, sustitución `u`, integración por partes e integrales inmediatas. Avisa si no existe solución cerrada o si aparecen funciones especiales (`erf`, `Ei`, `Si`, …). |
+| **Límite** | Calcula límites en un punto, en `±∞` y **laterales** (`2+`, `2-`). Un enrutador elige la estrategia didáctica más adecuada (ver abajo) y, si ninguna aplica, recurre a un motor general con diagnóstico de indeterminación (`0/0`, `∞/∞`, `k/0`), L'Hôpital validado, límites laterales y clasificación del comportamiento (función continua, discontinuidad evitable, de salto, asíntota vertical u horizontal). |
+
+**Estrategias de límites** (`calculo/lim_estrategias/`):
+
+1. **Simplificación y cancelación**: `together` + `cancel` + factorización.
+2. **Límites trigonométricos notables**: extrae núcleos `sin(u)/u → 1`, `tan(u)/u → 1` y `(1−cos u)/u² → 1/2`.
+3. **Racionalización**: multiplica por el conjugado en binomios con raíz cuadrada.
+4. **Continuidad por composición**: `lim f(g(x)) = f(lim g(x))`, comprobando el dominio de `f` (log, sqrt, asin, acos, …).
+5. **Comparación de grados**: cocientes de polinomios cuando `x → ±∞`, incluido el signo de la divergencia.
+
+### Álgebra lineal (menú **Álgebra**)
+
+| Operación | Qué hace |
+|---|---|
+| **Sistemas (Gauss-Jordan)** | Resuelve sistemas lineales de cualquier tamaño, escritos como ecuaciones (una por línea) o como matriz aumentada `[[1,1,10],[1,-1,2]]`. Muestra cada operación de fila (intercambio, normalización, eliminación) con la matriz resultante, y prefiere pivotes `1` o `-1` para evitar fracciones. Diagnostica con el teorema de Rouché-Frobenius: solución **única**, **infinitas** (con parametrización y grados de libertad) o **sin solución**. |
+| **Matriz inversa (cofactores)** | Calcula la inversa por el método de la adjunta, para matrices de hasta 4×4: determinante por expansión de la fila 1, ejemplo detallado del cofactor C₁₁, matriz de cofactores, adjunta e inversa final. Detecta matrices singulares y no cuadradas. |
+
+> Atajo inteligente: si en la entrada escribe **varias líneas que contienen `=`** y pulsa **Ctrl+Enter**, la calculadora detecta que es un sistema y lo resuelve por Gauss-Jordan automáticamente.
+
+> El núcleo también incluye la resolución de sistemas 2×2 por **sustitución, igualación y reducción** (`algebra/classic_systems.py`), aunque todavía no tiene una entrada en el menú.
+
+---
+
+## Accesibilidad
+
+- **Solo teclado**: todas las funciones tienen menú con letra de acceso (`Alt`) y la mayoría tiene atajo directo.
+- **Resultado primero**: en derivadas, integrales y límites, la primera línea es siempre `RESULTADO: …`, para no tener que escuchar todo el desarrollo.
+- **Gestión del foco**: al calcular, el foco pasa al cuadro de resultados y el cursor vuelve al inicio, listo para leer con las flechas. Si hay un error, el foco vuelve a la entrada.
+- **Texto plano estructurado**: secciones numeradas, viñetas y matrices fila por fila (`[ 1, 2 | 3 ]`), sin depender de imágenes ni de notación visual.
+- **Diálogos de desambiguación**: si una expresión tiene varias variables (`x*y`), se pregunta respecto a cuál derivar o integrar en una lista navegable con flechas.
+- **Ayuda integrada (F1)**: un manual pensado para lectores de pantalla se muestra en el cuadro de resultados.
+- **Ejecutable sin consola**: la versión compilada no abre una ventana de consola que interfiera con NVDA.
+
+---
+
+## Atajos de teclado
+
+| Atajo | Acción |
+|---|---|
+| `Ctrl+Enter` | Evaluar (o resolver sistema si hay varias líneas con `=`) |
+| `Ctrl+S` | Simplificar |
+| `Ctrl+F` | Factorizar |
+| `Ctrl+D` | Derivar |
+| `Ctrl+Shift+D` | Derivada de orden N |
+| `Ctrl+I` | Integrar |
+| `Ctrl+L` | Límite |
+| `Ctrl+M` | Matriz inversa por cofactores |
+| `Ctrl+Retroceso` | Borrar entrada y resultados |
+| `F1` | Ayuda |
+| `Alt` | Barra de menús (Operaciones, Cálculo, Álgebra, Ayuda) |
+| `Alt+E` / `Alt+R` | Ir al cuadro de entrada / de resultados |
+
+---
+
+## Cómo escribir expresiones
+
+| Concepto | Sintaxis | Ejemplo |
+|---|---|---|
+| Multiplicación | `*` (se recomienda; `2x` también se acepta) | `3*x^2` |
+| Potencia | `^` o `**` | `x^3`, `x**3` |
+| Raíz cuadrada | `sqrt()` | `sqrt(x+1)` |
+| Trigonométricas | `sin`, `cos`, `tan`, `asin`, … | `sin(2*x)` |
+| Logaritmo natural | `ln()` o `log()` | `ln(x)` |
+| Logaritmo base 10 | `log10()` | `log10(100)` |
+| Valor absoluto | `abs()` | `abs(x)/x` |
+| Constantes | `pi`, `e` | `e^(2*x)` |
+| Infinito | `oo`, `inf` o `infinito` (en la tendencia de un límite también `∞`) | límite hacia `oo` o `-oo` |
+
+- La entrada **no distingue mayúsculas de minúsculas** (todo se convierte a minúsculas).
+- Los paréntesis deben estar balanceados.
+- **Límites laterales**: en el diálogo *Tendencia*, escriba el punto seguido de `+` o `-` (`0+`, `4-`).
+- **Matrices** para la inversa: una fila por línea, con números separados por espacios o comas, o bien en formato `[[1,2],[3,4]]`. Se aceptan fracciones y raíces (`1/2`, `sqrt(2)`).
+
+---
+
+## Ejemplos de uso
+
+**Derivar**: escriba `x^2*sin(x)` y pulse `Ctrl+D`.
+```
+RESULTADO: x*(x*cos(x) + 2*sin(x))
+==============================
+OPERACIÓN: DERIVADA
+...
+Estrategia Principal: Regla del Producto
+```
+
+**Límite**: escriba `(sqrt(1+x)-1)/x`, pulse `Ctrl+L`, variable `x`, tendencia `0`. Resultado: `1/2`.
+
+**Sistema de ecuaciones**: escriba en dos líneas y pulse `Ctrl+Enter`:
+```
+x + y = 10
+x - y = 2
+```
+Resultado: `x = 6`, `y = 4`, con cada operación de fila explicada.
+
+**Matriz inversa**: escriba y pulse `Ctrl+M`:
+```
+1 2
+3 4
+```
+
+---
+
+## Instalación y ejecución
+
+Requisitos: **Python 3.12** (probado con 3.12.10) en Windows.
+
+```bash
+git clone <url-del-repositorio>
+cd calculadora_accesible
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+python main.py
+```
+
+Dependencias: `wxPython` (probado con 4.2.2) y `sympy` (probado con 1.13.3).
+
+---
+
+## Compilar el ejecutable e instalador
+
+El proyecto tiene dos vías de empaquetado:
+
+**cx_Freeze** (la vía documentada en `guia_compilacion.txt`):
+```bash
+pip install cx_freeze
+python setup.py build
+```
+Genera `build\exe.win-amd64-3.12\CalculadoraAccesible.exe`.
+
+**PyInstaller** (ejecutable de un solo archivo):
+```bash
+pip install pyinstaller
+pyinstaller compilar.spec
+```
+Genera `dist\CalculadoraAccesible.exe`.
+
+**Instalador de Windows**: compile `setup_script.iss` con [Inno Setup](https://jrsoftware.org/isinfo.php) después de la compilación con cx_Freeze. Genera `Output\setup-calculadora-accesible-v<versión>.exe`, con instalador en español.
+
+La versión se define en `_version.py` (y debe actualizarse también a mano en `setup_script.iss`).
+
+---
+
+## Arquitectura
+
+```
+main.py                 Interfaz wxPython (ventana, menús, atajos, diálogos)
+  │
+puente.py               Fachada: CoreMatematico orquesta los motores
+  │
+parser.py               ParserMatematico: parser único compartido (SymPy parse_expr)
+  │
+├── aritmetica.py               Evaluar / Simplificar / Factorizar
+├── algebra/
+│   ├── gauss_logic.py          Gauss-Jordan paso a paso
+│   ├── matrix_logic.py         Inversa por cofactores
+│   └── classic_systems.py      Sustitución, igualación, reducción (2x2)
+└── calculo/
+    ├── calculo.py              Derivadas, derivada N, integrales
+    ├── router.py               Enrutador de estrategias de límites
+    ├── limite.py               Motor general de límites (fallback)
+    └── lim_estrategias/        Estrategias didácticas (patrón Strategy)
+        ├── _base.py
+        ├── simplificacion.py
+        ├── trigonometria.py
+        ├── racionalizacion.py
+        ├── continuidad.py
+        └── infinito.py
+```
+
+Principios de diseño:
+
+- **Inyección de dependencias**: todos los motores reciben el mismo `ParserMatematico`, así que la sintaxis es la misma en todo el programa.
+- **DTOs inmutables** (`@dataclass(frozen=True)`): cada motor devuelve un objeto de resultado (`ResultadoAritmetica`, `ResultadoCalculo`, `ResultadoGauss`, …) y un método `renderizar` lo convierte en texto accesible. La lógica matemática y la presentación están separadas.
+- **"La verdad la da SymPy"**: el resultado final siempre se calcula con SymPy; la explicación pedagógica se añade aparte y solo se muestra un patrón (por ejemplo, "diferencia de cuadrados") cuando se puede verificar.
+- **Patrón Strategy en límites**: cada técnica implementa `puede_resolver()` y `resolver()`. El enrutador las prueba en orden y la primera que llega a una conclusión gana.
+
+---
+
+## Pruebas
+
+`tests_limites.py` es un script de auditoría con 65 casos de límites (trigonométricos, racionalización, infinito y fallback). Para cada caso comprueba el **valor** y la **estrategia** usada:
+
+```bash
+python -X utf8 tests_limites.py
+```
+
+> Estado actual: los 65 valores son correctos, pero el script marca 43 casos como fallidos porque la estrategia "Simplificación y cancelación" (la primera del enrutador) resuelve casos que el test espera ver resueltos por la estrategia específica (trigonométrica, racionalización o grados).
+
+---
+
+## Limitaciones conocidas
+
+- Los cálculos se ejecutan en el hilo de la interfaz: una operación simbólica pesada puede congelar la ventana temporalmente.
+- La resolución de sistemas por sustitución, igualación y reducción todavía no aparece en el menú.
+- La inversa por cofactores está limitada a 4×4 (para matrices mayores, use Gauss-Jordan).
+
+---
+
+## Licencia
+
+Distribuido bajo la licencia **MIT**. Ver [`LICENSE`](LICENSE).

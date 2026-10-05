@@ -50,6 +50,8 @@ class MotorSistemasClasicos:
                 # Manejo de igualdad
                 if "=" in txt:
                     parts = txt.split("=")
+                    if len(parts) != 2:
+                        raise ValueError("debe tener exactamente un signo '='.")
                     lhs = self.parser.parsear(parts[0])
                     rhs = self.parser.parsear(parts[1])
                     # Normalizamos a: Expresión = 0

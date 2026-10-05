@@ -304,7 +304,7 @@ class Calculo:
 
                 if u == var:
                     return (
-                        [PasoCalculo("Regla de la Potencia", "Polinomio simple.", f"{n}*x^({n}-1)")],
+                        [PasoCalculo("Regla de la Potencia", "Polinomio simple.", f"{n}*{var}^({n}-1)")],
                         "Potencia",
                         "Polinomio.",
                         []

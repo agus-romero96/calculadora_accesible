@@ -67,6 +67,8 @@ class MotorGauss:
                     continue
                 if "=" in txt:
                     parts = txt.split("=")
+                    if len(parts) != 2:
+                        raise ValueError(f"La ecuación '{txt.strip()}' debe tener exactamente un signo '='.")
                     izq = self.parser.parsear(parts[0])
                     der = self.parser.parsear(parts[1])
                     eq = sympy.Eq(izq, der)

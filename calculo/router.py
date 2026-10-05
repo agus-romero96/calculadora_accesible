@@ -26,15 +26,23 @@ class RouterMatematico:
         ]
 
     def CalcularLimite(self, expresion: str, variable: Optional[str] = None, tendencia: str = "0") -> str:
-        expr = self.parser.parsear(expresion)
-        var = self._resolver_var(expr, variable)
-        punto, dir_ = self._parsear_tendencia(tendencia)
+        try:
+            expr = self.parser.parsear(expresion)
+            var = self._resolver_var(expr, variable)
+            punto, dir_ = self._parsear_tendencia(tendencia)
+        except Exception as e:
+            return f"Error en los datos del límite:\n{e}"
 
         for est in self.estrategias:
-            if est.puede_resolver(expr, var, punto, dir=dir_):
+            try:
+                if not est.puede_resolver(expr, var, punto, dir=dir_):
+                    continue
                 res = est.resolver(expr, var, punto, dir=dir_)
-                if res.aplica and res.estado != ESTADO_NO_CONCLUYENTE:
-                    return self._render_estrategia(expresion, var, punto, dir_, res)
+            except Exception:
+                # Una estrategia que falla no debe impedir probar las siguientes ni el fallback
+                continue
+            if res.aplica and res.estado != ESTADO_NO_CONCLUYENTE:
+                return self._render_estrategia(expresion, var, punto, dir_, res)
 
         return self._fallback(expresion, variable, tendencia, expr, var, punto, dir_)
 
@@ -125,7 +133,9 @@ class RouterMatematico:
         return s[0]
 
     def _parsear_tendencia(self, t_str):
-        raw = t_str.lower().strip()
+        raw = t_str.lower().strip().replace("∞", "oo").replace("infinito", "oo")
+        if not raw:
+            raise ValueError("La tendencia está vacía. Escriba un número, oo o -oo.")
         d = None
         if raw.endswith("+") and raw not in {"+oo", "+inf"}:
             d = "+"

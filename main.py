@@ -105,9 +105,12 @@ class CalculadoraAccesible(wx.Frame):
             return None
         return txt
 
+    # Prefijos con los que los motores reportan un fallo (comparados en minúsculas)
+    PREFIJOS_ERROR = ("error", "no se puede calcular")
+
     def presentar_resultado(self, texto):
-        # Si el resultado comienza con "Error" o "Ambigüedad", mostramos DIÁLOGO
-        if str(texto).startswith("Error") or "Ambigüedad" in str(texto):
+        # Si el motor reportó un fallo, mostramos DIÁLOGO
+        if str(texto).lstrip().lower().startswith(self.PREFIJOS_ERROR):
              wx.MessageBox(str(texto), "Error Matemático", wx.OK | wx.ICON_ERROR)
              self.input_text.SetFocus() # Volvemos al input para que corrija
         else:
