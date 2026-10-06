@@ -34,19 +34,68 @@ from calculo.limite import GestorLimites
 from calculo.router import RouterMatematico
 from calculo.calculo import Calculo
 
+@dataclass(frozen=True)
+class Operacion:
+    """
+    Una operación de la calculadora. Para añadir una nueva basta con:
+      1. el método en CoreMatematico (devuelve un ResultadoOperacion con esta clave),
+      2. su entrada en REGISTRO (menú, atajo, datos que se piden),
+      3. las traducciones de sus textos en locales/en.json.
+    La interfaz construye el menú y pide los datos a partir de aquí; el historial y la
+    exportación toman de aquí el nombre visible.
+    """
+    clave: str                    # código estable: se guarda en el historial y en los JSON exportados
+    nombre: str                   # nombre del resultado (N_; se traduce con tr al mostrarlo)
+    metodo: str                   # método de CoreMatematico que la calcula (en el proceso de cálculo)
+    datos: str                    # qué pide la interfaz antes de calcular (main.CalculadoraAccesible.PEDIR_DATOS)
+    descripcion: str              # para "Calculando {descripcion}..." (N_; admite los marcadores de los datos)
+    menu: Optional[str] = None    # menú donde aparece (main.MENUS); None: sin opción propia
+    etiqueta: str = ""            # texto de la opción de menú (N_)
+    atajo: Optional[str] = None   # en inglés, como lo reconoce wx: "Ctrl+Shift+D"
+    separador_antes: bool = False
+    # Submenú con una opción por variante (código -> nombre N_); el código es el último argumento del método
+    variantes: Dict[str, str] = field(default_factory=dict)
+    # Solo para los datos "expresion_variable": verbo de "¿Respecto a cuál desea {operacion}?" y si,
+    # sin variables en la expresión (una constante), hay que pedirla (integrar 5 necesita la variable)
+    verbo: str = ""
+    variable_obligatoria: bool = False
+
+
+# En el orden de los menús
+REGISTRO: List[Operacion] = [
+    # Evaluar no tiene opción propia: la del menú (Ctrl+Enter) decide entre evaluar y Gauss-Jordan
+    Operacion("evaluar", N_("Evaluación"), "evaluar", "expresion", N_("la evaluación")),
+    Operacion("simplificar", N_("Simplificación"), "simplificar", "expresion", N_("la simplificación"),
+              menu="operaciones", etiqueta=N_("Simplificar"), atajo="Ctrl+S"),
+    Operacion("factorizar", N_("Factorización"), "factorizar", "expresion", N_("la factorización"),
+              menu="operaciones", etiqueta=N_("Factorizar"), atajo="Ctrl+F"),
+
+    Operacion("derivar", N_("Derivada"), "derivar", "expresion_variable", N_("la derivada"),
+              menu="calculo", etiqueta=N_("Derivar"), atajo="Ctrl+D", verbo=N_("derivar")),
+    Operacion("derivada_n", N_("Derivada de orden N"), "derivada_enecima", "variable_orden",
+              N_("la derivada de orden {orden}"),
+              menu="calculo", etiqueta=N_("Derivada Orden N"), atajo="Ctrl+Shift+D"),
+    Operacion("integrar", N_("Integral indefinida"), "integrar", "expresion_variable", N_("la integral"),
+              menu="calculo", etiqueta=N_("Integrar"), atajo="Ctrl+I", separador_antes=True,
+              verbo=N_("integrar"), variable_obligatoria=True),
+    Operacion("limite", N_("Límite"), "limite", "variable_tendencia", N_("el límite"),
+              menu="calculo", etiqueta=N_("Límite"), atajo="Ctrl+L"),
+
+    Operacion("gauss", N_("Sistema de ecuaciones (Gauss-Jordan)"), "sistema_gauss", "lineas",
+              N_("el sistema por Gauss-Jordan"),
+              menu="algebra", etiqueta=N_("Sistemas (Gauss-Jordan)"), atajo="Ctrl+G"),
+    Operacion("sistema_clasico", N_("Sistema 2x2 (método clásico)"), "sistema_clasico", "lineas",
+              N_("el sistema por {metodo}"),
+              menu="algebra", etiqueta=N_("Sistema 2x2 por &método clásico"),
+              variantes=MotorSistemasClasicos.NOMBRES_METODO),
+    Operacion("inversa", N_("Matriz inversa (cofactores)"), "inversa", "expresion", N_("la matriz inversa"),
+              menu="algebra", etiqueta=N_("Matriz Inversa (Cofactores)"), atajo="Ctrl+M", separador_antes=True),
+]
+
+OPERACION = {op.clave: op for op in REGISTRO}
+
 # Nombre visible de cada operación (se traduce con tr al mostrarlo)
-OPERACIONES = {
-    "evaluar": N_("Evaluación"),
-    "simplificar": N_("Simplificación"),
-    "factorizar": N_("Factorización"),
-    "derivar": N_("Derivada"),
-    "derivada_n": N_("Derivada de orden N"),
-    "integrar": N_("Integral indefinida"),
-    "limite": N_("Límite"),
-    "gauss": N_("Sistema de ecuaciones (Gauss-Jordan)"),
-    "sistema_clasico": N_("Sistema 2x2 (método clásico)"),
-    "inversa": N_("Matriz inversa (cofactores)"),
-}
+OPERACIONES = {op.clave: op.nombre for op in REGISTRO}
 
 
 def _normal(expr: Any) -> Any:

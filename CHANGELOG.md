@@ -6,7 +6,15 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Sin publicar]
 
-(Nada todavía.)
+### Cambiado
+
+- **Registro de operaciones** (`puente.REGISTRO`): cada operación se declara una sola vez, con su nombre, el método que la calcula, los datos que pide, su menú, su etiqueta y su atajo. Es el paso previo para añadir operaciones nuevas (la primera será la integral definida): antes, cada una exigía tocar a mano el diccionario `OPERACIONES`, el menú, un manejador propio en `main.py` y el verbo del diálogo de variable, y olvidar uno de ellos (por ejemplo, la clave en `OPERACIONES`) hacía que el historial la descartara al abrir la calculadora sin avisar.
+  - `main.py` construye los menús Operaciones, Cálculo y Álgebra a partir del registro, y un solo manejador (`on_operacion`) pide los datos según el tipo (`PEDIR_DATOS`: expresión, líneas, expresión y variable, variable y orden, variable y tendencia) y ejecuta el método. Los nueve manejadores `on_simplificar`, `on_derivar`, etc. desaparecen.
+  - Para el usuario no cambia nada: los menús, atajos, separadores y submenús son idénticos en los dos idiomas (se comprobó volcando la barra de menús antes y después).
+  - `OPERACIONES` se mantiene, derivado del registro, para el historial y la exportación.
+  - `tests/test_registro.py`: 24 pruebas (cada método existe y devuelve un resultado con la clave del registro, las descripciones solo usan marcadores que se rellenan, cada tipo de datos y menú existe en la interfaz, y ningún atajo se repite con los fijos de `main.py`); la suite tiene 1760.
+  - `tests/verificar_ui.py`: un paso nuevo recorre todas las operaciones del registro con los diálogos simulados y comprueba el método, los argumentos y la descripción de cada una, y que cancelar un diálogo no calcula nada: 62 comprobaciones.
+  - README: sección "Añadir una operación".
 
 ## [1.3.0] - 2026-10-05
 

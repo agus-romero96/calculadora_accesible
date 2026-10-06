@@ -18,6 +18,7 @@ Disponible en **español e inglés** (interfaz, explicaciones y ayuda). Los resu
 - [Instalación y ejecución](#instalación-y-ejecución)
 - [Compilar el ejecutable e instalador](#compilar-el-ejecutable-e-instalador)
 - [Arquitectura](#arquitectura)
+- [Añadir una operación](#añadir-una-operación)
 - [Traducir a otro idioma](#traducir-a-otro-idioma)
 - [Pruebas](#pruebas)
 - [Limitaciones conocidas](#limitaciones-conocidas)
@@ -238,7 +239,8 @@ proceso_calculo.py      Proceso de cálculo aparte (multiprocessing): se detiene
 serializacion.py        pickle de objetos SymPy sin evaluar (historial y proceso de cálculo)
   │
 puente.py               Fachada: CoreMatematico orquesta los motores y devuelve
-  │                     ResultadoOperacion (texto + valor SymPy + planteamiento)
+  │                     ResultadoOperacion (texto + valor SymPy + planteamiento);
+  │                     REGISTRO: las operaciones, sus menús, atajos y datos
 exportar.py             Copiar/exportar (un resultado o el historial): texto, Markdown,
                         LaTeX, HTML+MathML, JSON
 historial.py            Historial de operaciones y su archivo (modelo, sin interfaz)
@@ -281,6 +283,18 @@ Principios de diseño:
 - **Patrón Strategy en límites**: cada técnica implementa `puede_resolver()` y `resolver()`. El enrutador las prueba en orden y la primera que llega a una conclusión gana.
 - **Traducción**: el código está escrito en español, y cada texto visible pasa por `tr("…")`, que busca su traducción en `locales/<idioma>.json`. Los textos que además funcionan como identificadores (nombres de estrategia que se comparan en el código) se marcan con `N_("…")` y se traducen solo al mostrarlos.
 - **Resultado estructurado**: la interfaz trabaja con `ResultadoOperacion` (texto, valor SymPy, planteamiento sin evaluar y `es_error`), lo que permite exportar `planteamiento = resultado` y detectar errores sin mirar el texto.
+- **Registro de operaciones**: cada operación se declara una sola vez en `puente.REGISTRO`. La interfaz construye con él los menús Operaciones, Cálculo y Álgebra y pide los datos de cada operación; el historial y la exportación toman de él el nombre visible.
+
+---
+
+## Añadir una operación
+
+1. **Motor**: el cálculo y su explicación, en el módulo que corresponda (`calculo/`, `algebra/`, `aritmetica.py`) o en uno nuevo.
+2. **`puente.py`**: un método de `CoreMatematico` que devuelva un `ResultadoOperacion` con la clave de la operación y, si se puede, el `planteamiento` sin evaluar (por ejemplo `Integral(f, (x, a, b))`), para exportarlo como en un libro.
+3. **`puente.REGISTRO`**: una entrada `Operacion(...)` con la clave, el nombre, el método, los datos que se piden, la descripción ("Calculando …"), el menú, la etiqueta y el atajo. Su posición en la lista es su posición en el menú.
+   - Los **datos** son uno de los de `CalculadoraAccesible.PEDIR_DATOS` en `main.py`: `expresion`, `lineas`, `expresion_variable`, `variable_orden` o `variable_tendencia`. Si la operación necesita otros (por ejemplo, los límites de una integral definida), se añade ahí una función que los pida.
+4. **Traducción y ayuda**: los textos nuevos en `locales/en.json` y una sección en `locales/ayuda_es.txt` y `locales/ayuda_en.txt`.
+5. **Pruebas**: las del motor; un ejemplo en `EJEMPLOS` de `tests/test_registro.py` (comprueba que el método existe, que el resultado lleva su clave y que los atajos no se repiten); un caso en `paso11` de `tests/verificar_ui.py`; y, si el planteamiento es un objeto SymPy nuevo, que se guarde y recupere tal cual en `tests/test_historial.py`. Si usa partes de SymPy que aún no se usaban, un caso en `autoprueba.py` comprueba que el ejecutable las incluye.
 
 ---
 

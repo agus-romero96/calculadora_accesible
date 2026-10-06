@@ -9,7 +9,8 @@ tras cambiar main.py:
 Comprueba: cálculos rápidos y lentos en el proceso de cálculo, el diálogo
 "Calculando", la cancelación (que detiene de verdad el proceso), errores
 inesperados del cálculo, los menús, copiar al portapapeles, exportar, el cambio
-de idioma, la ayuda (F1) y que al cerrar la ventana termina el proceso de cálculo.
+de idioma, la ayuda (F1), que cada operación del registro (puente.REGISTRO) pide
+sus datos y llama a su método, y que al cerrar la ventana termina el proceso de cálculo.
 wx.MessageBox y el diálogo de guardar se sustituyen para que nada modal bloquee, y
 el cambio de idioma no se guarda (no altera la preferencia del usuario). El
 historial se guarda en una carpeta temporal, no en el del usuario.
@@ -73,7 +74,7 @@ def paso2():  # lento: aparece diálogo y luego resultado
     def durante():
         check("lento: diálogo visible", f._dlg_progreso is not None)
         check("lento: info dice calculando", f.lbl_info.GetValue().startswith("Calculando"))
-        f.input_text.SetValue("3+3"); f.on_simplificar(None)  # debe rechazarse
+        f.input_text.SetValue("3+3"); f.on_operacion("simplificar")  # debe rechazarse
         check("lento: rechaza segundo cálculo", any("en curso" in m for m in mensajes))
     def despues():
         check("lento: resultado", f.output_text.GetValue() == "RESULTADO: lento")
@@ -99,7 +100,7 @@ def paso3():  # cancelar: se detiene el proceso que calculaba
 
 
 def paso4():  # excepción inesperada en el cálculo -> error, sin colgarse
-    f.input_text.SetValue("fallar"); n = len(mensajes); f.on_factorizar(None)
+    f.input_text.SetValue("fallar"); n = len(mensajes); f.on_operacion("factorizar")
     def despues():
         check("excepción: se muestra como error", any("Error inesperado" in m for m in mensajes[n:]))
         check("excepción: libre", f._calculo_actual is None)
@@ -115,7 +116,7 @@ def paso5():  # menú y sistemas clásicos
     check("menú: 3 métodos", [i.GetItemLabelText() for i in sub.GetMenuItems()] == ["Sustitución", "Igualación", "Reducción"])
     check("menú: Gauss con Ctrl+G", any("Gauss" in i.GetItemLabel() and "Ctrl+G" in i.GetItemLabel() for i in alg.GetMenuItems()))
     check("menú: Resultado e Idioma", mb.FindMenu("Resultado") != wx.NOT_FOUND and mb.FindMenu("Idioma / Language") != wx.NOT_FOUND)
-    f.input_text.SetValue("x + y = 10\nx - y = 2"); f.on_sistema_clasico("igualacion", "igualación")
+    f.input_text.SetValue("x + y = 10\nx - y = 2"); f.on_operacion("sistema_clasico", "igualacion")
     def despues():
         out = f.output_text.GetValue()
         check("clásico: igualación resuelve", "RESOLUCIÓN POR IGUALACIÓN" in out and out.rstrip().endswith("y = 4"))
@@ -173,7 +174,7 @@ def paso8():  # derivar con variable elegida
     original = f._resolver_ambiguedad_variable
     f._resolver_ambiguedad_variable = lambda t, o: "y"
     f.input_text.SetValue("x*y^2")
-    f.on_derivar(None)
+    f.on_operacion("derivar")
     f._resolver_ambiguedad_variable = original  # la derivada ya pidió la variable
     cuando_libre(paso9)
 
@@ -188,7 +189,7 @@ def paso9():  # cambio de idioma
     check("inglés: etiquetas traducidas", f.btn_calc.GetLabel() == "&Calculate (Ctrl+Enter)")
     check("inglés: radio marcado", any(i.IsChecked() and i.GetItemLabelText() == "English"
                                        for i in mb.GetMenu(mb.FindMenu("Language / Idioma")).GetMenuItems()))
-    f.input_text.SetValue("x^3"); f.on_derivar(None)
+    f.input_text.SetValue("x^3"); f.on_operacion("derivar")
     def despues():
         check("inglés: resultado traducido", f.output_text.GetValue().startswith("RESULT: 3*x**2"))
         f.mostrar_ayuda(None)
@@ -260,6 +261,48 @@ def paso10():  # historial
     check("historial: se conserva al volver a abrir",
           main.ruta_historial().startswith(carpeta_appdata)
           and [r.entrada for r in guardado] == [r.entrada for r in f.historial.entradas()])
+    paso11()
+
+
+def paso11():  # cada operación del registro pide sus datos y llama a su método
+    from puente import REGISTRO
+    sistema = "x + y = 10\nx - y = 2"
+    # clave: (entrada, respuestas a los diálogos, variante del submenú, (método, argumentos, descripción))
+    casos = {
+        "evaluar": ("5x^3", [], None, ("evaluar", ("5x^3",), "la evaluación")),
+        "simplificar": ("5x^3", [], None, ("simplificar", ("5x^3",), "la simplificación")),
+        "factorizar": ("5x^3", [], None, ("factorizar", ("5x^3",), "la factorización")),
+        "derivar": ("5x^3", [], None, ("derivar", ("5x^3", None), "la derivada")),
+        "derivada_n": ("5x^3", ["x", "3"], None, ("derivada_enecima", ("5x^3", "x", 3), "la derivada de orden 3")),
+        # Integrar una constante: pide la variable
+        "integrar": ("5", ["t"], None, ("integrar", ("5", "t"), "la integral")),
+        "limite": ("sin(x)/x", ["x", "0"], None, ("limite", ("sin(x)/x", "x", "0"), "el límite")),
+        "gauss": (sistema, [], None, ("sistema_gauss", (sistema.split("\n"),), "el sistema por Gauss-Jordan")),
+        "sistema_clasico": (sistema, [], "reduccion",
+                            ("sistema_clasico", (sistema.split("\n"), "reduccion"), "el sistema por reducción")),
+        "inversa": ("1 2\n3 4", [], None, ("inversa", ("1 2\n3 4",), "la matriz inversa")),
+    }
+    check("registro: cada operación tiene caso", set(casos) == {op.clave for op in REGISTRO})
+    llamadas = []
+    original_ejecutar, original_pedir = f._ejecutar, f._pedir_texto
+    f._ejecutar = lambda metodo, args, descripcion: llamadas.append((metodo, args, descripcion))
+    try:
+        for op in REGISTRO:
+            if op.clave not in casos:
+                continue
+            entrada, respuestas, variante, esperado = casos[op.clave]
+            pendientes = list(respuestas)
+            f._pedir_texto = lambda *a, **k: pendientes.pop(0)
+            f.input_text.SetValue(entrada)
+            llamadas.clear()
+            f.on_operacion(op.clave, variante)
+            check(f"registro: {op.clave}", llamadas == [esperado] and not pendientes)
+        # Cancelar el diálogo de la variable no calcula nada
+        f._pedir_texto = lambda *a, **k: None
+        f.input_text.SetValue("5"); llamadas.clear(); f.on_operacion("integrar")
+        check("registro: cancelar un diálogo no calcula", llamadas == [])
+    finally:
+        f._ejecutar, f._pedir_texto = original_ejecutar, original_pedir
     fin()
 
 

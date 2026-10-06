@@ -10,10 +10,9 @@ import wx.lib.dialogs
 import exportar
 import i18n
 from i18n import N_, tr
-from algebra.classic_systems import MotorSistemasClasicos
 from historial import Historial, ruta_historial
 from proceso_calculo import ProcesoCalculo
-from puente import CoreMatematico, ResultadoOperacion
+from puente import OPERACION, REGISTRO, CoreMatematico, ResultadoOperacion
 import ventana_historial
 from _version import __version__
 
@@ -26,8 +25,8 @@ class CalculadoraAccesible(wx.Frame):
     # Si un cálculo tarda más que esto, se abre el diálogo "Calculando…" (NVDA lo anuncia)
     MS_ANTES_DE_AVISAR = 600
 
-    # Verbo que se muestra al preguntar la variable (la clave es el código de la operación)
-    VERBOS = {"derivar": N_("derivar"), "integrar": N_("integrar")}
+    # Menús con las operaciones del registro (Operacion.menu), en el orden de la barra
+    MENUS = {"operaciones": N_("&Operaciones"), "calculo": N_("&Cálculo"), "algebra": N_("&Álgebra")}
 
     def __init__(self, nucleo=None):
         """nucleo: clase del núcleo matemático (por defecto CoreMatematico); las pruebas pasan otra."""
@@ -163,35 +162,27 @@ class CalculadoraAccesible(wx.Frame):
         """Construye (o reconstruye, al cambiar de idioma) la barra de menús."""
         menubar = wx.MenuBar()
 
-        # Operaciones
-        m_ops = wx.Menu()
-        m_ops.Append(1001, tr("Evaluar") + "\tCtrl+Enter")
-        self._item(m_ops, N_("Simplificar"), "Ctrl+S", self.on_simplificar)
-        self._item(m_ops, N_("Factorizar"), "Ctrl+F", self.on_factorizar)
-        m_ops.AppendSeparator()
-        self.Bind(wx.EVT_MENU, lambda e: self.Close(), m_ops.Append(wx.ID_EXIT, tr("Salir") + "\tAlt+F4"))
-
-        # Cálculo
-        m_calc = wx.Menu()
-        self._item(m_calc, N_("Derivar"), "Ctrl+D", self.on_derivar)
-        self._item(m_calc, N_("Derivada Orden N"), "Ctrl+Shift+D", self.on_derivada_enecima)
-        m_calc.AppendSeparator()
-        self._item(m_calc, N_("Integrar"), "Ctrl+I", self.on_integrar)
-        self._item(m_calc, N_("Límite"), "Ctrl+L", self.on_limite)
-
-        # Álgebra
-        m_alg = wx.Menu()
-        self._item(m_alg, N_("Sistemas (Gauss-Jordan)"), "Ctrl+G", self.on_sistema_gauss)
-
-        # Sistemas 2x2 por métodos clásicos (submenú)
-        m_clasicos = wx.Menu()
-        for metodo, nombre in MotorSistemasClasicos.NOMBRES_METODO.items():
-            item = m_clasicos.Append(wx.ID_ANY, tr(nombre))
-            self.Bind(wx.EVT_MENU, lambda e, m=metodo, n=nombre: self.on_sistema_clasico(m, tr(n).lower()), item)
-        m_alg.AppendSubMenu(m_clasicos, tr("Sistema 2x2 por &método clásico"))
-
-        m_alg.AppendSeparator()
-        self._item(m_alg, N_("Matriz Inversa (Cofactores)"), "Ctrl+M", self.on_inversa_cofactores)
+        # Menús de operaciones, construidos a partir del registro (puente.REGISTRO)
+        menus = {clave: wx.Menu() for clave in self.MENUS}
+        menus["operaciones"].Append(1001, tr("Evaluar") + "\tCtrl+Enter")
+        for op in REGISTRO:
+            if op.menu is None:
+                continue
+            menu = menus[op.menu]
+            if op.separador_antes:
+                menu.AppendSeparator()
+            if op.variantes:
+                # Submenú: una opción por variante (p. ej. los métodos clásicos de un sistema 2x2)
+                submenu = wx.Menu()
+                for variante, nombre in op.variantes.items():
+                    item = submenu.Append(wx.ID_ANY, tr(nombre))
+                    self.Bind(wx.EVT_MENU, lambda e, c=op.clave, v=variante: self.on_operacion(c, v), item)
+                menu.AppendSubMenu(submenu, tr(op.etiqueta))
+            else:
+                self._item(menu, op.etiqueta, op.atajo, lambda e, c=op.clave: self.on_operacion(c))
+        menus["operaciones"].AppendSeparator()
+        self.Bind(wx.EVT_MENU, lambda e: self.Close(),
+                  menus["operaciones"].Append(wx.ID_EXIT, tr("Salir") + "\tAlt+F4"))
 
         # Resultado: copiar y exportar
         m_res = wx.Menu()
@@ -219,9 +210,8 @@ class CalculadoraAccesible(wx.Frame):
         m_help = wx.Menu()
         self._item(m_help, N_("Ayuda"), "F1", self.mostrar_ayuda)
 
-        menubar.Append(m_ops, tr("&Operaciones"))
-        menubar.Append(m_calc, tr("&Cálculo"))
-        menubar.Append(m_alg, tr("&Álgebra"))
+        for clave, titulo in self.MENUS.items():
+            menubar.Append(menus[clave], tr(titulo))
         menubar.Append(m_res, tr("Res&ultado"))
         menubar.Append(m_hist, tr("&Historial"))
         menubar.Append(m_idioma, tr("&Idioma / Language"))
@@ -344,7 +334,7 @@ class CalculadoraAccesible(wx.Frame):
         self.lbl_info.SetValue(texto_info())
         self.presentar_resultado(resultado)
 
-    def _resolver_ambiguedad_variable(self, txt, operacion):
+    def _resolver_ambiguedad_variable(self, txt, op):
         """
         Analiza variables y pregunta al usuario si hay más de una.
         Retorna: La variable elegida (str) o None si el usuario canceló.
@@ -356,7 +346,7 @@ class CalculadoraAccesible(wx.Frame):
             dlg = wx.SingleChoiceDialog(
                 self,
                 tr("La expresión tiene varias variables ({variables}).\n¿Respecto a cuál desea {operacion}?",
-                   variables=", ".join(vars_detectadas), operacion=tr(self.VERBOS[operacion])),
+                   variables=", ".join(vars_detectadas), operacion=tr(op.verbo)),
                 tr("Selección de Variable"),
                 vars_detectadas
             )
@@ -366,7 +356,7 @@ class CalculadoraAccesible(wx.Frame):
                 dlg.Destroy()
 
         # Caso 2: Integrar constante (0 variables) -> Preguntar
-        if len(vars_detectadas) == 0 and operacion == "integrar":
+        if len(vars_detectadas) == 0 and op.variable_obligatoria:
             return self._pedir_texto(
                 tr("Está integrando una constante.\n¿Cuál es la variable de integración? (ej: x, t)"),
                 tr("Variable Requerida"))
@@ -390,100 +380,80 @@ class CalculadoraAccesible(wx.Frame):
     def on_evaluar_inteligente(self, event):
         txt = self.obtener_texto()
         if not txt: return
-        if "\n" in txt and "=" in txt:
-            lineas = txt.split('\n')
-            self._ejecutar("sistema_gauss", (lineas,), tr("el sistema por Gauss-Jordan"))
-        else:
-            self._ejecutar("evaluar", (txt,), tr("la evaluación"))
+        clave = "gauss" if "\n" in txt and "=" in txt else "evaluar"
+        self._calcular(OPERACION[clave], txt)
 
-    def on_simplificar(self, event):
+    def on_operacion(self, clave, variante=None):
+        """Opción de menú de una operación del registro (variante: opción de su submenú)."""
         txt = self.obtener_texto()
-        if txt: self._ejecutar("simplificar", (txt,), tr("la simplificación"))
+        if txt:
+            self._calcular(OPERACION[clave], txt, variante)
 
-    def on_factorizar(self, event):
-        txt = self.obtener_texto()
-        if txt: self._ejecutar("factorizar", (txt,), tr("la factorización"))
+    def _calcular(self, op, txt, variante=None):
+        """Pide los datos de la operación (según op.datos) y la ejecuta en el proceso de cálculo."""
+        datos = self.PEDIR_DATOS[op.datos](self, txt, op)
+        if datos is None:
+            return  # el usuario canceló un diálogo (o el dato no era válido)
+        args, valores = datos
+        if variante is not None:
+            args = args + (variante,)
+            valores = {**valores, "metodo": tr(op.variantes[variante]).lower()}
+        self._ejecutar(op.metodo, args, tr(op.descripcion, **valores))
 
-    # --- CÁLCULO INTELIGENTE ---
+    # --- DATOS QUE PIDE CADA OPERACIÓN ---
+    # Cada función recibe el texto de entrada y la operación, y devuelve (argumentos del
+    # método, valores de los {marcadores} de la descripción), o None si el usuario canceló.
 
-    def on_derivar(self, event):
-        txt = self.obtener_texto()
-        if not txt: return
+    def _datos_expresion(self, txt, op):
+        return (txt,), {}
 
-        # Pregunta preventiva si hay varias variables
-        var_elegida = self._resolver_ambiguedad_variable(txt, "derivar")
+    def _datos_lineas(self, txt, op):
+        return (txt.split('\n'),), {}
 
-        # Si había varias variables y no eligió ninguna, el usuario canceló.
+    def _datos_expresion_variable(self, txt, op):
+        # Pregunta preventiva si hay varias variables (o ninguna, si la variable es obligatoria)
+        var_elegida = self._resolver_ambiguedad_variable(txt, op)
+
+        # Si había que elegir y no eligió ninguna, el usuario canceló.
         # Si no había ambigüedad, var_elegida es None y el motor infiere la variable.
         vars_detectadas = self.core.DetectarVariables(txt)
-        if len(vars_detectadas) > 1 and var_elegida is None:
-            return
+        hay_que_elegir = len(vars_detectadas) > 1 or (not vars_detectadas and op.variable_obligatoria)
+        if hay_que_elegir and var_elegida is None:
+            return None
+        return (txt, var_elegida), {}
 
-        self._ejecutar("derivar", (txt, var_elegida), tr("la derivada"))
-
-    def on_integrar(self, event):
-        txt = self.obtener_texto()
-        if not txt: return
-
-        var_elegida = self._resolver_ambiguedad_variable(txt, "integrar")
-
-        vars_detectadas = self.core.DetectarVariables(txt)
-        # Si era ambigua o constante y no eligió nada (Cancel), salimos
-        if (len(vars_detectadas) > 1 or len(vars_detectadas) == 0) and var_elegida is None:
-            return
-
-        self._ejecutar("integrar", (txt, var_elegida), tr("la integral"))
-
-    def on_derivada_enecima(self, event):
-        expr = self.obtener_texto()
-        if not expr: return
-
+    def _datos_variable_orden(self, txt, op):
         # Aquí siempre preguntamos porque es avanzado
         var = self._pedir_texto(tr("Variable:"), tr("Derivada N"))
-        if var is None: return
+        if var is None: return None
 
         orden_txt = self._pedir_texto(tr("Orden (número entero mayor o igual que 1):"), tr("Derivada N"))
-        if orden_txt is None: return
+        if orden_txt is None: return None
         try:
             orden = int(orden_txt)
         except ValueError:
             wx.MessageBox(tr("El orden debe ser un número entero."), tr("Error"), wx.OK | wx.ICON_ERROR)
-            return
+            return None
+        return (txt, var, orden), {"orden": orden}
 
-        self._ejecutar("derivada_enecima", (expr, var, orden),
-                       tr("la derivada de orden {orden}", orden=orden))
-
-    def on_limite(self, event):
-        expr = self.obtener_texto()
-        if not expr: return
-
+    def _datos_variable_tendencia(self, txt, op):
         var = self._pedir_texto(tr("Variable:"), tr("Límite"))
-        if var is None: return
+        if var is None: return None
 
         tendencia = self._pedir_texto(
             tr("Tendencia (ej: 0, 2, oo, -oo; para un límite lateral agregue + o -, ej: 0+):"),
             tr("Límite"))
-        if tendencia is None: return
+        if tendencia is None: return None
+        return (txt, var, tendencia), {}
 
-        self._ejecutar("limite", (expr, var, tendencia), tr("el límite"))
-
-    def on_sistema_gauss(self, event):
-        txt = self.obtener_texto()
-        if not txt: return
-        lineas = txt.split('\n')
-        self._ejecutar("sistema_gauss", (lineas,), tr("el sistema por Gauss-Jordan"))
-
-    def on_sistema_clasico(self, metodo, nombre):
-        """Sistema 2x2 por sustitución, igualación o reducción."""
-        txt = self.obtener_texto()
-        if not txt: return
-        lineas = txt.split('\n')
-        self._ejecutar("sistema_clasico", (lineas, metodo),
-                       tr("el sistema por {metodo}", metodo=nombre))
-
-    def on_inversa_cofactores(self, event):
-        txt = self.obtener_texto()
-        if txt: self._ejecutar("inversa", (txt,), tr("la matriz inversa"))
+    # Operacion.datos -> función que pide esos datos
+    PEDIR_DATOS = {
+        "expresion": _datos_expresion,
+        "lineas": _datos_lineas,
+        "expresion_variable": _datos_expresion_variable,
+        "variable_orden": _datos_variable_orden,
+        "variable_tendencia": _datos_variable_tendencia,
+    }
 
     def on_limpiar(self, event):
         self.input_text.Clear()
