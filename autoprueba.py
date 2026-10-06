@@ -33,7 +33,18 @@ def _casos(core: CoreMatematico) -> List[Tuple[str, Callable[[], str], str]]:
         ("Matriz inversa", lambda: core.MatrizInversaCofactores("1 2\n3 4"), "3/2"),
         # Traducción: comprueba que locales/en.json está junto al ejecutable
         ("Inglés", lambda: _en_ingles(lambda: core.Derivar("x^3")), "RESULT: 3*x**2"),
+        # Proceso de cálculo: en el ejecutable es otra copia del .exe (freeze_support)
+        ("Proceso de cálculo", _en_proceso, "RESULTADO: 4"),
     ]
+
+
+def _en_proceso():
+    from proceso_calculo import ProcesoCalculo
+    proceso = ProcesoCalculo()
+    try:
+        return proceso.calcular("evaluar", "2+2").texto
+    finally:
+        proceso.cerrar()
 
 
 def _en_ingles(llamada):

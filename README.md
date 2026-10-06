@@ -107,7 +107,7 @@ El menú **Idioma / Language** cambia toda la calculadora entre **español** e *
 - **Texto plano estructurado**: secciones numeradas, viñetas y matrices fila por fila (`[ 1, 2 | 3 ]`), sin depender de imágenes ni de notación visual.
 - **Diálogos de desambiguación**: si una expresión tiene varias variables (`x*y`), se pregunta respecto a cuál derivar o integrar en una lista navegable con flechas.
 - **Ayuda integrada (F1)**: un manual pensado para lectores de pantalla se muestra en el cuadro de resultados.
-- **La ventana nunca se congela**: los cálculos se ejecutan en segundo plano. Si uno tarda más de medio segundo, se abre el diálogo **"Calculando"** (NVDA lo anuncia), que muestra el tiempo transcurrido y tiene un botón **Cancelar** para abandonar el cálculo.
+- **La ventana nunca se congela**: los cálculos se ejecutan en un proceso aparte. Si uno tarda más de medio segundo, se abre el diálogo **"Calculando"** (NVDA lo anuncia), que muestra el tiempo transcurrido y tiene un botón **Cancelar** que detiene el cálculo de inmediato y libera el procesador.
 - **Fórmulas accesibles fuera de la calculadora**: la exportación a HTML con MathML permite leer y explorar las fórmulas con el lector de pantalla en el navegador.
 - **Ejecutable sin consola**: la versión compilada no abre una ventana de consola que interfiera con NVDA.
 
@@ -234,6 +234,9 @@ La versión se define **solo** en `_version.py`; el título de la ventana, el ej
 ```
 main.py                 Interfaz wxPython (ventana, menús, atajos, diálogos)
   │
+proceso_calculo.py      Proceso de cálculo aparte (multiprocessing): se detiene al cancelar
+serializacion.py        pickle de objetos SymPy sin evaluar (historial y proceso de cálculo)
+  │
 puente.py               Fachada: CoreMatematico orquesta los motores y devuelve
   │                     ResultadoOperacion (texto + valor SymPy + planteamiento)
 exportar.py             Copiar/exportar (un resultado o el historial): texto, Markdown,
@@ -305,7 +308,7 @@ python -X utf8 -m pytest tests
 python -X utf8 tests_limites.py
 ```
 
-Para verificar la interfaz (abre la ventana real unos segundos y comprueba el cálculo en segundo plano, la cancelación, los menús, copiar, exportar, el historial, el cambio de idioma y la ayuda):
+Para verificar la interfaz (abre la ventana real unos segundos y comprueba el cálculo en segundo plano, que cancelar detiene el proceso de cálculo, los menús, copiar, exportar, el historial, el cambio de idioma y la ayuda):
 
 ```bash
 python -X utf8 tests/verificar_ui.py
@@ -319,7 +322,6 @@ Los cambios del proyecto se documentan en [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Limitaciones conocidas
 
-- Al cancelar un cálculo, el programa deja de esperarlo, pero ese cálculo sigue usando el procesador en segundo plano hasta que termina, porque Python no permite detener un hilo.
 - Los métodos clásicos (sustitución, igualación, reducción) solo admiten sistemas 2×2. Para otros tamaños, use Gauss-Jordan.
 - La inversa por cofactores está limitada a 4×4 (para matrices mayores, use Gauss-Jordan).
 

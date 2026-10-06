@@ -6,12 +6,18 @@ tras cambiar main.py:
 
     python -X utf8 tests/verificar_ui.py
 
-Comprueba: cálculos rápidos y lentos en segundo plano, el diálogo "Calculando",
-la cancelación, errores inesperados del hilo, los menús, copiar al portapapeles,
-exportar, el cambio de idioma y la ayuda (F1).
+Comprueba: cálculos rápidos y lentos en el proceso de cálculo, el diálogo
+"Calculando", la cancelación (que detiene de verdad el proceso), errores
+inesperados del cálculo, los menús, copiar al portapapeles, exportar, el cambio
+de idioma, la ayuda (F1) y que al cerrar la ventana termina el proceso de cálculo.
 wx.MessageBox y el diálogo de guardar se sustituyen para que nada modal bloquee, y
 el cambio de idioma no se guarda (no altera la preferencia del usuario). El
 historial se guarda en una carpeta temporal, no en el del usuario.
+
+El núcleo es tests/nucleo_pruebas.py: el cálculo ocurre en otro proceso, así que
+los casos lentos o con error se piden con la entrada ("dormir 2", "fallar").
+Todo el arranque está bajo  if __name__ == "__main__": el proceso de cálculo
+vuelve a importar este archivo y no debe abrir otra ventana.
 """
 import json
 import os
@@ -19,31 +25,26 @@ import sys
 import tempfile
 import time
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-# El historial se guarda junto a la configuración: una carpeta temporal en lugar de la del usuario
-carpeta_appdata = tempfile.mkdtemp()
-os.environ["APPDATA"] = carpeta_appdata
-import wx
-mensajes = []
-wx.MessageBox = lambda msg, *a, **k: mensajes.append(msg)
-import i18n
-i18n.guardar_idioma = lambda codigo: None
-i18n.establecer_idioma("es")
-import main
-from puente import ResultadoOperacion
+CARPETA_TESTS = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(CARPETA_TESTS))
+sys.path.insert(0, CARPETA_TESTS)
 
-app = wx.App()
-f = main.CalculadoraAccesible(); f.Show()
 resultados = []
-carpeta_tmp = tempfile.mkdtemp()
+mensajes = []
 
 
 def check(nombre, cond): resultados.append((nombre, bool(cond)))
 
 
-def falso(texto, segundos=0):
-    """Sustituto de una operación del núcleo que tarda 'segundos' y devuelve 'texto'."""
-    return lambda *a: (time.sleep(segundos), ResultadoOperacion(operacion="evaluar", entrada="", texto=texto))[1]
+def cuando_libre(siguiente, limite=15):
+    """Llama a siguiente() cuando termina el cálculo en curso (sin depender de cuánto tarda)."""
+    inicio = time.monotonic()
+    def comprobar():
+        if f._calculo_actual is None or time.monotonic() - inicio > limite:
+            siguiente()
+        else:
+            wx.CallLater(100, comprobar)
+    wx.CallLater(100, comprobar)
 
 
 def portapapeles():
@@ -60,6 +61,7 @@ def portapapeles():
 
 
 def paso1():  # rápido: sin diálogo de progreso
+    f.proceso.calcular("evaluar", "1")  # espera a que el proceso de cálculo termine de arrancar
     f.input_text.SetValue("2+2"); f.on_evaluar_inteligente(None)
     wx.CallLater(300, lambda: (check("rápido: resultado", f.output_text.GetValue() == "RESULTADO: 4"),
                                check("rápido: sin diálogo", f._dlg_progreso is None),
@@ -67,9 +69,7 @@ def paso1():  # rápido: sin diálogo de progreso
 
 
 def paso2():  # lento: aparece diálogo y luego resultado
-    orig = f.core.evaluar
-    f.core.evaluar = falso("RESULTADO: lento", 2)
-    f.input_text.SetValue("1+1"); f.on_evaluar_inteligente(None)
+    f.input_text.SetValue("dormir 2"); f.on_evaluar_inteligente(None)
     def durante():
         check("lento: diálogo visible", f._dlg_progreso is not None)
         check("lento: info dice calculando", f.lbl_info.GetValue().startswith("Calculando"))
@@ -78,32 +78,33 @@ def paso2():  # lento: aparece diálogo y luego resultado
     def despues():
         check("lento: resultado", f.output_text.GetValue() == "RESULTADO: lento")
         check("lento: diálogo cerrado", f._dlg_progreso is None)
-        f.core.evaluar = orig; paso3()
+        paso3()
     wx.CallLater(1000, durante); wx.CallLater(3000, despues)
 
 
-def paso3():  # cancelar: el resultado tardío se ignora
-    orig = f.core.evaluar
-    f.core.evaluar = falso("RESULTADO: NO DEBE APARECER", 2)
-    f.output_text.SetValue("previo"); f.input_text.SetValue("5"); f.on_evaluar_inteligente(None)
-    wx.CallLater(1000, f._cancelar_calculo)
+def paso3():  # cancelar: se detiene el proceso que calculaba
+    calculando = f.proceso._proceso
+    f.output_text.SetValue("previo"); f.input_text.SetValue("dormir 30"); f.on_evaluar_inteligente(None)
+    def cancelar():
+        check("cancelar: diálogo visible", f._dlg_progreso is not None)
+        f._cancelar_calculo()
+        check("cancelar: el proceso que calculaba ya no existe", not calculando.is_alive())
+        check("cancelar: otro proceso listo", f.proceso.esta_vivo() and f.proceso.pid != calculando.pid)
     def despues():
         check("cancelar: resultado ignorado", f.output_text.GetValue() == "previo")
         check("cancelar: libre", f._calculo_actual is None and f._dlg_progreso is None)
         check("cancelar: info", f.lbl_info.GetValue().startswith("Cálculo cancelado"))
-        f.core.evaluar = orig; paso4()
-    wx.CallLater(3200, despues)
+        paso4()
+    wx.CallLater(1000, cancelar); wx.CallLater(1500, despues)
 
 
-def paso4():  # excepción inesperada en el hilo -> error, sin colgarse
-    orig = f.core.factorizar
-    f.core.factorizar = lambda t: 1 / 0
-    f.input_text.SetValue("x"); n = len(mensajes); f.on_factorizar(None)
+def paso4():  # excepción inesperada en el cálculo -> error, sin colgarse
+    f.input_text.SetValue("fallar"); n = len(mensajes); f.on_factorizar(None)
     def despues():
         check("excepción: se muestra como error", any("Error inesperado" in m for m in mensajes[n:]))
         check("excepción: libre", f._calculo_actual is None)
-        f.core.factorizar = orig; paso5()
-    wx.CallLater(400, despues)
+        paso5()
+    cuando_libre(despues)
 
 
 def paso5():  # menú y sistemas clásicos
@@ -119,7 +120,7 @@ def paso5():  # menú y sistemas clásicos
         out = f.output_text.GetValue()
         check("clásico: igualación resuelve", "RESOLUCIÓN POR IGUALACIÓN" in out and out.rstrip().endswith("y = 4"))
         paso6()
-    wx.CallLater(800, despues)
+    cuando_libre(despues)
 
 
 def paso6():  # copiar al portapapeles
@@ -174,7 +175,7 @@ def paso8():  # derivar con variable elegida
     f.input_text.SetValue("x*y^2")
     f.on_derivar(None)
     f._resolver_ambiguedad_variable = original  # la derivada ya pidió la variable
-    wx.CallLater(500, paso9)
+    cuando_libre(paso9)
 
 
 def paso9():  # cambio de idioma
@@ -196,7 +197,7 @@ def paso9():  # cambio de idioma
         check("vuelta a español", f.GetMenuBar().FindMenu("Cálculo") != wx.NOT_FOUND
               and f.lbl_info.GetValue().startswith("Escriba"))
         paso10()
-    wx.CallLater(500, despues)
+    cuando_libre(despues)
 
 
 def paso10():  # historial
@@ -263,15 +264,33 @@ def paso10():  # historial
 
 
 def fin():
+    calculando = f.proceso._proceso
+    f.Close()  # como el usuario: al cerrar la última ventana termina el bucle de eventos
+    check("cerrar: termina el proceso de cálculo", not calculando.is_alive())
     for n, ok in resultados: print(("OK  " if ok else "FAIL"), n)
     fallos = sum(not ok for _, ok in resultados)
     print(f"\n{len(resultados) - fallos}/{len(resultados)} comprobaciones correctas")
     app.codigo_salida = 1 if fallos else 0
-    f.Close()  # como el usuario: al cerrar la última ventana termina el bucle de eventos
 
 
-wx.CallLater(200, paso1)
-app.codigo_salida = 1
-wx.CallLater(30000, lambda: (print("TIEMPO AGOTADO"), app.ExitMainLoop()))
-app.MainLoop()
-sys.exit(app.codigo_salida)
+if __name__ == "__main__":
+    # El historial se guarda junto a la configuración: una carpeta temporal en lugar de la del usuario
+    carpeta_appdata = tempfile.mkdtemp()
+    os.environ["APPDATA"] = carpeta_appdata
+    import wx
+    wx.MessageBox = lambda msg, *a, **k: mensajes.append(msg)
+    import i18n
+    i18n.guardar_idioma = lambda codigo: None
+    i18n.establecer_idioma("es")
+    import main
+    from nucleo_pruebas import NucleoPruebas
+
+    app = wx.App()
+    f = main.CalculadoraAccesible(nucleo=NucleoPruebas); f.Show()
+    carpeta_tmp = tempfile.mkdtemp()
+
+    wx.CallLater(200, paso1)
+    app.codigo_salida = 1
+    wx.CallLater(60000, lambda: (print("TIEMPO AGOTADO"), app.ExitMainLoop()))
+    app.MainLoop()
+    sys.exit(app.codigo_salida)

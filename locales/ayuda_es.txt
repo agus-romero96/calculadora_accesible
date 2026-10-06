@@ -34,7 +34,8 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
    menú Álgebra, submenú 'Sistema 2x2 por método clásico'.
 
    Si un cálculo tarda, se abre el diálogo 'Calculando'.
-   Puede pulsar Cancelar para abandonarlo.
+   Puede pulsar Cancelar para detenerlo: el cálculo se interrumpe
+   de inmediato y deja de usar el procesador.
 
 4. GUÍA DE ESCRITURA (SINTAXIS)
    Para que la calculadora le entienda, escriba así:

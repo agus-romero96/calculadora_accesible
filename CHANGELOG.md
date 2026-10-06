@@ -25,10 +25,19 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Cambiado
 
+- **Los cálculos se ejecutan en un proceso aparte** (`proceso_calculo.py`), no en un hilo de la propia calculadora. Es lo que permite que Cancelar detenga el cálculo de verdad (ver *Corregido*).
+  - El proceso es persistente: se arranca al abrir la ventana (tarda menos de 1 segundo, sobre todo en importar SymPy) y atiende todos los cálculos; solo se reinicia al cancelar o si termina solo. Crear uno por cálculo añadiría ese segundo a cada operación.
+  - Se envía el método, sus datos y el idioma actual, y el resultado vuelve completo (texto, valor, planteamiento) con el mismo pickle "sin evaluar" del historial, que pasa a `serializacion.py` para compartirlo. Con el pickle normal de SymPy, el planteamiento `1/6 + 1/3` llegaría como `1/2` y no se podría exportar como en un libro. `historial.py` conserva los nombres anteriores, para que los historiales ya guardados se sigan leyendo.
+  - Si el proceso termina solo (por ejemplo, sin memoria), se muestra un error y el siguiente cálculo arranca otro proceso.
+  - En el ejecutable, el proceso de cálculo es otra copia de `CalculadoraAccesible.exe`: `main.py` llama a `multiprocessing.freeze_support()` al empezar, para que esa copia solo calcule y no abra otra ventana. La autoprueba (`--autoprueba`) tiene un caso nuevo que calcula a través del proceso (15 casos), así que `compilar.py` comprueba que funciona en el ejecutable compilado.
+  - `CalculadoraAccesible` acepta `nucleo=` (la clase del núcleo matemático) para las pruebas, y al cerrar la ventana se detiene el proceso de cálculo.
 - `exportar.py` separa cada formato en el bloque de una operación y el documento que lo envuelve, para exportar un resultado o todo el historial con el mismo código. La exportación de un solo resultado no cambia; solo se añade al HTML un estilo que separa las secciones.
 
 ### Corregido
 
+- **Cancelar un cálculo lo detiene de verdad.** Antes, Cancelar solo dejaba de esperar el resultado: el cálculo seguía en un hilo usando el procesador hasta terminar (o indefinidamente, si SymPy no terminaba), porque Python no permite detener un hilo. Con varios cálculos cancelados, la calculadora y el equipo se volvían lentos. Ahora Cancelar termina el proceso de cálculo (tarda unas centésimas de segundo) y arranca otro limpio para el siguiente, que puede tardar hasta un segundo más en empezar.
+  - `tests/test_proceso_calculo.py`: 8 pruebas (resultado completo, planteamiento sin evaluar, idioma, excepción del motor, que el proceso cancelado ya no existe, cancelar sin cálculo en curso, proceso que termina solo, cerrar), con el núcleo de pruebas `tests/nucleo_pruebas.py`; la suite tiene 1733 pruebas.
+  - `tests/verificar_ui.py` usa ese núcleo (el cálculo ya no ocurre en el proceso de la ventana, así que no se puede sustituir un método desde la prueba) y comprueba además que el proceso cancelado ya no existe y que al cerrar la ventana termina el proceso de cálculo: 50 comprobaciones. Su arranque está ahora bajo `if __name__ == "__main__"`, porque el proceso de cálculo vuelve a importar el script principal.
 - **Continuidad con raíces y potencias**: `sqrt(x^2+9)` cuando x→4 se resuelve ahora por *Continuidad por composición* (resultado 5) en vez de caer en el modo general. La estrategia ya sabía evaluar `u**c`, pero `puede_resolver()` solo aceptaba funciones como `sin` o `exp`, y `sqrt(u)` se representa como la potencia `u**(1/2)`. También se normaliza el exponente, porque el parser deja `1/3` sin evaluar y `(x^2+1)^(1/3)` no se reconocía como raíz cúbica.
   - Para no atribuir a la continuidad límites que no lo son, una potencia con exponente negativo se rechaza si el límite interno es 0 (por ejemplo `1/(x-1)^2` cuando x→1 sigue en el modo general).
   - `tests/test_limites.py`: 4 pruebas nuevas; la auditoría `tests_limites.py` sigue en 65/65.
@@ -177,6 +186,5 @@ Primera versión publicada con instalador para Windows: evaluación, simplificac
 ## Pendiente (problemas conocidos)
 
 - **Variables como reales**: es la convención adecuada para un curso de cálculo, pero los resultados con números complejos (por ejemplo, raíces de números negativos dentro de expresiones con variables) pueden diferir de los que daría SymPy por defecto.
-- **Cancelar un cálculo** no lo detiene: el hilo sigue usando el procesador hasta terminar, porque Python no permite detener un hilo. Para detenerlo de verdad habría que ejecutar los cálculos en un proceso aparte.
 - **Traducción al inglés sin revisión nativa**: la escribió el desarrollador y no la ha revisado un hablante nativo de inglés ni un docente angloparlante (terminología de clase).
 - **Botones de wxWidgets en otros idiomas**: solo se incluye el catálogo de wxWidgets en español (el inglés no lo necesita). Al añadir un idioma, hay que agregar su carpeta en `setup.py`.

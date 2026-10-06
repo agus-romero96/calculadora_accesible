@@ -209,6 +209,7 @@
   "El numerador tiene mayor grado. Diferencia k = {k}.": "The numerator has the higher degree. Difference k = {k}.",
   "El orden de derivación debe ser 1 o mayor.": "The order of differentiation must be 1 or greater.",
   "El orden debe ser un número entero.": "The order must be a whole number.",
+  "El proceso de cálculo terminó de forma inesperada (por ejemplo, por falta de memoria).": "The calculation process stopped unexpectedly (for example, it ran out of memory).",
   "El signo depende de parámetros y no se puede fijar sin hipótesis.": "The sign depends on parameters and cannot be fixed without assumptions.",
   "El sistema NO tiene solución. Las ecuaciones plantean una contradicción matemática (ej: 0 = 5).": "The system has NO solution. The equations state a mathematical contradiction (e.g. 0 = 5).",
   "Elegimos eliminar '{target}'. Coeficientes: Ec1({c1}), Ec2({c2}).": "We choose to eliminate '{target}'. Coefficients: Eq1({c1}), Eq2({c2}).",

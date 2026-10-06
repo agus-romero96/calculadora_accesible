@@ -34,7 +34,8 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
    Algebra menu, '2x2 system by classical method' submenu.
 
    If a calculation takes a while, the 'Calculating' dialog opens.
-   You can press Cancel to abandon it.
+   You can press Cancel to stop it: the calculation is interrupted
+   at once and stops using the processor.
 
 4. WRITING GUIDE (SYNTAX)
    For the calculator to understand you, write like this:

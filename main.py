@@ -1,3 +1,4 @@
+import multiprocessing
 import os
 import sys
 import threading
@@ -11,6 +12,7 @@ import i18n
 from i18n import N_, tr
 from algebra.classic_systems import MotorSistemasClasicos
 from historial import Historial, ruta_historial
+from proceso_calculo import ProcesoCalculo
 from puente import CoreMatematico, ResultadoOperacion
 import ventana_historial
 from _version import __version__
@@ -27,10 +29,14 @@ class CalculadoraAccesible(wx.Frame):
     # Verbo que se muestra al preguntar la variable (la clave es el código de la operación)
     VERBOS = {"derivar": N_("derivar"), "integrar": N_("integrar")}
 
-    def __init__(self):
+    def __init__(self, nucleo=None):
+        """nucleo: clase del núcleo matemático (por defecto CoreMatematico); las pruebas pasan otra."""
         super().__init__(parent=None, title=f"Jansen Calculator v{__version__}", size=(800, 750))
 
-        self.core = CoreMatematico()
+        # Los cálculos se hacen en un proceso aparte, que se puede detener al cancelar.
+        # Aquí solo se usa el núcleo para detectar variables (rápido) antes de los diálogos.
+        self.core = (nucleo or CoreMatematico)()
+        self.proceso = ProcesoCalculo(fabrica=nucleo)
         # Último resultado mostrado (ResultadoOperacion): lo que se copia y se exporta
         self.ultimo_resultado = None
         # Operaciones guardadas (menú Historial); se conservan entre sesiones
@@ -50,8 +56,16 @@ class CalculadoraAccesible(wx.Frame):
         self.init_ui()
         self.crear_menus()
         self.crear_atajos()
+        self.Bind(wx.EVT_CLOSE, self._on_cerrar)
         self.Centre()
         self.input_text.SetFocus()
+
+    def _on_cerrar(self, event):
+        # Detiene el proceso de cálculo, aunque esté a mitad de un cálculo
+        self._calculo_actual = None
+        self._cerrar_progreso()
+        self.proceso.cerrar()
+        event.Skip()
 
     # --- IDIOMA ---
 
@@ -253,12 +267,13 @@ class CalculadoraAccesible(wx.Frame):
     # SymPy puede tardar segundos (o no terminar) en simplify/limit/integrate.
     # Si se ejecutara en el hilo de la interfaz, la ventana se congelaría sin que
     # el lector de pantalla anuncie nada. Por eso: los diálogos de datos se muestran
-    # aquí (hilo de UI), y solo el cálculo va a un hilo aparte.
+    # aquí (hilo de UI), y el cálculo va al proceso de cálculo (proceso_calculo.py),
+    # esperado desde un hilo aparte. Al cancelar se detiene ese proceso.
 
-    def _ejecutar(self, tarea, descripcion):
+    def _ejecutar(self, metodo, args, descripcion):
         """
-        Ejecuta tarea() (que devuelve un ResultadoOperacion) en un hilo aparte.
-        Si tarda más de MS_ANTES_DE_AVISAR, muestra un diálogo "Calculando…" con
+        Ejecuta core.metodo(*args) (que devuelve un ResultadoOperacion) en el proceso de
+        cálculo. Si tarda más de MS_ANTES_DE_AVISAR, muestra un diálogo "Calculando…" con
         botón Cancelar. El resultado se presenta en el hilo de la interfaz.
         """
         if self._calculo_actual is not None:
@@ -272,7 +287,9 @@ class CalculadoraAccesible(wx.Frame):
 
         def trabajo():
             try:
-                resultado = tarea()
+                resultado = self.proceso.calcular(metodo, *args)
+                if resultado is None:
+                    return  # cancelado: el proceso ya se detuvo
             except Exception as e:
                 resultado = ResultadoOperacion(operacion="", entrada=entrada,
                                                texto=tr("Error inesperado: {error}", error=e), es_error=True)
@@ -311,9 +328,10 @@ class CalculadoraAccesible(wx.Frame):
             self._dlg_progreso = None
 
     def _cancelar_calculo(self):
-        # Python no permite detener un hilo: el cálculo sigue en segundo plano,
-        # pero su resultado se descartará (el token deja de coincidir).
+        # Se detiene el proceso de cálculo (y se arranca otro para el siguiente cálculo).
+        # El token deja de coincidir, por si el resultado llegó justo antes.
         self._calculo_actual = None
+        self.proceso.cancelar()
         self._cerrar_progreso()
         self.lbl_info.SetValue(tr("Cálculo cancelado.") + " " + texto_info())
         self.input_text.SetFocus()
@@ -374,17 +392,17 @@ class CalculadoraAccesible(wx.Frame):
         if not txt: return
         if "\n" in txt and "=" in txt:
             lineas = txt.split('\n')
-            self._ejecutar(lambda: self.core.sistema_gauss(lineas), tr("el sistema por Gauss-Jordan"))
+            self._ejecutar("sistema_gauss", (lineas,), tr("el sistema por Gauss-Jordan"))
         else:
-            self._ejecutar(lambda: self.core.evaluar(txt), tr("la evaluación"))
+            self._ejecutar("evaluar", (txt,), tr("la evaluación"))
 
     def on_simplificar(self, event):
         txt = self.obtener_texto()
-        if txt: self._ejecutar(lambda: self.core.simplificar(txt), tr("la simplificación"))
+        if txt: self._ejecutar("simplificar", (txt,), tr("la simplificación"))
 
     def on_factorizar(self, event):
         txt = self.obtener_texto()
-        if txt: self._ejecutar(lambda: self.core.factorizar(txt), tr("la factorización"))
+        if txt: self._ejecutar("factorizar", (txt,), tr("la factorización"))
 
     # --- CÁLCULO INTELIGENTE ---
 
@@ -401,7 +419,7 @@ class CalculadoraAccesible(wx.Frame):
         if len(vars_detectadas) > 1 and var_elegida is None:
             return
 
-        self._ejecutar(lambda: self.core.derivar(txt, var_elegida), tr("la derivada"))
+        self._ejecutar("derivar", (txt, var_elegida), tr("la derivada"))
 
     def on_integrar(self, event):
         txt = self.obtener_texto()
@@ -414,7 +432,7 @@ class CalculadoraAccesible(wx.Frame):
         if (len(vars_detectadas) > 1 or len(vars_detectadas) == 0) and var_elegida is None:
             return
 
-        self._ejecutar(lambda: self.core.integrar(txt, var_elegida), tr("la integral"))
+        self._ejecutar("integrar", (txt, var_elegida), tr("la integral"))
 
     def on_derivada_enecima(self, event):
         expr = self.obtener_texto()
@@ -432,7 +450,7 @@ class CalculadoraAccesible(wx.Frame):
             wx.MessageBox(tr("El orden debe ser un número entero."), tr("Error"), wx.OK | wx.ICON_ERROR)
             return
 
-        self._ejecutar(lambda: self.core.derivada_enecima(expr, var, orden),
+        self._ejecutar("derivada_enecima", (expr, var, orden),
                        tr("la derivada de orden {orden}", orden=orden))
 
     def on_limite(self, event):
@@ -447,25 +465,25 @@ class CalculadoraAccesible(wx.Frame):
             tr("Límite"))
         if tendencia is None: return
 
-        self._ejecutar(lambda: self.core.limite(expr, var, tendencia), tr("el límite"))
+        self._ejecutar("limite", (expr, var, tendencia), tr("el límite"))
 
     def on_sistema_gauss(self, event):
         txt = self.obtener_texto()
         if not txt: return
         lineas = txt.split('\n')
-        self._ejecutar(lambda: self.core.sistema_gauss(lineas), tr("el sistema por Gauss-Jordan"))
+        self._ejecutar("sistema_gauss", (lineas,), tr("el sistema por Gauss-Jordan"))
 
     def on_sistema_clasico(self, metodo, nombre):
         """Sistema 2x2 por sustitución, igualación o reducción."""
         txt = self.obtener_texto()
         if not txt: return
         lineas = txt.split('\n')
-        self._ejecutar(lambda: self.core.sistema_clasico(lineas, metodo),
+        self._ejecutar("sistema_clasico", (lineas, metodo),
                        tr("el sistema por {metodo}", metodo=nombre))
 
     def on_inversa_cofactores(self, event):
         txt = self.obtener_texto()
-        if txt: self._ejecutar(lambda: self.core.inversa(txt), tr("la matriz inversa"))
+        if txt: self._ejecutar("inversa", (txt,), tr("la matriz inversa"))
 
     def on_limpiar(self, event):
         self.input_text.Clear()
@@ -622,6 +640,10 @@ class CalculadoraAccesible(wx.Frame):
 
 
 if __name__ == "__main__":
+    # En el ejecutable compilado, el proceso de cálculo es otra copia del .exe:
+    # freeze_support() lo reconoce y ejecuta solo el cálculo (sin abrir la ventana)
+    multiprocessing.freeze_support()
+
     # Verificación del ejecutable compilado, sin abrir la ventana:
     #   CalculadoraAccesible.exe --autoprueba informe.txt
     if len(sys.argv) > 1 and sys.argv[1] == "--autoprueba":
