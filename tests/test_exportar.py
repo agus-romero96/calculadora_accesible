@@ -8,6 +8,9 @@ import i18n
 
 RESULTADOS = {
     "integral": lambda c: c.integrar("x*exp(x)"),
+    "integral_definida": lambda c: c.integral_definida("x^2", None, "0", "1"),
+    "integral_definida_infinita": lambda c: c.integral_definida("exp(-x)", None, "0", "oo"),
+    "integral_definida_diverge": lambda c: c.integral_definida("1/x", None, "-1", "1"),
     "derivada": lambda c: c.derivar("x^2*sin(x)"),
     "derivada_n": lambda c: c.derivada_enecima("x^5", "x", 3),
     "limite": lambda c: c.limite("sin(x)/x", "x", "0"),

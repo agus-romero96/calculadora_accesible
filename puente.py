@@ -55,7 +55,7 @@ class Operacion:
     separador_antes: bool = False
     # Submenú con una opción por variante (código -> nombre N_); el código es el último argumento del método
     variantes: Dict[str, str] = field(default_factory=dict)
-    # Solo para los datos "expresion_variable": verbo de "¿Respecto a cuál desea {operacion}?" y si,
+    # Solo para los datos "expresion_variable" y "variable_limites": verbo de "¿Respecto a cuál desea {operacion}?" y si,
     # sin variables en la expresión (una constante), hay que pedirla (integrar 5 necesita la variable)
     verbo: str = ""
     variable_obligatoria: bool = False
@@ -77,6 +77,10 @@ REGISTRO: List[Operacion] = [
               menu="calculo", etiqueta=N_("Derivada Orden N"), atajo="Ctrl+Shift+D"),
     Operacion("integrar", N_("Integral indefinida"), "integrar", "expresion_variable", N_("la integral"),
               menu="calculo", etiqueta=N_("Integrar"), atajo="Ctrl+I", separador_antes=True,
+              verbo=N_("integrar"), variable_obligatoria=True),
+    Operacion("integral_definida", N_("Integral definida"), "integral_definida", "variable_limites",
+              N_("la integral definida"),
+              menu="calculo", etiqueta=N_("Integral definida"), atajo="Ctrl+Shift+I",
               verbo=N_("integrar"), variable_obligatoria=True),
     Operacion("limite", N_("Límite"), "limite", "variable_tendencia", N_("el límite"),
               menu="calculo", etiqueta=N_("Límite"), atajo="Ctrl+L"),
@@ -211,6 +215,8 @@ class CoreMatematico:
             var = res.variable
             if operacion == "integrar":
                 planteamiento = sympy.Integral(_normal(res.expr_sympy), var)
+            elif operacion == "integral_definida":
+                planteamiento = sympy.Integral(_normal(res.expr_sympy), (var, *res.limites))
             elif operacion == "derivada_n":
                 planteamiento = sympy.Derivative(_normal(res.expr_sympy), (var, parametros["orden"]))
             else:
@@ -235,6 +241,12 @@ class CoreMatematico:
     def integrar(self, expresion: str, variable: Optional[str] = None) -> ResultadoOperacion:
         res = self.calculo.CalcularIntegral(expresion, variable=variable)
         return self._calculo("integrar", res, expresion, {"variable": variable})
+
+    def integral_definida(self, expresion: str, variable: Optional[str],
+                          inferior: str, superior: str) -> ResultadoOperacion:
+        res = self.calculo.CalcularIntegralDefinida(expresion, variable, inferior, superior)
+        return self._calculo("integral_definida", res, expresion,
+                             {"variable": variable, "inferior": inferior, "superior": superior})
 
     def limite(self, expresion: str, variable: Optional[str], tendencia: str) -> ResultadoOperacion:
         res = self.router.calcular(expresion, variable, tendencia)

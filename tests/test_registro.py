@@ -20,6 +20,7 @@ EJEMPLOS = {
     "derivar": ("x^2", None),
     "derivada_n": ("x^5", "x", 3),
     "integrar": ("x", None),
+    "integral_definida": ("x^2", None, "0", "1"),
     "limite": ("sin(x)/x", "x", "0"),
     "gauss": (["x + y = 10", "x - y = 2"],),
     "sistema_clasico": (["x + y = 10", "x - y = 2"],),
@@ -62,7 +63,7 @@ def test_metodo_devuelve_resultado_con_su_clave(core, op):
 def test_menu_y_descripcion(op):
     if op.menu is not None:
         assert op.etiqueta, "una operación con menú necesita etiqueta"
-    if op.datos == "expresion_variable":
+    if op.datos in ("expresion_variable", "variable_limites"):
         assert op.verbo, "hace falta el verbo para preguntar la variable"
     disponibles = MARCADORES_DE_DATOS.get(op.datos, set()) | ({"metodo"} if op.variantes else set())
     assert marcadores(op.descripcion) <= disponibles

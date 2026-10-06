@@ -474,6 +474,18 @@ class CalculadoraAccesible(wx.Frame):
             return None
         return (txt, var_elegida), {}
 
+    def _datos_variable_limites(self, txt, op):
+        # La variable como al integrar (se pregunta si hay varias o es una constante)
+        datos = self._datos_expresion_variable(txt, op)
+        if datos is None: return None
+        (_, var), _ = datos
+
+        inferior = self._pedir_texto(tr("Límite inferior (ej: 0, -1, pi, -oo):"), tr("Integral definida"))
+        if inferior is None: return None
+        superior = self._pedir_texto(tr("Límite superior (ej: 1, pi/2, oo):"), tr("Integral definida"))
+        if superior is None: return None
+        return (txt, var, inferior, superior), {}
+
     def _datos_variable_orden(self, txt, op):
         # Aquí siempre preguntamos porque es avanzado
         var = self._pedir_texto(tr("Variable:"), tr("Derivada N"))
@@ -503,6 +515,7 @@ class CalculadoraAccesible(wx.Frame):
         "expresion": _datos_expresion,
         "lineas": _datos_lineas,
         "expresion_variable": _datos_expresion_variable,
+        "variable_limites": _datos_variable_limites,
         "variable_orden": _datos_variable_orden,
         "variable_tendencia": _datos_variable_tendencia,
     }

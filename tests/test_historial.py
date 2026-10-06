@@ -149,6 +149,8 @@ RESULTADOS_PERSISTENCIA = {
     "derivada_n_seno": lambda c: c.derivada_enecima("sin(2*x)", "x", 4),
     "limite_infinito": lambda c: c.limite("(3x^2+1)/(x^2-2)", "x", "oo"),
     "integral_abs": lambda c: c.integrar("abs(x)"),
+    "integral_definida_pi": lambda c: c.integral_definida("1/(1+x^2)", None, "-oo", "oo"),
+    "integral_definida_parametro": lambda c: c.integral_definida("x", None, "0", "k"),
 }
 
 

@@ -45,6 +45,7 @@ Disponible en **español e inglés** (interfaz, explicaciones y ayuda). Los resu
 | **Derivar** | Deriva y explica qué regla aplica: constante, linealidad, constante por función, producto, cociente, potencia, potencia negativa, regla de la cadena, exponencial `a^u(x)` y potencia general `u(x)^v(x)` (derivación logarítmica). También lista las reglas secundarias usadas en los subtérminos. |
 | **Derivada de orden N** | Calcula derivadas sucesivas mostrando cada derivada intermedia. Simplifica cada pocos pasos para que el resultado no crezca sin control. |
 | **Integrar** | Integral indefinida (con `+ C`). Cuando es posible, muestra los pasos: extracción de constante, linealidad, sustitución `u`, integración por partes e integrales inmediatas. Avisa si no existe solución cerrada o si aparecen funciones especiales (`erf`, `Ei`, `Si`, …). |
+| **Integral definida** | Pide el límite inferior y el superior (números, expresiones como `pi/2`, o `oo`/`-oo`). Si la función es continua en un intervalo acotado, aplica la **regla de Barrow**: muestra la primitiva y `F(b) − F(a)`. Si un límite es infinito o la función no es continua en el intervalo, la trata como **integral impropia**: la divide en tramos en los puntos de discontinuidad, toma el límite de la primitiva en cada extremo impropio e indica si **converge o diverge** (por ejemplo, `1/x^2` entre -1 y 1 diverge; aplicar Barrow sin mirar daría -2). Si no hay primitiva elemental, da una aproximación decimal. |
 | **Límite** | Calcula límites en un punto, en `±∞` y **laterales** (`2+`, `2-`). Un enrutador elige la estrategia didáctica más adecuada (ver abajo) y, si ninguna aplica, recurre a un motor general con diagnóstico de indeterminación (`0/0`, `∞/∞`, `k/0`), L'Hôpital validado, límites laterales y clasificación del comportamiento (función continua, discontinuidad evitable, de salto, asíntota vertical u horizontal). |
 
 **Estrategias de límites** (`calculo/lim_estrategias/`):
@@ -150,6 +151,7 @@ El menú **Idioma / Language** cambia toda la calculadora entre **español** e *
 | `Ctrl+D` | Derivar |
 | `Ctrl+Shift+D` | Derivada de orden N |
 | `Ctrl+I` | Integrar |
+| `Ctrl+Shift+I` | Integral definida |
 | `Ctrl+L` | Límite |
 | `Ctrl+G` | Resolver sistema por Gauss-Jordan |
 | `Ctrl+M` | Matriz inversa por cofactores |
@@ -200,6 +202,16 @@ RESULTADO: x*(x*cos(x) + 2*sin(x))
 OPERACIÓN: DERIVADA
 ...
 Estrategia Principal: Regla del Producto
+```
+
+**Integral definida**: escriba `exp(-x)`, pulse `Ctrl+Shift+I`, límite inferior `0`, superior `oo`.
+```
+RESULTADO: 1
+...
+Estrategia Principal: Integral impropia
+Diagnóstico: La integral impropia converge.
+...
+   [Fórmula]: lim x→oo F(x) − F(0) = 0 − (-1) = 1
 ```
 
 **Límite**: escriba `(sqrt(1+x)-1)/x`, pulse `Ctrl+L`, variable `x`, tendencia `0`. Resultado: `1/2`.
@@ -373,7 +385,7 @@ Las pruebas, `tests/verificar_ui.py` y la autoprueba del ejecutable comparan con
 
 ## Pruebas
 
-El proyecto tiene una suite de **pytest** en `tests/` (más de 1600 pruebas, unos 15 segundos) que cubre el parser, todos los motores, la exportación, la traducción (cada texto del programa tiene traducción, y los resultados en inglés no dejan texto en español) y la detección de errores en la interfaz (sin abrir ventanas).
+El proyecto tiene una suite de **pytest** en `tests/` (más de 1900 pruebas, unos 15 segundos) que cubre el parser, todos los motores, la exportación, la traducción (cada texto del programa tiene traducción, y los resultados en inglés no dejan texto en español) y la detección de errores en la interfaz (sin abrir ventanas).
 
 ```bash
 pip install -r requirements-dev.txt

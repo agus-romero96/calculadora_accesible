@@ -21,6 +21,7 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
    [Ctrl + D]         : DERIVAR una función.
    [Ctrl + Mayús + D] : DERIVADA de orden N.
    [Ctrl + I]         : INTEGRAR una función.
+   [Ctrl + Mayús + I] : INTEGRAL DEFINIDA entre dos límites.
    [Ctrl + L]         : Calcular LÍMITE.
    [Ctrl + G]         : Resolver SISTEMA por Gauss-Jordan.
    [Ctrl + M]         : MATRIZ INVERSA por cofactores.
@@ -66,6 +67,13 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
 5. EJEMPLOS PRÁCTICOS
    - Derivar: Escriba '3*x^2 + 5'. Pulse Ctrl+D.
    - Integrar: Escriba 'sin(x)'. Pulse Ctrl+I.
+   - Integral definida: Escriba 'x^2'. Pulse Ctrl+Mayús+I.
+     Límite inferior: 0. Límite superior: 1. Resultado: 1/3.
+     Los límites pueden ser expresiones (pi/2) o infinito (oo, -oo).
+     Si un límite es infinito o la función no es continua en el
+     intervalo (por ejemplo 1/x^2 entre -1 y 1), es una integral
+     impropia: la calculadora la divide en tramos, calcula los
+     límites necesarios y le dice si converge o diverge.
    - Límite: Escriba 'sin(x)/x'. Pulse Ctrl+L.
      Variable: x. Tendencia: 0.
      Para un límite lateral escriba la tendencia con + o -,

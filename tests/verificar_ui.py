@@ -277,6 +277,8 @@ def paso11():  # cada operación del registro pide sus datos y llama a su métod
         "derivada_n": ("5x^3", ["x", "3"], None, ("derivada_enecima", ("5x^3", "x", 3), "la derivada de orden 3")),
         # Integrar una constante: pide la variable
         "integrar": ("5", ["t"], None, ("integrar", ("5", "t"), "la integral")),
+        "integral_definida": ("x^2", ["0", "oo"], None,
+                              ("integral_definida", ("x^2", None, "0", "oo"), "la integral definida")),
         "limite": ("sin(x)/x", ["x", "0"], None, ("limite", ("sin(x)/x", "x", "0"), "el límite")),
         "gauss": (sistema, [], None, ("sistema_gauss", (sistema.split("\n"),), "el sistema por Gauss-Jordan")),
         "sistema_clasico": (sistema, [], "reduccion",

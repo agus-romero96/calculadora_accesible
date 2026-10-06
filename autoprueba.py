@@ -26,6 +26,9 @@ def _casos(core: CoreMatematico) -> List[Tuple[str, Callable[[], str], str]]:
         ("Derivar", lambda: core.Derivar("abs(x)"), "RESULTADO: sign(x)"),
         ("Derivada N", lambda: core.DerivadaEnecima("x^5", "x", 3), "RESULTADO: 60*x**2"),
         ("Integrar (pasos)", lambda: core.Integrar("x*exp(x)"), "Integración por Partes"),
+        # Usa sympy.calculus.util (continuidad) para dividir la integral en x = 0
+        ("Integral definida impropia", lambda: core.integral_definida("1/x^2", None, "-1", "1").texto,
+         "RESULTADO: +Infinito (la integral diverge)"),
         ("Límite trigonométrico", lambda: core.CalcularLimite("sin(x)/x", "x", "0"), "RESULTADO: 1"),
         ("Límite bilateral", lambda: core.CalcularLimite("abs(x)/x", "x", "0"), "No existe"),
         ("Límite en infinito", lambda: core.CalcularLimite("(3*x^2+1)/(5*x^2-7)", "x", "oo"), "RESULTADO: 3/5"),

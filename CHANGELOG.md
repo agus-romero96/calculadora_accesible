@@ -6,6 +6,23 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Sin publicar]
 
+### Añadido
+
+- **Integral definida** (menú **Cálculo**, `Ctrl+Shift+I`). Pide el límite inferior y el superior: números, expresiones (`pi/2`), parámetros (`k`) u `oo` / `-oo`. El valor lo calcula SymPy; la explicación es la de clase:
+  - **Regla de Barrow** si la función es continua en un intervalo acotado: los pasos de la primitiva (los mismos de la integral indefinida), `F(x)` y `F(b) − F(a)`. Si el límite inferior es mayor, se invierten y se cambia el signo; si son iguales, vale 0.
+  - **Integral impropia** si un límite es infinito o la función no es continua en el intervalo: se divide en tramos en los puntos de discontinuidad (y en 0 si los dos límites son infinitos), se toma el límite lateral de la primitiva en cada extremo impropio y se dice si cada tramo converge o diverge. Aplicar Barrow sin comprobar la continuidad es un error clásico: con `1/x^2` entre -1 y 1 "daría" -2, pero la integral diverge.
+  - La explicación solo se muestra si su valor coincide con el de SymPy; si no, se da el de SymPy con un aviso.
+  - La primitiva de `1/x` se escribe `log(Abs(x))`: SymPy da `log(x)`, y entre -2 y -1 los pasos mostrarían logaritmos de negativos (`iπ`) aunque el resultado sea real.
+  - Si no hay primitiva elemental (o la forma exacta de SymPy usa números complejos, como en `exp(x^3)`), se da el valor decimal con un aviso. Los valores irracionales llevan su aproximación: `pi/4 (≈ 0.785398)`.
+  - Las integrales que divergen dan `+Infinito`/`-Infinito (la integral diverge)` o `No existe (la integral diverge)`; son un resultado, no un error. Se copian y exportan igual (en LaTeX, `\int\limits_{0}^{1} x^{2}\, dx = \frac{1}{3}`) y se guardan en el historial.
+  - Es la primera operación añadida con el registro: el motor (`Calculo.CalcularIntegralDefinida`), su método en la fachada, una entrada en el registro y un tipo de datos nuevo en la interfaz (`variable_limites`).
+  - Pruebas: `tests/test_integral_definida.py` (42: 20 integrales con su valor y método, divergentes incluidas, los pasos de los casos difíciles, errores de datos y exportación), y casos en las pruebas de inglés, historial, exportación, errores y registro; la suite tiene 2802. La autoprueba del ejecutable tiene un caso nuevo (17), porque la continuidad usa un módulo de SymPy que no se usaba. `tests/verificar_ui.py`: 87 comprobaciones.
+  - Ayuda (F1) y README: atajo y ejemplo.
+
+### Corregido
+
+- **Pasos de integración sin nombre**: cuando SymPy encontraba varios caminos (`AlternativeRule`, por ejemplo `exp(-x)`, que se puede sustituir de dos formas) o una potencia escrita como fracción (`NestedPowRule`, `1/x^2`), la explicación decía "Paso Intermedio. Regla detectada: AlternativeRule". Ahora se explica el primer camino y `1/x^2` usa la regla de la potencia. Afecta también a la integral indefinida.
+
 ## [1.4.0] - 2026-10-10
 
 Versión de opciones: la calculadora se actualiza sola desde las Releases de GitHub, se puede elegir entre ver el paso a paso o solo el resultado, y los textos en español se pueden editar en `locales/es.json` sin tocar el código.
@@ -40,6 +57,7 @@ Versión de opciones: la calculadora se actualiza sola desde las Releases de Git
 
 - `tests/test_historial.py::test_guardar_historial` fallaba de vez en cuando: comparaba dos exportaciones cuyo pie lleva la hora al segundo, y si caían a ambos lados de un cambio de segundo no coincidían (detuvo una vez `compilar.py`). Ahora la prueba fija la hora.
 - **`tests/verificar_ui.py`**: una lectura fallida del portapapeles lanzaba una excepción que cortaba la cadena de pasos, y el script se quedaba abierto sin decir dónde. Ahora espera el portapapeles hasta 2 segundos (si no puede leerlo, esa comprobación falla sin interrumpir las siguientes), y si se agota el tiempo muestra lo comprobado hasta ese momento y las ventanas que quedaron abiertas, y termina.
+
 
 ### Cambiado
 

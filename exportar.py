@@ -20,6 +20,7 @@ from typing import Any, List, Optional
 import sympy
 
 from _version import __version__
+from calculo.calculo import humanizar_integral
 from calculo.router import humanizar_limite
 from i18n import N_, idioma_actual, tr
 from puente import OPERACIONES, ResultadoOperacion
@@ -53,6 +54,8 @@ def resultado_corto(res: ResultadoOperacion) -> str:
         return ""
     if res.operacion == "limite":
         return humanizar_limite(valor)
+    if res.operacion == "integral_definida":
+        return humanizar_integral(valor)
     if valor is None:
         # Sin valor (p. ej. sistema indeterminado): primera línea del informe
         return res.texto.strip().splitlines()[0] if res.texto.strip() else ""
