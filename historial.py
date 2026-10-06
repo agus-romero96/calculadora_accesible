@@ -7,16 +7,11 @@ Si se le da una ruta, se guarda en disco tras cada cambio y se recupera al abrir
 la calculadora (ruta_historial(), junto a la configuración).
 """
 import base64
-import io
 import json
 import os
-import pickle
 from typing import List, Optional
 
-from sympy import Atom, Basic
-from sympy.concrete.expr_with_limits import ExprWithLimits
-from sympy.core.parameters import evaluate
-
+import serializacion
 from exportar import nombre_operacion, resultado_corto
 from i18n import ruta_configuracion, tr
 from puente import OPERACIONES, ResultadoOperacion
@@ -74,33 +69,23 @@ class Historial:
 # Archivo del historial
 # ---------------------------------------------------------
 # JSON con los textos legibles; los objetos SymPy (valor, expresión, planteamiento)
-# van serializados con pickle en base64. Se usa pickle y no srepr porque el
-# planteamiento está sin evaluar ("1/6 + 1/3", Eq(y, y)) y hay que recuperarlo tal cual.
+# van serializados con pickle en base64 (serializacion.py). Se usa pickle y no srepr porque
+# el planteamiento está sin evaluar ("1/6 + 1/3", Eq(y, y)) y hay que recuperarlo tal cual.
 # El archivo está en la carpeta del propio usuario, como la configuración.
 
-def _sin_evaluar(cls, args):
-    with evaluate(False):
-        return cls(*args)
-
-
-class _Pickler(pickle.Pickler):
-    def reducer_override(self, obj):
-        # SymPy reconstruye cada nodo con su constructor, que evalúa: 1/6 + 1/3 volvería
-        # como 1/2. Se reconstruye sin evaluar, salvo las integrales (y sumas), cuyo
-        # constructor no calcula nada pero sin evaluar añadiría un "1*" al integrando.
-        if isinstance(obj, Basic) and not isinstance(obj, (Atom, ExprWithLimits)):
-            return _sin_evaluar, (type(obj), obj.args)
-        return NotImplemented
+# Alias: el pickler "sin evaluar" está en serializacion.py (también lo usa el proceso de cálculo).
+# _sin_evaluar debe seguir aquí: los historiales guardados antes del cambio lo nombran
+# como "historial._sin_evaluar" dentro del pickle.
+_Pickler = serializacion._Pickler
+_sin_evaluar = serializacion._sin_evaluar
 
 
 def _a_pickle(objeto) -> str:
-    buffer = io.BytesIO()
-    _Pickler(buffer, protocol=4).dump(objeto)
-    return base64.b64encode(buffer.getvalue()).decode("ascii")
+    return base64.b64encode(serializacion.a_bytes(objeto)).decode("ascii")
 
 
 def _de_pickle(texto: str):
-    return pickle.loads(base64.b64decode(texto))
+    return serializacion.de_bytes(base64.b64decode(texto))
 
 
 def _a_dict(res: ResultadoOperacion) -> dict:

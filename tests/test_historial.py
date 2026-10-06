@@ -246,3 +246,14 @@ def test_no_poder_guardar_no_es_un_error(core, tmp_path):
 def test_ruta_junto_a_la_configuracion():
     assert os.path.dirname(ruta_historial()) == os.path.dirname(i18n.ruta_configuracion())
     assert os.path.basename(ruta_historial()) == "historial.json"
+
+
+def test_historiales_anteriores_siguen_legibles():
+    # Los historiales guardados antes de crear serializacion.py nombran la función de
+    # reconstrucción como "historial._sin_evaluar" dentro del pickle
+    import io
+    import pickle
+
+    import serializacion
+    lector = pickle.Unpickler(io.BytesIO(b""))
+    assert lector.find_class("historial", "_sin_evaluar") is serializacion._sin_evaluar

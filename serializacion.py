@@ -1,0 +1,38 @@
+"""
+Serialización de objetos SymPy sin evaluarlos.
+
+La usan el historial (para guardarlo en disco) y el proceso de cálculo (para traer
+el resultado desde el otro proceso). Con el pickle normal de SymPy, cada nodo se
+reconstruye con su constructor, que evalúa: el planteamiento "1/6 + 1/3" volvería
+como 1/2 y la ecuación y = y de un sistema con infinitas soluciones como True.
+"""
+import io
+import pickle
+
+from sympy import Atom, Basic
+from sympy.concrete.expr_with_limits import ExprWithLimits
+from sympy.core.parameters import evaluate
+
+
+def _sin_evaluar(cls, args):
+    with evaluate(False):
+        return cls(*args)
+
+
+class _Pickler(pickle.Pickler):
+    def reducer_override(self, obj):
+        # Cada nodo se reconstruye sin evaluar, salvo las integrales (y sumas), cuyo
+        # constructor no calcula nada pero sin evaluar añadiría un "1*" al integrando.
+        if isinstance(obj, Basic) and not isinstance(obj, (Atom, ExprWithLimits)):
+            return _sin_evaluar, (type(obj), obj.args)
+        return NotImplemented
+
+
+def a_bytes(objeto) -> bytes:
+    buffer = io.BytesIO()
+    _Pickler(buffer, protocol=4).dump(objeto)
+    return buffer.getvalue()
+
+
+def de_bytes(datos: bytes):
+    return pickle.loads(datos)
