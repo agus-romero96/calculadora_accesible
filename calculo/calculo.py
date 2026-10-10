@@ -18,9 +18,11 @@ from dataclasses import dataclass, field
 from typing import Any, List, Optional, Tuple
 
 import sympy
-from sympy import Symbol, Dummy
+from sympy import Symbol
 from sympy.calculus.util import continuous_domain
 
+from calculo.derivadas import ExplicadorDerivada, texto
+from calculo.pasos import PasoCalculo, texto_paso
 from i18n import N_, tr
 
 # Reglas de integración manual (manualintegrate)
@@ -34,13 +36,6 @@ from sympy.integrals.manualintegrate import (
 # =============================================================
 # CAPA DE DATOS (DTOs Inmutables)
 # =============================================================
-
-@dataclass(frozen=True)
-class PasoCalculo:
-    titulo: str
-    descripcion: str
-    expresion_matematica: str = ""
-
 
 @dataclass(frozen=True)
 class ResultadoCalculo:
@@ -87,6 +82,11 @@ def _aproximacion(valor: Any) -> Optional[str]:
         return str(sympy.Float(real, 6))
     except Exception:
         return None
+
+
+# Derivada de orden N: pasos como máximo por cada derivada y en total para seguir explicando
+MAX_PASOS_DERIVADA = 30
+MAX_PASOS_ENESIMA = 120
 
 
 # =============================================================
@@ -149,12 +149,11 @@ class Calculo:
 
             # Verdad matemática
             derivada_final = sympy.diff(expr, var)
+            resultado = sympy.simplify(derivada_final)
 
-            # Análisis estructural
-            pasos, estrategia, diag, secundarias = self._analizar_estructura_derivada(expr, var, profundidad=0)
-
-            # Deduplicado estable
-            secundarias_limpias = list(dict.fromkeys(secundarias))
+            # Explicación: cada regla, con sus partes y sus cuentas
+            explicador = ExplicadorDerivada(var)
+            pasos = self._explicar_derivada(explicador, expr, resultado, avisos)
 
             # Aviso si SymPy no pudo “cerrar” (derivada formal)
             if derivada_final.has(sympy.Derivative):
@@ -166,10 +165,10 @@ class Calculo:
                 expresion_input=expresion,
                 expr_sympy=expr,
                 variable=var,
-                resultado=sympy.simplify(derivada_final),
-                estrategia_principal=estrategia,
-                estrategias_secundarias=secundarias_limpias,
-                diagnostico=diag,
+                resultado=resultado,
+                estrategia_principal=explicador.principal.estrategia,
+                estrategias_secundarias=explicador.secundarias,
+                diagnostico=explicador.principal.diagnostico,
                 pasos=pasos,
                 advertencias=avisos
             )
@@ -177,212 +176,29 @@ class Calculo:
         except Exception as e:
             return ResultadoCalculo(False, "DERIVADA", expresion, None, None, None, mensaje_error=str(e))
 
-    def _analizar_estructura_derivada(
-        self,
-        expr: Any,
-        var: Symbol,
-        profundidad: int = 0
-    ) -> Tuple[List[PasoCalculo], str, str, List[str]]:
-        """
-        Retorna: (Pasos, EstrategiaPrincipal, Diagnóstico, EstrategiasSecundarias)
-        """
-        pasos: List[PasoCalculo] = []
-        secundarias: List[str] = []
+    @staticmethod
+    def _explicar_derivada(explicador: ExplicadorDerivada, expr: Any, resultado: Any,
+                           avisos: List[str]) -> List[PasoCalculo]:
+        """Pasos de la derivada de expr, que debe valer resultado (el de SymPy, simplificado)."""
+        try:
+            # El parser no evalúa (evaluate=False): doit() da la forma de SymPy, sin "-1*7"
+            explicada = explicador.derivar(expr.doit())
+            coincide = explicada == resultado or sympy.simplify(explicada - resultado) == 0
+        except Exception:  # una forma que las reglas no prevén: mejor el resultado sin pasos que un error
+            explicada, coincide = None, False
+        if not coincide:
+            # Nunca una explicación que llegue a otro resultado
+            avisos.append(tr("No se pudo explicar esta derivada paso a paso; el resultado es el que calcula SymPy."))
+            return []
 
-        # A) Constante
-        if not expr.has(var):
-            return (
-                [PasoCalculo(tr("Derivada de Constante"), tr("La expresión no varía respecto a la variable."), tr("Resultado = 0"))],
-                N_("Constante"),
-                N_("Función constante."),
-                []
-            )
-
-        # B) Linealidad (Suma/Resta)
-        if expr.is_Add:
-            terminos = expr.args
-            pasos.append(PasoCalculo(tr("Regla de Linealidad"), tr("Suma de derivadas ({n} términos).", n=len(terminos)), "(u+v)'=u'+v'"))
-
-            for i, t in enumerate(terminos, 1):
-                _, strat_t, _, sec_t = self._analizar_estructura_derivada(t, var, profundidad + 1)
-                d_t = sympy.diff(t, var)
-                if strat_t not in ("Constante", "Directa"):
-                    secundarias.append(strat_t)
-                secundarias.extend(sec_t)
-
-                pasos.append(PasoCalculo(tr("Derivada Término {i}", i=i), tr("Estrategia: {estrategia}", estrategia=tr(strat_t)), f"d({t}) = {d_t}"))
-
-            return pasos, N_("Linealidad"), N_("Suma algebraica."), secundarias
-
-        # C) Cociente (y detección de potencia negativa)
-        num, den = expr.as_numer_denom()
-        es_potencia_negativa = (expr.is_Pow and getattr(expr, "exp", None) is not None and expr.exp.is_negative)
-
-        if den != 1 and den.has(var):
-            if es_potencia_negativa:
-                secundarias.append(N_("Regla del Cociente (alternativa)"))
-                base, exp = expr.as_base_exp()
-                u = base
-                n = exp
-                du = sympy.diff(u, var)
-                pasos.append(PasoCalculo(tr("Regla de Potencia Negativa"), tr("Expresión recíproca/inversa."), f"u={u}, n={n}"))
-                pasos.append(PasoCalculo(tr("Regla Generalizada"), tr("n*u^(n-1)*u'"), f"{n}*({u})^({n}-1)*({du})"))
-                return pasos, N_("Potencia Negativa"), N_("Potencia con exponente negativo."), secundarias
-
-            u = num
-            v = den
-            du = sympy.diff(u, var)
-            dv = sympy.diff(v, var)
-
-            _, strat_u, _, sec_u = self._analizar_estructura_derivada(u, var, profundidad + 1)
-            _, strat_v, _, sec_v = self._analizar_estructura_derivada(v, var, profundidad + 1)
-            secundarias.extend([s for s in (strat_u, strat_v) if s not in ("Constante", "Directa")])
-            secundarias.extend(sec_u + sec_v)
-
-            pasos.append(PasoCalculo(tr("Regla del Cociente"), tr("Identificamos u y v."), f"u={u}\nv={v}"))
-            pasos.append(PasoCalculo(tr("Derivadas"), tr("u' ({estrategia_u}) y v' ({estrategia_v}).", estrategia_u=tr(strat_u), estrategia_v=tr(strat_v)), f"u'={du}\nv'={dv}"))
-            pasos.append(PasoCalculo(tr("Aplicar Fórmula"), tr("(u'v - uv')/v²"), f"(({du})*({v}) - ({u})*({dv})) / ({v})^2"))
-            return pasos, N_("Regla del Cociente"), N_("Función racional."), secundarias
-
-        # D) Producto (constantes simbólicas separadas)
-        if expr.is_Mul:
-            constantes = []
-            variables = []
-            for arg in expr.args:
-                (variables if arg.has(var) else constantes).append(arg)
-
-            if constantes:
-                coeff = sympy.Mul(*constantes)
-                if not variables:
-                    return (
-                        [PasoCalculo(tr("Derivada de Constante"), tr("Expresión simbólica constante."), "0")],
-                        N_("Constante"),
-                        N_("Constante simbólica."),
-                        []
-                    )
-
-                resto = sympy.Mul(*variables)
-                sub_pasos, sub_strat, _, sub_sec = self._analizar_estructura_derivada(resto, var, profundidad + 1)
-
-                pasos.append(PasoCalculo(tr("Constante por Función"), tr("Extraemos coeficiente {coeficiente}.", coeficiente=coeff), f"{coeff} * d({resto})"))
-                pasos.extend(sub_pasos)
-
-                if sub_strat not in ("Constante", "Directa"):
-                    secundarias.append(sub_strat)
-                secundarias.extend(sub_sec)
-
-                return pasos, N_("Multiplicación por Constante"), N_("Coeficiente extraído."), secundarias
-
-            # Producto real
-            if len(variables) >= 2:
-                u = variables[0]
-                v = sympy.Mul(*variables[1:])
-
-                du = sympy.diff(u, var)
-                dv = sympy.diff(v, var)
-
-                _, strat_u, _, sec_u = self._analizar_estructura_derivada(u, var, profundidad + 1)
-                _, strat_v, _, sec_v = self._analizar_estructura_derivada(v, var, profundidad + 1)
-                secundarias.extend([s for s in (strat_u, strat_v) if s not in ("Constante", "Directa")])
-                secundarias.extend(sec_u + sec_v)
-
-                pasos.append(PasoCalculo(tr("Regla del Producto"), tr("Identificamos u, v."), f"u={u}\nv={v}"))
-                pasos.append(PasoCalculo(tr("Derivadas"), tr("u' ({estrategia_u}) y v' ({estrategia_v}).", estrategia_u=tr(strat_u), estrategia_v=tr(strat_v)), f"u'={du}\nv'={dv}"))
-                pasos.append(PasoCalculo(tr("Fórmula"), tr("u'v + uv'"), f"({du})*({v}) + ({u})*({dv})"))
-                return pasos, N_("Regla del Producto"), N_("Producto de funciones."), secundarias
-
-        # E) Potencias
-        if expr.is_Pow:
-            base, exp = expr.as_base_exp()
-
-            # Caso 1: a^u(x)
-            if (not base.has(var)) and exp.has(var):
-                _, strat_e, _, sec_e = self._analizar_estructura_derivada(exp, var, profundidad + 1)
-                secundarias.extend(sec_e)
-                if strat_e != "Directa":
-                    secundarias.append(strat_e)
-
-                a = base
-                u = exp
-                du = sympy.diff(u, var)
-
-                pasos.append(PasoCalculo(tr("Exponencial General"), tr("Base constante a, exponente u(x)."), f"y = {a}^{u}"))
-                pasos.append(PasoCalculo(tr("Regla"), tr("d(a^u) = a^u ln(a) u'"), f"{a}^{u} * ln({a}) * ({du})"))
-                return pasos, N_("Exponencial"), N_("Función exponencial."), secundarias
-
-            # Caso 2: u(x)^v(x) — CIERRE COMPLETO (V4.3)
-            if base.has(var) and exp.has(var):
-                u = base
-                v = exp
-                du = sympy.diff(u, var)
-                dv = sympy.diff(v, var)
-
-                # Fórmula final: y' = u^v * (v' ln(u) + v * u'/u)
-                formula = sympy.simplify((u**v) * (dv * sympy.log(u) + v * du / u))
-
-                pasos.append(PasoCalculo(tr("Potencia General"), tr("Base y exponente dependen de x."), f"y = ({u})^({v})"))
-                pasos.append(PasoCalculo(tr("Logaritmación"), tr("Aplicamos ln a ambos lados."), "ln(y) = v * ln(u)"))
-                pasos.append(PasoCalculo(tr("Derivada Implícita"), tr("Derivamos ambos lados."), "y'/y = (v*ln(u))'"))
-                pasos.append(PasoCalculo(tr("Producto + Cadena"), tr("Expandimos (v*ln(u))'."), "v'*ln(u) + v*(u'/u)"))
-                pasos.append(PasoCalculo(tr("Cierre"), tr("Multiplicamos por y."), f"y' = y*(v'*ln(u) + v*u'/u) = {formula}"))
-
-                secundarias.extend([N_("Regla del Producto"), N_("Regla de la Cadena")])
-                return pasos, N_("Potencia General (Logarítmica)"), N_("Función elevado a función."), secundarias
-
-            # Caso 3: u(x)^n
-            if base.has(var) and (not exp.has(var)):
-                n = exp
-                u = base
-                du = sympy.diff(u, var)
-
-                if u == var:
-                    return (
-                        [PasoCalculo(tr("Regla de la Potencia"), tr("Polinomio simple."), f"{n}*{var}^({n}-1)")],
-                        N_("Potencia"),
-                        N_("Polinomio."),
-                        []
-                    )
-
-                _, strat_u, _, sec_u = self._analizar_estructura_derivada(u, var, profundidad + 1)
-                secundarias.extend(sec_u)
-                if strat_u != "Directa":
-                    secundarias.append(strat_u)
-
-                pasos.append(PasoCalculo(tr("Cadena (Potencia)"), tr("u(x)^n con n constante."), f"u={u}, n={n}"))
-                pasos.append(PasoCalculo(tr("Regla"), tr("n*u^(n-1)*u'"), f"{n}*({u})^({n}-1)*({du})"))
-                return pasos, N_("Regla de la Cadena"), N_("Potencia de función."), secundarias
-
-        # F) Cadena para funciones generales f(g(x))
-        if expr.is_Function:
-            arg = expr.args[0] if expr.args else None
-            if arg is not None and arg.has(var) and arg != var:
-                u_dummy = Dummy("u")
-                func_externa = expr.func(u_dummy)
-                derivada_externa = sympy.diff(func_externa, u_dummy)
-                derivada_interna = sympy.diff(arg, var)
-                derivada_externa_visible = derivada_externa.subs(u_dummy, arg)
-
-                msg_externa = str(derivada_externa_visible)
-                if derivada_externa.has(sympy.Derivative):
-                    msg_externa += " " + tr("(Forma Simbólica)")
-
-                _, strat_in, _, sec_in = self._analizar_estructura_derivada(arg, var, profundidad + 1)
-                secundarias.extend(sec_in)
-                if strat_in != "Directa":
-                    secundarias.append(strat_in)
-
-                pasos.append(PasoCalculo(tr("Regla de la Cadena"), tr("Composición f(g(x))."), tr("Externa: {externa}, Interna u={interna}", externa=expr.func.__name__, interna=arg)))
-                pasos.append(PasoCalculo(tr("Derivar Externa"), tr("Derivada de f respecto a u."), msg_externa))
-                pasos.append(PasoCalculo(tr("Derivar Interna"), tr("Multiplicamos por u'."), f"* ({derivada_interna})"))
-                return pasos, N_("Regla de la Cadena"), N_("Composición."), secundarias
-
-        # Fallback
-        return (
-            [PasoCalculo(tr("Derivada Directa"), tr("Regla estándar."), str(sympy.diff(expr, var)))],
-            N_("Directa"),
-            N_("Elemental."),
-            []
-        )
+        pasos = list(explicador.pasos)
+        if texto(explicada) != texto(resultado):
+            pasos.append(PasoCalculo(
+                tr("Simplificación"),
+                regla=tr("se reescribe la expresión de forma más compacta (factor común, términos semejantes, fracciones, identidades trigonométricas) sin cambiar su valor."),
+                calculo=(f"{texto(explicada)} = {texto(resultado)}",),
+                queda=texto(resultado)))
+        return pasos
 
     # ---------------------------------------------------------
     # 3) MOTOR DE INTEGRALES (RIGOR + HONESTIDAD DIDÁCTICA)
@@ -793,12 +609,27 @@ class Calculo:
             # Política: simplificar cada k pasos, no siempre (evita explosión de costo)
             simplificar_cada = 2 if n <= 6 else 3
 
+            explicar = True
             for i in range(1, n + 1):
+                anterior = actual
                 actual = sympy.diff(actual, var)
 
                 if i % simplificar_cada == 0 or i == n:
                     actual = sympy.simplify(actual)
 
+                if explicar:
+                    explicador = ExplicadorDerivada(var)
+                    sub_pasos = self._explicar_derivada(explicador, anterior, actual, avisos)
+                    # Una explicación demasiado larga ya no ayuda: el resto, solo los resultados
+                    explicar = bool(sub_pasos) and len(sub_pasos) <= MAX_PASOS_DERIVADA and len(pasos) <= MAX_PASOS_ENESIMA
+                    if explicar:
+                        pasos.append(PasoCalculo(tr("Derivada {i}", i=i),
+                                                 tr("Derivamos el resultado anterior, {expresion}.", expresion=texto(anterior))))
+                        pasos.extend(sub_pasos)
+                        continue
+                    if sub_pasos:
+                        avisos.append(tr("Desde la derivada {i} se muestra solo el resultado de cada derivada: "
+                                         "la explicación completa sería demasiado larga.", i=i))
                 pasos.append(PasoCalculo(tr("Derivada {i}", i=i), tr("Resultado iterativo."), str(actual)))
 
             if actual.has(sympy.Derivative):
@@ -855,10 +686,7 @@ class Calculo:
         if res.pasos:
             txt.append("\n" + tr("PASO A PASO:"))
             for i, p in enumerate(res.pasos, 1):
-                linea = f"{i}. {tr(p.titulo)}. {tr(p.descripcion)}"
-                if p.expresion_matematica:
-                    linea += "\n   " + tr("[Fórmula]: {formula}", formula=p.expresion_matematica)
-                txt.append(linea)
+                txt.append(texto_paso(i, p))
 
         if res.advertencias:
             txt.append("\n" + tr("[!] AVISOS:"))

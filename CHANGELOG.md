@@ -19,6 +19,23 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
   - Pruebas: `tests/test_integral_definida.py` (42: 20 integrales con su valor y método, divergentes incluidas, los pasos de los casos difíciles, errores de datos y exportación), y casos en las pruebas de inglés, historial, exportación, errores y registro; la suite tiene 2802. La autoprueba del ejecutable tiene un caso nuevo (17), porque la continuidad usa un módulo de SymPy que no se usaba. `tests/verificar_ui.py`: 87 comprobaciones.
   - Ayuda (F1) y README: atajo y ejemplo.
 
+### Cambiado
+
+- **Paso a paso de las derivadas, sin saltos.** La explicación anterior daba resultados "por arte de magia": "Regla de la Potencia. Polinomio simple. [Fórmula]: 3*x^(3-1)", sin decir qué regla era, qué parte de la expresión era el exponente ni cuánto daba la cuenta, y en un producto o un cociente las derivadas de `u` y `v` aparecían ya hechas. Con un lector de pantalla, que no permite echar un vistazo atrás para reconstruir lo que falta, cada salto obligaba a calcular de cabeza. Ahora cada regla se explica siempre en el mismo orden, una línea por parte:
+  1. **Regla**: el enunciado general antes de aplicarlo ("la derivada de x^n es n*x^(n-1): el exponente baja multiplicando y se le resta 1").
+  2. **En este caso**: qué parte de la expresión es cada pieza ("la base es x y el exponente n es 3"), y por qué cuando no se ve a simple vista ("el exponente n es 1/2, porque sqrt(x) es lo mismo que x^(1/2)"; "x es lo mismo que x^1").
+  3. La sustitución y cada cuenta: "Sustituimos n = 3: 3*x^(3 - 1)", "Restamos 1 al exponente: 3 - 1 = 2", "Multiplicamos los números: 3 * 4 = 12", "Un exponente negativo pasa la potencia al denominador", "Cualquier base elevada a 0 vale 1".
+  4. **Queda**: la expresión tras ese paso.
+  - Las reglas compuestas (suma, factor constante, producto, cociente, cadena, derivación logarítmica) se explican en dos pasos: el planteamiento (regla y partes), luego la derivada de cada parte en su propio paso, y al final la sustitución con esas derivadas. Cada parte dice a qué regla pertenece ("Regla de la potencia en x^2 (u del producto)"), para que dos `u` anidadas no se confundan.
+  - Si el resultado final se escribe de forma más compacta que lo que sale de las reglas (factor común, identidades), un último paso "Simplificación" muestra la igualdad, en lugar de cambiar la expresión sin decirlo.
+  - Reglas: constante, variable, suma, potencia (con coeficiente, raíces y exponentes negativos), factor constante, producto, cociente, cadena con potencias, exponencial `e^u` y `a^u`, cualquier función elemental de SymPy (`sin`, `log`, `atan`, `sinh`, `Abs`...; su derivada se calcula, no se escribe a mano en una tabla) y potencia general `u^v`.
+  - La derivada se construye con la propia explicación y se compara con la de SymPy: si no coincidiera, se muestra el resultado de SymPy sin pasos y con un aviso, nunca una explicación que llegue a otro resultado. Antes, los pasos se escribían aparte del cálculo y nada comprobaba que llevaran al resultado.
+  - **Derivada de orden N**: cada derivada se explica igual (antes solo se mostraba "Resultado iterativo." y la expresión). Si la explicación se hace demasiado larga (más de 30 pasos en una derivada o 120 en total), desde ahí se muestran solo los resultados, con un aviso.
+  - La estrategia principal y las secundarias (ANÁLISIS) se mantienen, así que las exportaciones y el historial no cambian de forma.
+  - Código: `calculo/derivadas.py` (`ExplicadorDerivada`, una función por regla) sustituye a `_analizar_estructura_derivada`; `calculo/pasos.py` define `PasoCalculo` (con los campos nuevos `regla`, `partes`, `calculo` y `queda`) y su texto, compartido con las integrales, cuyos pasos se ven igual que antes.
+  - `tests/test_derivadas.py`: 115 pruebas (52 expresiones que se explican hasta el resultado mostrado y con la estructura completa en cada paso, las cuentas de los casos típicos, los nombres de las partes anidadas, la explicación que no coincide, y la derivada de orden N).
+  - Ayuda (F1) y README: cómo se lee cada paso.
+
 ### Corregido
 
 - **Límites de la integral definida sin nombre**: con **Opciones → Mostrar el paso a paso** desactivado, y en la exportación (texto, Markdown y HTML), los límites aparecían como `inferior: 0` y `superior: 1`, con el nombre interno del parámetro y sin traducir. Ahora dicen **Límite inferior** / **Límite superior** (*Lower limit* / *Upper limit*). Apareció al juntar la integral definida, escrita antes de existir el modo "solo el resultado", con la versión 1.4.0. `tests/test_exportar.py` comprueba el resumen de una integral definida.

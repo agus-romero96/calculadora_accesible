@@ -42,8 +42,8 @@ Disponible en **español e inglés** (interfaz, explicaciones y ayuda). Los resu
 
 | Operación | Qué hace |
 |---|---|
-| **Derivar** | Deriva y explica qué regla aplica: constante, linealidad, constante por función, producto, cociente, potencia, potencia negativa, regla de la cadena, exponencial `a^u(x)` y potencia general `u(x)^v(x)` (derivación logarítmica). También lista las reglas secundarias usadas en los subtérminos. |
-| **Derivada de orden N** | Calcula derivadas sucesivas mostrando cada derivada intermedia. Simplifica cada pocos pasos para que el resultado no crezca sin control. |
+| **Derivar** | Deriva y explica cada regla sin saltos, siempre en el mismo orden: **Regla** (el enunciado general, antes de aplicarlo), **En este caso** (qué parte de la expresión es la base, el exponente, `u`, `v`...), la sustitución con las cuentas intermedias (`3 - 1 = 2`, `3 * 4 = 12`, por qué `sqrt(x)` es `x^(1/2)`) y **Queda** (cómo queda la expresión). Las partes de una regla compuesta se derivan antes, cada una en su paso y con su nombre ("u del producto", "v del cociente"). Reglas: constante, variable, suma, factor constante, potencia (también raíces y exponentes negativos), producto, cociente, cadena, exponencial `e^u` y `a^u`, funciones elementales (`sin`, `log`, `atan`...) y potencia general `u(x)^v(x)` (derivación logarítmica). |
+| **Derivada de orden N** | Calcula derivadas sucesivas y explica cada una con el mismo paso a paso que **Derivar** (si la explicación se hace demasiado larga, desde ahí muestra solo cada resultado, con un aviso). Simplifica cada pocos pasos para que el resultado no crezca sin control. |
 | **Integrar** | Integral indefinida (con `+ C`). Cuando es posible, muestra los pasos: extracción de constante, linealidad, sustitución `u`, integración por partes e integrales inmediatas. Avisa si no existe solución cerrada o si aparecen funciones especiales (`erf`, `Ei`, `Si`, …). |
 | **Integral definida** | Pide el límite inferior y el superior (números, expresiones como `pi/2`, o `oo`/`-oo`). Si la función es continua en un intervalo acotado, aplica la **regla de Barrow**: muestra la primitiva y `F(b) − F(a)`. Si un límite es infinito o la función no es continua en el intervalo, la trata como **integral impropia**: la divide en tramos en los puntos de discontinuidad, toma el límite de la primitiva en cada extremo impropio e indica si **converge o diverge** (por ejemplo, `1/x^2` entre -1 y 1 diverge; aplicar Barrow sin mirar daría -2). Si no hay primitiva elemental, da una aproximación decimal. |
 | **Límite** | Calcula límites en un punto, en `±∞` y **laterales** (`2+`, `2-`). Un enrutador elige la estrategia didáctica más adecuada (ver abajo) y, si ninguna aplica, recurre a un motor general con diagnóstico de indeterminación (`0/0`, `∞/∞`, `k/0`), L'Hôpital validado, límites laterales y clasificación del comportamiento (función continua, discontinuidad evitable, de salto, asíntota vertical u horizontal). |
@@ -202,6 +202,18 @@ RESULTADO: x*(x*cos(x) + 2*sin(x))
 OPERACIÓN: DERIVADA
 ...
 Estrategia Principal: Regla del Producto
+...
+PASO A PASO:
+1. Regla del producto en x^2*sin(x).
+   Regla: la derivada de u*v es u'*v + u*v': se deriva un factor cada vez, dejando el otro igual, y se suman.
+   En este caso: u = x^2 y v = sin(x).
+2. Regla de la potencia en x^2 (u del producto).
+   Regla: la derivada de x^n es n*x^(n-1): el exponente baja multiplicando y se le resta 1.
+   En este caso: la base es x y el exponente n es 2.
+   Sustituimos n = 2: 2*x^(2 - 1).
+   Restamos 1 al exponente: 2 - 1 = 1.
+   Queda: 2*x
+...
 ```
 
 **Integral definida**: escriba `exp(-x)`, pulse `Ctrl+Shift+I`, límite inferior `0`, superior `oo`.
@@ -312,6 +324,8 @@ parser_matematico.py    ParserMatematico: parser único compartido (SymPy parse_
 │   └── classic_systems.py      Sustitución, igualación, reducción (2x2)
 └── calculo/
     ├── calculo.py              Derivadas, derivada N, integrales
+    ├── derivadas.py            Explicación de las derivadas, regla a regla
+    ├── pasos.py                PasoCalculo y su texto (Regla, En este caso, cuentas, Queda)
     ├── router.py               Enrutador de estrategias de límites
     ├── limite.py               Motor general de límites (fallback)
     └── lim_estrategias/        Estrategias didácticas (patrón Strategy)

@@ -28,7 +28,8 @@ def test_regla_potencia_usa_la_variable_real(core):
     # Regresión: antes la fórmula mostraba siempre "x"
     res = core.calculo.CalcularDerivada("t^3")
     assert res.resultado == 3 * t**2
-    assert "3*t^(3-1)" in res.pasos[0].expresion_matematica
+    assert "t^n" in res.pasos[0].regla
+    assert "3*t^(3 - 1)" in res.pasos[0].calculo[0]
 
 
 def test_derivada_multivariable_con_variable_elegida(core):

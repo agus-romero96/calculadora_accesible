@@ -66,6 +66,10 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
 
 5. PRACTICAL EXAMPLES
    - Differentiate: Type '3*x^2 + 5'. Press Ctrl+D.
+     Each rule is explained in the same order, one line per part:
+     "Rule" (the general statement), "In this case" (which part
+     of your expression is each piece of the rule), the arithmetic
+     (for example 2 - 1 = 1) and "We get" (the resulting expression).
    - Integrate: Type 'sin(x)'. Press Ctrl+I.
    - Definite integral: Type 'x^2'. Press Ctrl+Shift+I.
      Lower limit: 0. Upper limit: 1. Result: 1/3.

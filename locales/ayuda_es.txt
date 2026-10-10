@@ -66,6 +66,10 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
 
 5. EJEMPLOS PRÁCTICOS
    - Derivar: Escriba '3*x^2 + 5'. Pulse Ctrl+D.
+     Cada regla se explica en el mismo orden, una línea por parte:
+     "Regla" (el enunciado general), "En este caso" (qué parte
+     de su expresión es cada pieza de la regla), las cuentas
+     (por ejemplo 2 - 1 = 1) y "Queda" (cómo queda la expresión).
    - Integrar: Escriba 'sin(x)'. Pulse Ctrl+I.
    - Integral definida: Escriba 'x^2'. Pulse Ctrl+Mayús+I.
      Límite inferior: 0. Límite superior: 1. Resultado: 1/3.
