@@ -117,3 +117,51 @@ def test_guardar_archivo(core, tmp_path):
         ruta = tmp_path / f"resultado.{extension}"
         exportar.guardar(res, formato, str(ruta))
         assert ruta.read_text(encoding="utf-8") == exportar.exportar(res, formato)
+
+
+# ---------------- Solo el resultado (sin paso a paso) ----------------
+
+def test_resumen_de_cada_resultado(resultado):
+    texto = exportar.resumen(resultado)
+    lineas = texto.splitlines()
+    assert lineas[0].startswith("RESULTADO:")
+    assert f"Operación: {exportar.nombre_operacion(resultado)}" in lineas
+    assert any(linea.startswith("Entrada: ") for linea in lineas)
+    assert len(texto) < len(resultado.texto) or resultado.operacion == "evaluar"
+
+
+@pytest.mark.parametrize("operacion, esperado", [
+    (lambda c: c.derivar("x^2*sin(x)"),
+     ["RESULTADO: x*(x*cos(x) + 2*sin(x))", "Operación: Derivada", "Entrada: x^2*sin(x)", "Variable: x"]),
+    (lambda c: c.integrar("x*exp(x)"),
+     ["RESULTADO: (x - 1)*exp(x) + C", "Operación: Integral indefinida", "Entrada: x*exp(x)", "Variable: x"]),
+    (lambda c: c.limite("abs(x)/x", "x", "0"),
+     ["RESULTADO: No existe (los límites laterales no coinciden)", "Operación: Límite", "Entrada: abs(x)/x",
+      "Variable: x", "Tendencia: 0"]),
+    # Soluciones y filas, una por línea
+    (lambda c: c.sistema_gauss(["x + y = 10", "x - y = 2"]),
+     ["RESULTADO:", "x = 6", "y = 4", "Operación: Sistema de ecuaciones (Gauss-Jordan)",
+      "Entrada: x + y = 10; x - y = 2"]),
+    (lambda c: c.inversa("1 2\n3 4"),
+     ["RESULTADO:", "[ -2, 1 ]", "[ 3/2, -1/2 ]", "Operación: Matriz inversa (cofactores)", "Entrada: 1 2; 3 4"]),
+    # El método ya está en el nombre de la operación: no se repite su código interno
+    (lambda c: c.sistema_clasico(["x + y = 1", "x + y = 2"], "reduccion"),
+     ["RESULTADO: Sin solución", "Operación: Sistema 2x2 (método clásico)", "Entrada: x + y = 1; x + y = 2"]),
+])
+def test_resumen(core, operacion, esperado):
+    assert exportar.resumen(operacion(core)).splitlines() == esperado
+
+
+def test_resumen_de_un_error_es_el_mensaje(core):
+    res = core.derivar("sin(x")
+    assert res.es_error and exportar.resumen(res) == res.texto
+
+
+def test_resumen_en_ingles(core):
+    i18n.establecer_idioma("en")
+    try:
+        texto = exportar.resumen(core.sistema_gauss(["x + y = 10", "x - y = 2"]))
+    finally:
+        i18n.establecer_idioma("es")
+    assert texto.splitlines()[:3] == ["RESULT:", "x = 6", "y = 4"]
+    assert "Operation: System of equations (Gauss-Jordan)" in texto

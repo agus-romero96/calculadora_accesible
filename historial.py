@@ -13,7 +13,8 @@ from typing import List, Optional
 
 import serializacion
 from exportar import nombre_operacion, resultado_corto
-from i18n import ruta_configuracion, tr
+from configuracion import ruta_configuracion
+from i18n import tr
 from puente import OPERACIONES, ResultadoOperacion
 
 LARGO_MAXIMO_RESUMEN = 80

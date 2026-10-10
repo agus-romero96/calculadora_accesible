@@ -50,7 +50,8 @@ def cuando_libre(siguiente, limite=15):
 
 def portapapeles():
     # Igual que al copiar: el portapapeles de Windows puede estar ocupado un instante
-    for _ in range(10):
+    # (hasta 2 s). Si no se puede leer, "" hace fallar la comprobación sin cortar los pasos.
+    for _ in range(40):
         datos = wx.TextDataObject()
         if wx.TheClipboard.Open():
             leido = wx.TheClipboard.GetData(datos)
@@ -58,7 +59,7 @@ def portapapeles():
             if leido:
                 return datos.GetText()
         time.sleep(0.05)
-    return None
+    return ""
 
 
 def paso1():  # rápido: sin diálogo de progreso
@@ -303,7 +304,48 @@ def paso11():  # cada operación del registro pide sus datos y llama a su métod
         check("registro: cancelar un diálogo no calcula", llamadas == [])
     finally:
         f._ejecutar, f._pedir_texto = original_ejecutar, original_pedir
-    fin()
+    paso12()
+
+
+def paso12():  # opción "Mostrar el paso a paso" (Ctrl+Shift+P)
+    import configuracion
+    mb = f.GetMenuBar()
+    opciones = mb.GetMenu(mb.FindMenu("Opciones"))
+    casilla = opciones.GetMenuItems()[0]
+    check("modo: menú Opciones con la casilla marcada",
+          casilla.IsCheckable() and casilla.IsChecked() and "Ctrl+Shift+P" in casilla.GetItemLabel())
+    f.input_text.SetValue("x^2*sin(x)"); f.on_operacion("derivar")
+
+    def despues():
+        res = f.ultimo_resultado
+        check("modo: por defecto, paso a paso", f.output_text.GetValue() == res.texto)
+        f.on_modo_respuesta(None)
+        check("modo: solo el resultado vuelve a mostrar el actual", f.output_text.GetValue() == main.exportar.resumen(res))
+        check("modo: se guarda", configuracion.leer(configuracion.MODO_RESPUESTA) == "resultado")
+        mb = f.GetMenuBar()
+        check("modo: la casilla se desmarca",
+              not mb.GetMenu(mb.FindMenu("Opciones")).GetMenuItems()[0].IsChecked())
+        f.input_text.SetValue("x^3"); f.on_operacion("derivar")
+        cuando_libre(despues_nuevo)
+
+    def despues_nuevo():
+        check("modo: un cálculo nuevo sale sin el paso a paso",
+              f.output_text.GetValue().splitlines() == ["RESULTADO: 3*x**2", "Operación: Derivada",
+                                                       "Entrada: x^3", "Variable: x"])
+        check("modo: el historial guarda la explicación completa", f.historial.entradas()[-1].texto.count("\n") > 5)
+        f.on_copiar_explicacion(None)
+        check("modo: Copiar explicación sigue copiando el paso a paso", portapapeles() == f.ultimo_resultado.texto)
+        f.on_modo_respuesta(None)
+        check("modo: vuelve al paso a paso", f.output_text.GetValue() == f.ultimo_resultado.texto
+              and configuracion.leer(configuracion.MODO_RESPUESTA) == "pasos")
+        f.on_limpiar(None)
+        n = len(mensajes)
+        f.on_modo_respuesta(None)
+        check("modo: sin resultado, lo confirma con un diálogo", any("solo el resultado" in m for m in mensajes[n:]))
+        f.on_modo_respuesta(None)
+        fin()
+
+    cuando_libre(despues)
 
 
 def fin():
@@ -314,6 +356,9 @@ def fin():
     fallos = sum(not ok for _, ok in resultados)
     print(f"\n{len(resultados) - fallos}/{len(resultados)} comprobaciones correctas")
     app.codigo_salida = 1 if fallos else 0
+    # Cerrar la última ventana debería terminar el bucle de eventos, pero a veces no lo
+    # hacía y el script se quedaba abierto hasta el tiempo agotado
+    app.ExitMainLoop()
 
 
 if __name__ == "__main__":
@@ -336,6 +381,12 @@ if __name__ == "__main__":
 
     wx.CallLater(200, paso1)
     app.codigo_salida = 1
-    wx.CallLater(60000, lambda: (print("TIEMPO AGOTADO"), app.ExitMainLoop()))
+    def tiempo_agotado():
+        # Lo comprobado hasta aquí indica en qué paso se quedó
+        for n, ok in resultados: print(("OK  " if ok else "FAIL"), n)
+        abiertas = [f"{type(v).__name__} {v.GetTitle()!r}" for v in wx.GetTopLevelWindows()]
+        print(f"TIEMPO AGOTADO tras {len(resultados)} comprobaciones; ventanas abiertas: {abiertas}", flush=True)
+        os._exit(1)  # ExitMainLoop no sale si quedó abierto un diálogo modal
+    wx.CallLater(60000, tiempo_agotado)
     app.MainLoop()
     sys.exit(app.codigo_salida)

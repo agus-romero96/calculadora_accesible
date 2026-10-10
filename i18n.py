@@ -32,6 +32,10 @@ import os
 import sys
 from typing import Dict
 
+import configuracion
+# Se conserva aquí por compatibilidad (la configuración antes vivía en este módulo)
+from configuracion import ruta_configuracion  # noqa: F401
+
 IDIOMA_ORIGEN = "es"
 IDIOMAS = {"es": "Español", "en": "English"}
 # Idioma en que wxWidgets escribe sus propios textos: no necesita catálogo.
@@ -119,11 +123,6 @@ def N_(texto: str) -> str:
 # Preferencia guardada y detección del idioma del sistema
 # ---------------------------------------------------------
 
-def ruta_configuracion() -> str:
-    base = os.environ.get("APPDATA") or os.path.expanduser("~")
-    return os.path.join(base, "CalculadoraAccesible", "config.json")
-
-
 def detectar_idioma_sistema() -> str:
     """Español si Windows está en español; inglés en cualquier otro caso."""
     try:
@@ -137,27 +136,13 @@ def detectar_idioma_sistema() -> str:
 
 
 def idioma_guardado():
-    try:
-        with open(ruta_configuracion(), encoding="utf-8") as f:
-            codigo = json.load(f).get("idioma")
-        return codigo if codigo in IDIOMAS else None
-    except Exception:
-        return None
+    codigo = configuracion.leer(configuracion.IDIOMA)
+    return codigo if codigo in IDIOMAS else None
 
 
 def guardar_idioma(codigo: str) -> None:
-    ruta = ruta_configuracion()
-    try:
-        os.makedirs(os.path.dirname(ruta), exist_ok=True)
-        config = {}
-        if os.path.exists(ruta):
-            with open(ruta, encoding="utf-8") as f:
-                config = json.load(f)
-        config["idioma"] = codigo
-        with open(ruta, "w", encoding="utf-8") as f:
-            json.dump(config, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass  # no poder guardar la preferencia no debe impedir usar la calculadora
+    # Si no se puede guardar, la calculadora sigue funcionando (configuracion.guardar no falla)
+    configuracion.guardar(configuracion.IDIOMA, codigo)
 
 
 def iniciar_idioma() -> str:

@@ -65,6 +65,30 @@ def resultado_corto(res: ResultadoOperacion) -> str:
     return f"{valor} + C" if res.mas_constante else str(valor)
 
 
+def resumen(res: ResultadoOperacion) -> str:
+    """
+    El resultado sin el paso a paso (opción "Solo el resultado"): el resultado primero,
+    como en la explicación completa, y luego la operación y los datos, para saber a qué
+    corresponde al revisarlo en el historial. Las soluciones de un sistema y las filas
+    de una matriz van una por línea, para leerlas con las flechas.
+    """
+    if res.es_error:
+        return res.texto
+    valor = res.valor
+    if _es_lista(valor):
+        lineas = [f"{eq.lhs} = {eq.rhs}" for eq in valor]
+    elif isinstance(valor, sympy.MatrixBase) and valor.rows > 1:
+        lineas = ["[ " + ", ".join(str(e) for e in fila) + " ]" for fila in valor.tolist()]
+    else:
+        lineas = [resultado_corto(res)]
+    texto = [tr("RESULTADO: {valor}", valor=lineas[0])] if len(lineas) == 1 else [tr("RESULTADO:")] + lineas
+    texto.append(tr("Operación: {operacion}", operacion=nombre_operacion(res)))
+    texto.append(f"{tr('Entrada')}: {res.entrada.strip().replace(chr(10), '; ')}")
+    # El método de un sistema clásico ya lo dice el nombre de la operación
+    texto += _parametros_legibles(res, excluir={"metodo"})
+    return "\n".join(texto)
+
+
 def _signo_igual(res: ResultadoOperacion) -> tuple:
     """(LaTeX, MathML) del signo entre planteamiento y resultado: = o ≈ si es decimal."""
     if isinstance(res.valor, sympy.Float) and res.planteamiento is not None and not res.planteamiento.is_Float:
@@ -169,10 +193,11 @@ def _escapar_latex(texto: str) -> str:
     return "".join(reemplazos.get(c, c) for c in texto)
 
 
-def _parametros_legibles(res: ResultadoOperacion) -> List[str]:
+def _parametros_legibles(res: ResultadoOperacion, excluir=()) -> List[str]:
     etiquetas = {"variable": tr("Variable"), "tendencia": tr("Tendencia"),
                  "orden": tr("Orden"), "metodo": tr("Método")}
-    return [f"{etiquetas.get(k, k)}: {v}" for k, v in res.parametros.items() if v not in (None, "")]
+    return [f"{etiquetas.get(k, k)}: {v}" for k, v in res.parametros.items()
+            if v not in (None, "") and k not in excluir]
 
 
 # ---------------------------------------------------------

@@ -4,6 +4,7 @@ import os
 import pytest
 import sympy
 
+import configuracion
 import exportar
 import i18n
 from historial import Historial, cargar, describir, guardar, ruta_historial
@@ -244,7 +245,7 @@ def test_no_poder_guardar_no_es_un_error(core, tmp_path):
 
 
 def test_ruta_junto_a_la_configuracion():
-    assert os.path.dirname(ruta_historial()) == os.path.dirname(i18n.ruta_configuracion())
+    assert os.path.dirname(ruta_historial()) == os.path.dirname(configuracion.ruta_configuracion())
     assert os.path.basename(ruta_historial()) == "historial.json"
 
 

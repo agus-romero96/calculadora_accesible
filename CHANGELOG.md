@@ -16,6 +16,16 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
   - Las pruebas, `tests/verificar_ui.py` y la autoprueba del ejecutable comparan con los textos del código: con la variable de entorno `CALCULADORA_TEXTOS_ORIGEN=1` no se carga `es.json`. Si no, mejorar una redacción haría fallar la suite y `compilar.py` se negaría a generar el instalador.
   - `tests/test_i18n.py`: `es.json` cubre todos los textos y conserva los marcadores; un `es.json` editado cambia el resultado mostrado; uno dañado, ausente o con un marcador mal escrito usa los textos del código.
   - README: sección "Editar los textos en español".
+- **Paso a paso o solo el resultado** (menú **Opciones → Mostrar el paso a paso**, `Ctrl+Shift+P`). Sin el paso a paso, cada cálculo muestra solo el resultado, la operación y sus datos; las soluciones de un sistema y las filas de una matriz van una por línea, para leerlas con las flechas. Para quien ya conoce el método (o repasa muchos ejercicios), escuchar la explicación entera en cada cálculo era lento, aunque la primera línea fuera el resultado.
+  - Es solo una forma de mostrarlo: el cálculo y su `ResultadoOperacion` no cambian, así que el historial, la exportación y **Copiar explicación completa** conservan siempre el paso a paso.
+  - Al cambiar la opción, el resultado actual se vuelve a mostrar en el nuevo modo (el lector de pantalla lo lee), de modo que se puede consultar la explicación de un resultado sin recalcularlo. Si no hay resultado, un diálogo confirma el cambio.
+  - `exportar.resumen()` genera el texto breve; la casilla del menú se actualiza también al usar el atajo.
+  - `tests/test_exportar.py`: el resumen de los 14 tipos de resultado, en español y en inglés; `tests/verificar_ui.py`: 10 comprobaciones nuevas en la ventana real (72 en total).
+- **`configuracion.py`**: las preferencias (`%APPDATA%\CalculadoraAccesible\config.json`) se leen y guardan en un solo módulo, con su valor por defecto y sus valores válidos. Antes `i18n.py` leía y escribía el archivo solo para el idioma; ahora que hay más preferencias, cada una habría repetido ese código. Un `config.json` de versiones anteriores se sigue leyendo; uno dañado o con un valor no válido da los valores por defecto, y si no se puede escribir la calculadora sigue funcionando. `i18n.ruta_configuracion` se conserva. `tests/test_configuracion.py`: 10 pruebas.
+
+### Corregido
+
+- **`tests/verificar_ui.py` se quedaba colgado** en algunas ejecuciones (4 de 8 en una prueba): el bucle de eventos no siempre terminaba al cerrar la ventana, y una lectura fallida del portapapeles lanzaba una excepción que cortaba la cadena de pasos. Ahora termina el bucle explícitamente, espera el portapapeles hasta 2 segundos (y si no puede leerlo, la comprobación falla en lugar de interrumpir las siguientes), y si se agota el tiempo muestra lo comprobado hasta ese momento y las ventanas que quedaron abiertas.
 
 ### Cambiado
 

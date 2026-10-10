@@ -28,6 +28,7 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
    [Ctrl + Mayús + C] : COPIAR el resultado.
    [Ctrl + E]         : EXPORTAR el resultado a un archivo.
    [Ctrl + H]         : Ver el HISTORIAL de operaciones.
+   [Ctrl + Mayús + P] : Mostrar u ocultar el PASO A PASO.
    [F1]               : Ver esta ayuda.
    [Alt]              : Acceder a la barra de menús.
    Sistemas 2x2 por sustitución, igualación o reducción:
@@ -114,3 +115,19 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
      - Escape         : Cerrar el historial.
    [Ctrl + Mayús + E] : Exportar todo el historial a un archivo
                         (mismos formatos que un resultado).
+
+10. OPCIONES (menú Opciones)
+   Las opciones se recuerdan al reiniciar la calculadora.
+   [Ctrl + Mayús + P] : Mostrar el paso a paso (casilla marcada) o
+                        solo el resultado (casilla sin marcar).
+     - Con el paso a paso, cada resultado trae la explicación
+       completa, como siempre.
+     - Sin el paso a paso, se muestra solo el resultado, la
+       operación y los datos (entrada, variable, tendencia...).
+       Las soluciones de un sistema y las filas de una matriz
+       van una por línea.
+     - Al cambiar la opción, el resultado actual se vuelve a
+       mostrar en el nuevo modo: así puede ver el paso a paso de
+       un resultado sin calcularlo otra vez.
+     - El historial y la exportación siempre guardan la
+       explicación completa, y Ctrl + Mayús + A la copia.

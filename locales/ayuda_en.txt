@@ -28,6 +28,7 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
    [Ctrl + Shift + C] : COPY the result.
    [Ctrl + E]         : EXPORT the result to a file.
    [Ctrl + H]         : View the calculation HISTORY.
+   [Ctrl + Shift + P] : Show or hide the STEP-BY-STEP explanation.
    [F1]               : Show this help.
    [Alt]              : Open the menu bar.
    2x2 systems by substitution, equalization or elimination:
@@ -114,3 +115,19 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
      - Escape         : Close the history.
    [Ctrl + Shift + E] : Export the whole history to a file
                         (same formats as a single result).
+
+10. OPTIONS (Options menu)
+   Options are remembered when you restart the calculator.
+   [Ctrl + Shift + P] : Show the step-by-step explanation (box
+                        checked) or only the result (box unchecked).
+     - With the step-by-step explanation, every result includes
+       the full explanation, as always.
+     - Without it, only the result, the operation and its data
+       (input, variable, approach value...) are shown. The
+       solutions of a system and the rows of a matrix go one
+       per line.
+     - When you change the option, the current result is shown
+       again in the new mode: this way you can see the steps of a
+       result without calculating it again.
+     - The history and exported files always keep the full
+       explanation, and Ctrl + Shift + A copies it.

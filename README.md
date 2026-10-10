@@ -95,6 +95,22 @@ Cada cálculo correcto se guarda en el historial (hasta 200 operaciones). El his
   - `Esc`: cierra la lista.
 - **Exportar historial** (`Ctrl+Shift+E`): todas las operaciones en un solo documento, en cualquiera de los formatos de exportación. En HTML, cada operación es una sección con su fórmula MathML; si se calcularon en idiomas distintos, cada sección indica su idioma para que el lector de pantalla use la voz adecuada.
 
+### Paso a paso o solo el resultado (menú **Opciones**)
+
+**Opciones → Mostrar el paso a paso** (`Ctrl+Shift+P`) elige cómo se muestra cada resultado:
+
+- **Marcada** (por defecto): el resultado y la explicación completa, paso a paso.
+- **Sin marcar**: solo el resultado, la operación y sus datos (entrada, variable, tendencia, orden). Las soluciones de un sistema y las filas de una matriz van una por línea:
+
+  ```
+  RESULTADO: x*(x*cos(x) + 2*sin(x))
+  Operación: Derivada
+  Entrada: x^2*sin(x)
+  Variable: x
+  ```
+
+Al cambiar la opción, el resultado actual se vuelve a mostrar en el nuevo modo, así que se puede consultar el paso a paso de un resultado sin recalcularlo. El historial, la exportación y **Copiar explicación completa** conservan siempre la explicación completa. La elección se recuerda en `config.json`.
+
 ### Idioma
 
 El menú **Idioma / Language** cambia toda la calculadora entre **español** e **inglés**: menús, diálogos, explicaciones paso a paso, mensajes de error, ayuda (F1) y archivos exportados. La primera vez se elige según el idioma de Windows, y la elección se recuerda (en `%APPDATA%\CalculadoraAccesible\config.json`). En inglés también se acepta `infinity` como infinito.
@@ -136,8 +152,9 @@ El menú **Idioma / Language** cambia toda la calculadora entre **español** e *
 | `Ctrl+E` | Exportar el resultado a un archivo |
 | `Ctrl+H` | Ver el historial de operaciones |
 | `Ctrl+Shift+E` | Exportar todo el historial |
+| `Ctrl+Shift+P` | Mostrar u ocultar el paso a paso |
 | `F1` | Ayuda |
-| `Alt` | Barra de menús (Operaciones, Cálculo, Álgebra, Resultado, Historial, Idioma, Ayuda) |
+| `Alt` | Barra de menús (Operaciones, Cálculo, Álgebra, Resultado, Historial, Opciones, Idioma, Ayuda) |
 | `Alt+E` / `Alt+R` | Ir al cuadro de entrada / de resultados |
 
 ---
@@ -246,6 +263,7 @@ exportar.py             Copiar/exportar (un resultado o el historial): texto, Ma
                         LaTeX, HTML+MathML, JSON
 historial.py            Historial de operaciones y su archivo (modelo, sin interfaz)
 ventana_historial.py    Diálogo accesible del historial
+configuracion.py        Preferencias del usuario (config.json): idioma, paso a paso, actualizaciones
 i18n.py                 Traducción: tr(), N_(), idioma guardado y detectado
 locales/                es.json y en.json (textos de cada idioma), ayuda_es.txt / ayuda_en.txt
   │

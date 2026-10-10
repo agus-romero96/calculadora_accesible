@@ -7,6 +7,7 @@ import time
 import wx
 import wx.lib.dialogs
 
+import configuracion
 import exportar
 import i18n
 from i18n import N_, tr
@@ -40,6 +41,8 @@ class CalculadoraAccesible(wx.Frame):
         self.ultimo_resultado = None
         # Operaciones guardadas (menú Historial); se conservan entre sesiones
         self.historial = Historial(ruta_historial())
+        # Explicación paso a paso o solo el resultado (menú Opciones); se recuerda
+        self.modo_respuesta = configuracion.leer(configuracion.MODO_RESPUESTA)
 
         # Estado del cálculo en segundo plano. _calculo_actual es un "token" único por
         # cálculo: si el usuario cancela, se pone a None y el resultado tardío se descarta.
@@ -207,6 +210,12 @@ class CalculadoraAccesible(wx.Frame):
             item.Check(codigo == i18n.idioma_actual())
             self.Bind(wx.EVT_MENU, lambda e, c=codigo: self.on_idioma(c), item)
 
+        # Opciones (se recuerdan entre sesiones)
+        m_opciones = wx.Menu()
+        item = m_opciones.AppendCheckItem(wx.ID_ANY, tr("Mostrar el &paso a paso") + "	Ctrl+Shift+P")
+        item.Check(self.modo_respuesta == configuracion.MODO_PASOS)
+        self.Bind(wx.EVT_MENU, self.on_modo_respuesta, item)
+
         m_help = wx.Menu()
         self._item(m_help, N_("Ayuda"), "F1", self.mostrar_ayuda)
 
@@ -214,6 +223,7 @@ class CalculadoraAccesible(wx.Frame):
             menubar.Append(menus[clave], tr(titulo))
         menubar.Append(m_res, tr("Res&ultado"))
         menubar.Append(m_hist, tr("&Historial"))
+        menubar.Append(m_opciones, tr("O&pciones"))
         menubar.Append(m_idioma, tr("&Idioma / Language"))
         menubar.Append(m_help, tr("A&yuda"))
         self.SetMenuBar(menubar)
@@ -246,7 +256,29 @@ class CalculadoraAccesible(wx.Frame):
         else:
             self.ultimo_resultado = res
             self.historial.agregar(res)
-            self._mostrar_texto(res.texto)
+            self._mostrar_texto(self._texto_resultado(res))
+
+    def _texto_resultado(self, res: ResultadoOperacion) -> str:
+        """El resultado como se muestra: con la explicación paso a paso o solo el resultado."""
+        if self.modo_respuesta == configuracion.MODO_RESULTADO:
+            return exportar.resumen(res)
+        return res.texto
+
+    def on_modo_respuesta(self, event):
+        """Alterna entre la explicación paso a paso y solo el resultado (Ctrl+Shift+P)."""
+        pasos = self.modo_respuesta != configuracion.MODO_PASOS
+        self.modo_respuesta = configuracion.MODO_PASOS if pasos else configuracion.MODO_RESULTADO
+        configuracion.guardar(configuracion.MODO_RESPUESTA, self.modo_respuesta)
+        self.crear_menus()  # la casilla del menú refleja el modo también si se cambió con el atajo
+        if self.ultimo_resultado is not None:
+            # El resultado actual se vuelve a mostrar en el nuevo modo: el lector de pantalla
+            # lo lee, y así se puede ver el paso a paso de un resultado sin recalcularlo
+            self._mostrar_texto(self._texto_resultado(self.ultimo_resultado))
+        else:
+            wx.MessageBox(tr("Los resultados se mostrarán con la explicación paso a paso.") if pasos
+                          else tr("Se mostrará solo el resultado, sin el paso a paso."),
+                          tr("Opciones"), wx.OK | wx.ICON_INFORMATION)
+            self.input_text.SetFocus()
 
     def _mostrar_texto(self, texto):
         self.output_text.SetValue(texto)
@@ -569,7 +601,7 @@ class CalculadoraAccesible(wx.Frame):
         if accion == ventana_historial.MOSTRAR:
             # Vuelve a ser el resultado actual: se puede copiar y exportar
             self.ultimo_resultado = elegido
-            self._mostrar_texto(elegido.texto)
+            self._mostrar_texto(self._texto_resultado(elegido))
         elif accion == ventana_historial.USAR_ENTRADA:
             self.input_text.SetValue(elegido.entrada)
             self.input_text.SetInsertionPointEnd()
