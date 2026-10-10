@@ -131,7 +131,10 @@ def test_historial_texto(historial):
     assert "3. Integral indefinida" in txt
 
 
-def test_guardar_historial(historial, tmp_path):
+def test_guardar_historial(historial, tmp_path, monkeypatch):
+    # Hora fija: el pie lleva la hora al segundo, y las dos exportaciones podían caer
+    # a ambos lados de un cambio de segundo
+    monkeypatch.setattr(exportar, "_ahora", lambda: "2026-10-10T12:00:00")
     ruta = tmp_path / "historial.html"
     exportar.guardar_historial(historial.entradas(), "html", str(ruta))
     assert ruta.read_text(encoding="utf-8") == exportar.exportar_historial(historial.entradas(), "html")

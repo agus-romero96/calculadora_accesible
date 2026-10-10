@@ -6,6 +6,10 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Sin publicar]
 
+## [1.4.0] - 2026-10-10
+
+Versión de opciones: la calculadora se actualiza sola desde las Releases de GitHub, se puede elegir entre ver el paso a paso o solo el resultado, y los textos en español se pueden editar en `locales/es.json` sin tocar el código.
+
 ### Añadido
 
 - **Actualizaciones automáticas.** Al abrirse, la calculadora consulta la última Release de GitHub y, si hay una versión más nueva, muestra sus novedades y ofrece **Actualizar ahora**, **Omitir esta versión** o **Más tarde**. Al actualizar, descarga el instalador (diálogo de progreso con Cancelar), se cierra, lo instala en modo silencioso y se vuelve a abrir. Hasta ahora, cada usuario tenía que enterarse por su cuenta de que había una versión nueva, buscarla en GitHub e instalarla a mano.
@@ -34,6 +38,7 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Corregido
 
+- `tests/test_historial.py::test_guardar_historial` fallaba de vez en cuando: comparaba dos exportaciones cuyo pie lleva la hora al segundo, y si caían a ambos lados de un cambio de segundo no coincidían (detuvo una vez `compilar.py`). Ahora la prueba fija la hora.
 - **`tests/verificar_ui.py`**: una lectura fallida del portapapeles lanzaba una excepción que cortaba la cadena de pasos, y el script se quedaba abierto sin decir dónde. Ahora espera el portapapeles hasta 2 segundos (si no puede leerlo, esa comprobación falla sin interrumpir las siguientes), y si se agota el tiempo muestra lo comprobado hasta ese momento y las ventanas que quedaron abiertas, y termina.
 
 ### Cambiado
@@ -225,7 +230,8 @@ Versión de calidad: corrige resultados matemáticos incorrectos (límites bilat
 
 Primera versión publicada con instalador para Windows: evaluación, simplificación y factorización; derivadas, integrales y límites con explicación paso a paso; sistemas por Gauss-Jordan e inversa por cofactores; interfaz accesible para NVDA.
 
-[Sin publicar]: https://github.com/agus-romero96/calculadora_accesible/compare/v1.3.0...HEAD
+[Sin publicar]: https://github.com/agus-romero96/calculadora_accesible/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/agus-romero96/calculadora_accesible/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/agus-romero96/calculadora_accesible/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/agus-romero96/calculadora_accesible/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/agus-romero96/calculadora_accesible/compare/9de0952...v1.1.0
