@@ -101,6 +101,12 @@ class Calculo:
     # 1) GESTIÓN DE VARIABLES (VALIDACIÓN ESTRICTA)
     # ---------------------------------------------------------
 
+    def _parsear(self, expresion: str) -> Any:
+        # El parser no evalúa (evaluate=False), y SymPy no deriva ni integra bien algunas formas
+        # sin evaluar: log(x, 10) daba 1/x en lugar de 1/(x*log(10)). doit() las lleva a su
+        # forma normal (log(x)/log(10); y 3*x - 7 en lugar de 3*x - 1*7 en los pasos)
+        return self.parser.parsear(expresion).doit()
+
     def _resolver_variable(self, expr: Any, var_str: Optional[str], operacion: str) -> Tuple[Symbol, List[str]]:
         advertencias: List[str] = []
 
@@ -144,7 +150,7 @@ class Calculo:
 
     def CalcularDerivada(self, expresion: str, variable: str = None) -> ResultadoCalculo:
         try:
-            expr = self.parser.parsear(expresion)
+            expr = self._parsear(expresion)
             var, avisos = self._resolver_variable(expr, variable, "DERIVADA")
 
             # Verdad matemática
@@ -181,8 +187,7 @@ class Calculo:
                            avisos: List[str]) -> List[PasoCalculo]:
         """Pasos de la derivada de expr, que debe valer resultado (el de SymPy, simplificado)."""
         try:
-            # El parser no evalúa (evaluate=False): doit() da la forma de SymPy, sin "-1*7"
-            explicada = explicador.derivar(expr.doit())
+            explicada = explicador.derivar(expr)
             coincide = explicada == resultado or sympy.simplify(explicada - resultado) == 0
         except Exception:  # una forma que las reglas no prevén: mejor el resultado sin pasos que un error
             explicada, coincide = None, False
@@ -238,7 +243,7 @@ class Calculo:
 
     def CalcularIntegral(self, expresion: str, variable: str = None) -> ResultadoCalculo:
         try:
-            expr = self.parser.parsear(expresion)
+            expr = self._parsear(expresion)
             var, avisos = self._resolver_variable(expr, variable, "INTEGRAL")
 
             integral, estrategia, pasos_dto, avisos_primitiva = self._primitiva(expr, var)
@@ -345,7 +350,7 @@ class Calculo:
                                  inferior: str, superior: str) -> ResultadoCalculo:
         tipo = N_("INTEGRAL DEFINIDA")
         try:
-            expr = self.parser.parsear(expresion)
+            expr = self._parsear(expresion)
             a = self._parsear_limite_integracion(inferior)
             b = self._parsear_limite_integracion(superior)
             var, avisos = self._resolver_variable(expr, variable, "INTEGRAL")
@@ -599,7 +604,7 @@ class Calculo:
             if n < 1:
                 raise ValueError(tr("El orden de derivación debe ser 1 o mayor."))
 
-            expr = self.parser.parsear(expresion)
+            expr = self._parsear(expresion)
             var, avisos = self._resolver_variable(expr, variable, "DERIVADA")
 
             pasos: List[PasoCalculo] = []

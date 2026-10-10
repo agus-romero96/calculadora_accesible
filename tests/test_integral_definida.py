@@ -22,6 +22,8 @@ CASOS = [
     ("x^2", "1", "0", -sympy.Rational(1, 3), "Regla de Barrow"),
     ("x", "0", "k", k**2 / 2, "Regla de Barrow"),
     ("x", "2", "2", 0, "Límites iguales"),
+    # Sin evaluar (log(x, 10)), SymPy integraba log(x) y olvidaba dividir entre log(10)
+    ("log(x,10)", "1", "10", 10 - 9 / sympy.log(10), "Regla de Barrow"),
     # Impropias que convergen
     ("1/sqrt(x)", "0", "1", 2, "Integral impropia"),
     ("ln(x)", "0", "1", -1, "Integral impropia"),

@@ -17,7 +17,7 @@ EXPRESIONES = [
     "3/x", "1/(x^2+1)", "(x^2+1)^3", "(2*x+1)^5", "tan(x)", "cos(3*x)", "sin(x)*cos(x)", "x*sin(x)*cos(x)",
     "asin(x)", "atan(x^2)", "sinh(x)", "abs(x)", "sin(x)^2", "sin(cos(x))", "exp(sin(x))", "x^2*exp(-x)/(x+1)",
     "(x+1)/(x-1)", "x/(x^2+1)^2", "x^(1/3)", "5*sqrt(x)", "x^sin(x)", "a*x^2+b*x+c", "k*sin(x)", "pi*x^2",
-    "log(x)/x", "x^3*ln(x)", "sec(x)", "x^n", "2^(x^2)", "sqrt(x)*ln(x)", "3*x^2*sin(x)",
+    "log(x)/x", "x^3*ln(x)", "sec(x)", "x^n", "2^(x^2)", "sqrt(x)*ln(x)", "3*x^2*sin(x)", "log(x,10)",
 ]
 
 

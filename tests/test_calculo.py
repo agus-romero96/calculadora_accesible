@@ -58,6 +58,14 @@ def test_integral_es_antiderivada(core, expr):
     assert sp.simplify(sp.diff(res.resultado, x) - original) == 0
 
 
+def test_logaritmo_en_otra_base(core):
+    # Regresión: el parser deja log(x, 10) sin evaluar, y SymPy lo derivaba como log(x): 1/x
+    log10 = sp.log(x) / sp.log(10)
+    assert sp.simplify(core.calculo.CalcularDerivada("log(x,10)").resultado - sp.diff(log10, x)) == 0
+    assert sp.simplify(core.calculo.DerivadaEnecima("log(x,10)", "x", 2).resultado - sp.diff(log10, x, 2)) == 0
+    assert sp.simplify(sp.diff(core.calculo.CalcularIntegral("log(x,10)").resultado, x) - log10) == 0
+
+
 def test_integral_renderiza_constante(core):
     texto = core.calculo.RenderizarTexto(core.calculo.CalcularIntegral("2*x"))
     assert primera_linea(texto) == "RESULTADO: x**2 + C"
