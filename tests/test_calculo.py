@@ -66,6 +66,15 @@ def test_logaritmo_en_otra_base(core):
     assert sp.simplify(sp.diff(core.calculo.CalcularIntegral("log(x,10)").resultado, x) - log10) == 0
 
 
+def test_integral_ciclica_repetida_en_la_misma_sesion(core):
+    # Regresión: SymPy limita a tres los usos de sin/exp... como u de partes y solo reinicia
+    # la cuenta en manualintegrate(); con integral_steps() la integral cíclica acababa sin método
+    for _ in range(5):
+        res = core.calculo.CalcularIntegral("exp(x)*sin(x)")
+        assert res.estrategia_principal != "Sin regla conocida"
+        assert sp.simplify(sp.diff(res.resultado, x) - sp.exp(x) * sp.sin(x)) == 0
+
+
 def test_integral_renderiza_constante(core):
     texto = core.calculo.RenderizarTexto(core.calculo.CalcularIntegral("2*x"))
     assert primera_linea(texto) == "RESULTADO: x**2 + C"

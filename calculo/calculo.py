@@ -26,6 +26,7 @@ from calculo.pasos import PasoCalculo, texto_paso
 from i18n import N_, tr
 
 # Reglas de integración manual (manualintegrate)
+from sympy.integrals import manualintegrate
 from sympy.integrals.manualintegrate import (
     integral_steps,
     ConstantTimesRule, AddRule, URule, PartsRule, TrigRule, ExpRule,
@@ -218,6 +219,12 @@ class Calculo:
         except Exception as ex:
             # No lo ocultes: informa, pero sigue con integrate()
             avisos.append(tr("NOTA: no se pudieron generar pasos manuales (manualintegrate): {error}.", error=type(ex).__name__))
+        finally:
+            # SymPy cuenta cuántas veces usa sin, cos, exp... como u de partes (a la tercera deja
+            # de intentarlo) y solo pone el contador a cero en manualintegrate(), no en
+            # integral_steps(): sin esto, tras unas cuantas integrales, ∫ exp(x)*sin(x) se quedaba
+            # sin método en la misma sesión
+            getattr(manualintegrate, "_parts_u_cache", {}).clear()
 
         integral = sympy.integrate(expr, var)
 
