@@ -92,6 +92,11 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
        x + y = 10
        x - y = 2
      Then press Ctrl+Enter.
+     In Algebra the result comes first. Then each equation is
+     solved step by step (removing parentheses, moving terms to the
+     other side with the opposite sign, dividing), each Gauss-Jordan
+     row operation shows the arithmetic for every number, and the
+     solution is checked in the original equations.
 
 6. TROUBLESHOOTING
    - Does it ask you for a variable? If you type 'x + y', the program

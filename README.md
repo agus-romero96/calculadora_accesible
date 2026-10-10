@@ -61,9 +61,9 @@ Disponible en **español e inglés** (interfaz, explicaciones y ayuda). Los resu
 
 | Operación | Qué hace |
 |---|---|
-| **Sistemas (Gauss-Jordan)** | Resuelve sistemas lineales de cualquier tamaño, escritos como ecuaciones (una por línea) o como matriz aumentada `[[1,1,10],[1,-1,2]]`. Muestra cada operación de fila (intercambio, normalización, eliminación) con la matriz resultante, y prefiere pivotes `1` o `-1` para evitar fracciones. Diagnostica con el teorema de Rouché-Frobenius: solución **única**, **infinitas** (con parametrización y grados de libertad) o **sin solución**. |
-| **Sistema 2×2 por método clásico** | Resuelve sistemas de dos ecuaciones con dos incógnitas por **sustitución**, **igualación** o **reducción** (submenú *Álgebra → Sistema 2×2 por método clásico*), explicando cada paso como en clase: despeje, sustitución, eliminación y comprobación final. Detecta sistemas incompatibles e indeterminados. |
-| **Matriz inversa (cofactores)** | Calcula la inversa por el método de la adjunta, para matrices de hasta 4×4: determinante por expansión de la fila 1, ejemplo detallado del cofactor C₁₁, matriz de cofactores, adjunta e inversa final. Detecta matrices singulares y no cuadradas. |
+| **Sistemas (Gauss-Jordan)** | Resuelve sistemas lineales de cualquier tamaño, escritos como ecuaciones (una por línea) o como matriz aumentada `[[1,1,10],[1,-1,2]]`. Explica cada operación de fila (intercambio, normalización, eliminación) con la cuenta de cada elemento (`F2 → F2 - (-3)*F1: [-3 - (-3)*1, ...] = [0, ...]`) y la matriz resultante, prefiere pivotes `1` o `-1` para evitar fracciones, lee la solución fila a fila y la comprueba en las ecuaciones originales. Diagnostica con el teorema de Rouché-Frobenius: solución **única**, **infinitas** (con parametrización y grados de libertad) o **sin solución**. |
+| **Sistema 2×2 por método clásico** | Resuelve sistemas de dos ecuaciones con dos incógnitas por **sustitución**, **igualación** o **reducción** (submenú *Álgebra → Sistema 2×2 por método clásico*), explicando cada paso como en clase, sin saltos: cada ecuación de primer grado se resuelve a la vista (quitar paréntesis, agrupar términos semejantes, pasar términos al otro lado cambiando de signo, dividir), y al final se comprueba la solución; también despeje, sustitución, eliminación y comprobación final. Detecta sistemas incompatibles e indeterminados. |
+| **Matriz inversa (cofactores)** | Calcula la inversa por el método de la adjunta, para matrices de hasta 4×4: determinante por expansión de la fila 1 con sus cuentas, **todos** los cofactores (cada menor con su determinante y su signo), adjunta, división de cada elemento entre el determinante y comprobación `A·A⁻¹ = I`. Detecta matrices singulares y no cuadradas. |
 
 > Atajo inteligente: si en la entrada escribe **varias líneas que contienen `=`** y pulsa **Ctrl+Enter**, la calculadora detecta que es un sistema y lo resuelve por Gauss-Jordan automáticamente.
 
@@ -131,7 +131,7 @@ El menú **Idioma / Language** cambia toda la calculadora entre **español** e *
 ## Accesibilidad
 
 - **Solo teclado**: todas las funciones tienen menú con letra de acceso (`Alt`) y la mayoría tiene atajo directo.
-- **Resultado primero**: en derivadas, integrales y límites, la primera línea es siempre `RESULTADO: …`, para no tener que escuchar todo el desarrollo.
+- **Resultado primero**: en derivadas, integrales, límites y álgebra, la primera línea es siempre `RESULTADO: …`, para no tener que escuchar todo el desarrollo.
 - **Gestión del foco**: al calcular, el foco pasa al cuadro de resultados y el cursor vuelve al inicio, listo para leer con las flechas. Si hay un error, el foco vuelve a la entrada.
 - **Texto plano estructurado**: secciones numeradas, viñetas y matrices fila por fila (`[ 1, 2 | 3 ]`), sin depender de imágenes ni de notación visual.
 - **Diálogos de desambiguación**: si una expresión tiene varias variables (`x*y`), se pregunta respecto a cuál derivar o integrar en una lista navegable con flechas.

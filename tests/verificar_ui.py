@@ -120,7 +120,8 @@ def paso5():  # menú y sistemas clásicos
     f.input_text.SetValue("x + y = 10\nx - y = 2"); f.on_operacion("sistema_clasico", "igualacion")
     def despues():
         out = f.output_text.GetValue()
-        check("clásico: igualación resuelve", "RESOLUCIÓN POR IGUALACIÓN" in out and out.rstrip().endswith("y = 4"))
+        check("clásico: igualación resuelve", out.splitlines()[:3] == ["RESULTADO:", "x = 6", "y = 4"]
+              and "MÉTODO: Igualación" in out)
         paso6()
     cuando_libre(despues)
 
@@ -135,7 +136,7 @@ def paso6():  # copiar al portapapeles
     f.on_copiar_mathml(None)
     check("copiar: MathML", portapapeles().startswith("<math"))
     f.on_copiar_explicacion(None)
-    check("copiar: explicación", portapapeles().startswith("RESOLUCIÓN POR IGUALACIÓN"))
+    check("copiar: explicación", portapapeles().startswith("RESULTADO:") and "MÉTODO: Igualación" in portapapeles())
     paso7()
 
 

@@ -6,14 +6,13 @@ import pytest
 
 def test_gauss_solucion_unica(core):
     salida = core.ResolverSistemaGauss(["x + y = 10", "x - y = 2"])
-    assert "CONCLUSIÓN: UNICA" in salida
-    assert "x = 6" in salida and "y = 4" in salida
+    # El resultado primero, como en el resto de la calculadora
+    assert salida.splitlines()[:3] == ["RESULTADO:", "x = 6", "y = 4"]
 
 
 def test_gauss_3x3(core):
     salida = core.ResolverSistemaGauss(["x + y + z = 6", "2x - y + z = 3", "x + 2y - z = 2"])
-    assert "CONCLUSIÓN: UNICA" in salida
-    assert "x = 1" in salida and "y = 2" in salida and "z = 3" in salida
+    assert salida.splitlines()[:4] == ["RESULTADO:", "x = 1", "y = 2", "z = 3"]
 
 
 def test_gauss_entrada_matricial(core):
@@ -23,13 +22,14 @@ def test_gauss_entrada_matricial(core):
 
 def test_gauss_infinitas_soluciones(core):
     salida = core.ResolverSistemaGauss(["x + y = 1", "2x + 2y = 2"])
-    assert "CONCLUSIÓN: INFINITA" in salida
-    assert "Grados de libertad: 1" in salida
+    assert salida.startswith("RESULTADO: Infinitas soluciones (grados de libertad: 1).")
+    assert "y es libre (puede valer cualquier número)" in salida
 
 
 def test_gauss_sin_solucion(core):
     salida = core.ResolverSistemaGauss(["x + y = 1", "x + y = 2"])
-    assert "CONCLUSIÓN: INCONSISTENTE" in salida
+    assert salida.startswith("RESULTADO: Sin solución (SISTEMA INCOMPATIBLE).")
+    assert "Fila 2: [ 0, 0 | 1 ] significa 0 = 1, que es imposible." in salida
 
 
 def test_gauss_rechaza_doble_igual(core):
@@ -44,8 +44,9 @@ def test_gauss_rechaza_doble_igual(core):
 @pytest.mark.parametrize("metodo, nombre", [("sustitucion", "Sustitución"), ("igualacion", "Igualación"), ("reduccion", "Reducción")])
 def test_sistemas_clasicos(core, metodo, nombre):
     salida = core.ResolverSistemaEducativo(["x + y = 10", "x - y = 2"], metodo)
-    assert f"RESOLUCIÓN POR {nombre.upper()}" in salida
-    assert salida.rstrip().endswith("x = 6\ny = 4")
+    assert salida.splitlines()[:3] == ["RESULTADO:", "x = 6", "y = 4"]
+    assert f"MÉTODO: {nombre}" in salida
+    assert "Comprobación." in salida and "NO se cumple" not in salida
 
 
 def test_sistema_clasico_incompatible(core):

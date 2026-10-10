@@ -92,6 +92,11 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
        x + y = 10
        x - y = 2
      Luego pulse Ctrl+Enter.
+     En Álgebra el resultado va primero. Después, cada ecuación se
+     resuelve a la vista (quitar paréntesis, pasar términos al otro
+     lado cambiando de signo, dividir), cada operación de fila de
+     Gauss-Jordan muestra la cuenta de cada número, y al final se
+     comprueba la solución en las ecuaciones originales.
 
 6. SOLUCIÓN DE PROBLEMAS
    - ¿Le pregunta por variables? Si escribe 'x + y', el sistema

@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Any, Tuple
 import sympy
 
+from calculo.pasos import PasoCalculo, entre_parentesis, texto, texto_paso
 from i18n import N_, tr
 
 # --- ESTRUCTURAS DE DATOS (Contrato de Datos) ---
@@ -196,67 +197,175 @@ class MotorMatrices:
         except Exception as e:
             return ResultadoInversa(False, tr("Error inesperado: {e}", e=str(e)))
 
+    # --- Explicación (formato de calculo/pasos.py) ---
+
+    @staticmethod
+    def _fila(valores: List[Any]) -> str:
+        return f"[ {', '.join(texto(v) for v in valores)} ]"
+
+    def _filas(self, matriz: sympy.Matrix) -> List[str]:
+        return [tr("Fila {i}: {fila}", i=i + 1, fila=self._fila(list(matriz.row(i)))) for i in range(matriz.rows)]
+
+    def _det_2x2(self, m: sympy.Matrix) -> str:
+        """'1*4 - 2*3 = 4 - 6 = -2'."""
+        a, b, c, d = m[0, 0], m[0, 1], m[1, 0], m[1, 1]
+        productos = f"{entre_parentesis(a)}*{entre_parentesis(d)} - {entre_parentesis(b)}*{entre_parentesis(c)}"
+        intermedio = f"{texto(a * d)} - {entre_parentesis(b * c)}"
+        valor = texto(sympy.simplify(a * d - b * c))
+        return f"{productos} = {intermedio} = {valor}" if intermedio != valor else f"{productos} = {valor}"
+
+    @staticmethod
+    def _suma_productos(pares: List[Tuple[Any, Any]]) -> str:
+        """'2*1 + 0*(-1) + 1*3 = 2 + 0 + 3 = 5': los productos, sus valores y la suma."""
+        productos = " + ".join(f"{entre_parentesis(a)}*{entre_parentesis(b)}" for a, b in pares)
+        valores = " + ".join(entre_parentesis(sympy.simplify(a * b)) if i else texto(sympy.simplify(a * b))
+                             for i, (a, b) in enumerate(pares))
+        total = texto(sympy.simplify(sum(a * b for a, b in pares)))
+        return f"{productos} = {valores} = {total}" if valores != total else f"{productos} = {total}"
+
+    def _menor(self, matriz: sympy.Matrix, i: int, j: int) -> Tuple[Any, str]:
+        """(M_ij, cómo se calcula): la submatriz sin la fila i y la columna j, y su determinante."""
+        sub = matriz.minor_submatrix(i, j)
+        valor = sympy.simplify(sub.det())
+        filas = "; ".join(self._fila(list(sub.row(k))) for k in range(sub.rows))
+        if sub.rows == 1:
+            cuenta = tr("queda {submatriz}, así que M{i}{j} = {valor}", submatriz=filas, i=i + 1, j=j + 1, valor=texto(valor))
+        elif sub.rows == 2:
+            cuenta = tr("queda {submatriz}, así que M{i}{j} = {cuenta}", submatriz=filas, i=i + 1, j=j + 1,
+                        cuenta=self._det_2x2(sub))
+        else:
+            cuenta = tr("queda {submatriz}, cuyo determinante es M{i}{j} = {valor}", submatriz=filas, i=i + 1, j=j + 1,
+                        valor=texto(valor))
+        return valor, cuenta
+
+    def _paso_determinante(self, matriz: sympy.Matrix, det: Any) -> PasoCalculo:
+        n = matriz.rows
+        if n == 2:
+            return PasoCalculo(
+                tr("Determinante"),
+                regla=tr("el determinante de una matriz 2x2 [a, b; c, d] es a*d - b*c. Una matriz tiene inversa solo si "
+                         "su determinante no es 0."),
+                partes=tr("a = {a}, b = {b}, c = {c} y d = {d}.", a=texto(matriz[0, 0]), b=texto(matriz[0, 1]),
+                          c=texto(matriz[1, 0]), d=texto(matriz[1, 1])),
+                calculo=(tr("det(A) = {cuenta}.", cuenta=self._det_2x2(matriz)),),
+                queda=tr("det(A) = {det}", det=texto(det)))
+        calculo, terminos = [], []
+        for j in range(n):
+            menor, cuenta = self._menor(matriz, 0, j)
+            signo = (-1) ** j
+            cofactor = signo * menor
+            calculo.append(tr("Columna {j}: quitamos la fila 1 y la columna {j}, {cuenta}; C1{j} = ({signo}1)*{menor} = {cofactor}.",
+                              j=j + 1, cuenta=cuenta, signo="+" if signo > 0 else "-", menor=entre_parentesis(menor),
+                              cofactor=texto(cofactor)))
+            terminos.append((matriz[0, j], cofactor))
+        calculo.append(tr("det(A) = a11*C11 + a12*C12 + ... = {suma}.", suma=self._suma_productos(terminos)))
+        return PasoCalculo(
+            tr("Determinante"),
+            regla=tr("el determinante se desarrolla por la primera fila: det(A) = a11*C11 + a12*C12 + ..., donde C1j = "
+                     "(-1)^(1+j)*M1j y M1j es el determinante de la matriz que queda al quitar la fila 1 y la columna j. "
+                     "Una matriz tiene inversa solo si su determinante no es 0."),
+            partes=tr("la primera fila es {fila}.", fila=self._fila(list(matriz.row(0)))),
+            calculo=tuple(calculo),
+            queda=tr("det(A) = {det}", det=texto(det)))
+
+    def _pasos_inversa(self, res: ResultadoInversa) -> List[PasoCalculo]:
+        A, det, n = res.matriz_original, res.determinante_total, res.matriz_original.rows
+        pasos = [self._paso_determinante(A, det)]
+
+        calculo = []
+        for i in range(n):
+            for j in range(n):
+                menor, cuenta = self._menor(A, i, j)
+                signo = (-1) ** (i + j)
+                calculo.append(tr("C{i}{j}: quitamos la fila {i} y la columna {j}, {cuenta}; el signo es {signo}, así que "
+                                  "C{i}{j} = ({signo}1)*{menor} = {cofactor}.", i=i + 1, j=j + 1, cuenta=cuenta,
+                                  signo="+" if signo > 0 else "-", menor=entre_parentesis(menor),
+                                  cofactor=texto(res.matriz_cofactores[i, j])))
+        pasos.append(PasoCalculo(
+            tr("Matriz de cofactores"),
+            regla=tr("cada elemento se cambia por su cofactor: C_ij = (-1)^(i+j)*M_ij, donde M_ij es el determinante de "
+                     "la matriz que queda al quitar la fila i y la columna j. El signo alterna como un tablero: + en "
+                     "(1,1), - en (1,2)..."),
+            partes=tr("A es una matriz {n}x{n}: hay {total} cofactores.", n=n, total=n * n),
+            calculo=tuple(calculo) + (tr("La matriz de cofactores queda:"),) + tuple(self._filas(res.matriz_cofactores)),
+            queda="; ".join(self._fila(list(res.matriz_cofactores.row(i))) for i in range(n))))
+
+        pasos.append(PasoCalculo(
+            tr("Matriz adjunta"),
+            regla=tr("la adjunta es la traspuesta de la matriz de cofactores: la fila i pasa a ser la columna i."),
+            partes=tr("se trasponen los cofactores."),
+            calculo=tuple(tr("Fila {i} de los cofactores, {fila}, pasa a ser la columna {i}.", i=i + 1,
+                             fila=self._fila(list(res.matriz_cofactores.row(i)))) for i in range(n))
+                    + (tr("La adjunta queda:"),) + tuple(self._filas(res.matriz_adjunta)),
+            queda="; ".join(self._fila(list(res.matriz_adjunta.row(i))) for i in range(n))))
+
+        calculo = []
+        for i in range(n):
+            cuentas = []
+            for j in range(n):
+                division = f"{entre_parentesis(res.matriz_adjunta[i, j])}/{entre_parentesis(det)}"
+                valor = texto(res.matriz_inversa[i, j])
+                cuentas.append(f"{division} = {valor}" if division != valor else valor)
+            calculo.append(tr("Fila {i}: {cuentas}.", i=i + 1, cuentas="; ".join(cuentas)))
+        pasos.append(PasoCalculo(
+            tr("Dividir entre el determinante"),
+            regla=tr("A^(-1) = (1/det(A))*Adj(A): cada elemento de la adjunta se divide entre el determinante."),
+            partes=tr("det(A) = {det}.", det=texto(det)),
+            calculo=tuple(calculo),
+            queda="; ".join(self._fila(list(res.matriz_inversa.row(i))) for i in range(n))))
+
+        producto = A * res.matriz_inversa
+        calculo = []
+        if n <= 3:
+            for i in range(n):
+                for j in range(n):
+                    calculo.append(tr("Fila {i} por columna {j}: {suma}.", i=i + 1, j=j + 1,
+                                      suma=self._suma_productos([(A[i, k], res.matriz_inversa[k, j]) for k in range(n)])))
+        calculo.append(tr("A por A^(-1) es la identidad: la inversa es correcta.")
+                       if producto.applyfunc(sympy.simplify) == sympy.eye(n)
+                       else tr("A por A^(-1) NO es la identidad."))
+        pasos.append(PasoCalculo(
+            tr("Comprobación"),
+            regla=tr("una matriz por su inversa da la identidad: unos en la diagonal y ceros fuera. Cada elemento del "
+                     "producto es una fila de A por una columna de A^(-1) (se multiplican elemento a elemento y se suman)."),
+            partes=tr("multiplicamos A por la inversa obtenida."),
+            calculo=tuple(calculo),
+            queda=tr("A*A^(-1) = I")))
+        return pasos
+
     def RenderizarInformeInversa(self, res: ResultadoInversa) -> str:
-        """
-        NUEVA FUNCIÓN DE PRESENTACIÓN:
-        Toma los DATOS y genera el TEXTO ACCESIBLE.
-        Esto antes estaba mezclado dentro de la lógica.
-        """
-        # 1. Manejo de Errores Lógicos
+        """El texto accesible: RESULTADO primero y después el paso a paso."""
+        A = res.matriz_original
+        encabezado = [tr("MÉTODO: {metodo}", metodo=tr("matriz adjunta (cofactores)"))]
+        if A is not None:
+            encabezado.append(tr("Matriz {filas}x{columnas}:", filas=A.rows, columnas=A.cols))
+            encabezado += self._filas(A)
+
         if not res.es_posible:
+            # Singular: el determinante explica por qué no hay inversa
+            if A is not None and A.rows == A.cols and A.rows > 1 and res.determinante_total is not None:
+                pasos = [self._paso_determinante(A, res.determinante_total), PasoCalculo(
+                    tr("Conclusión"),
+                    regla=tr("A^(-1) = (1/det(A))*Adj(A): si el determinante es 0, habría que dividir entre 0, así que "
+                             "la matriz no tiene inversa (es singular)."),
+                    partes=tr("det(A) = 0."),
+                    queda=tr("no tiene inversa"))]
+                return "\n".join([tr("RESULTADO: {valor}", valor=tr("No tiene inversa (determinante 0)")), "=" * 30]
+                                  + encabezado + ["", tr("PASO A PASO:")]
+                                  + [texto_paso(i, p) for i, p in enumerate(pasos, 1)])
             return tr("No se puede calcular la inversa:\n{mensaje_error}", mensaje_error=res.mensaje_error)
 
-        rows, cols = res.matriz_original.shape
-
-        # CASO A: Matriz 1x1
-        if rows == 1:
-            return "\n".join([
-                tr("Matriz de dimensión 1x1:"),
-                tr("En este caso, la inversa es simplemente el recíproco del número."),
-                tr("Elemento: {elemento}", elemento=res.determinante_total),
-                tr("Inversa: 1 / ({elemento}) = {inversa}", elemento=res.determinante_total, inversa=res.matriz_inversa[0, 0]),
-            ])
-
-        # CASO B: Matriz NxN (Narrativa completa)
-        pasos = []
-        pasos.append(tr("MÉTODO DE LA MATRIZ ADJUNTA (COFACTORES)"))
-        pasos.append(tr("Análisis inicial: Matriz cuadrada de {rows} filas por {cols} columnas.", rows=rows, cols=cols))
-        
-        # Fase 1: Determinante
-        pasos.append(tr("1. DETERMINANTE (Expandiendo Fila 1)"))
-        txt_suma_parts = []
-        for s, e, m in res.det_pasos_fila1_raw:
-            signo_txt = "+" if s == 1 else "-" 
-            txt_suma_parts.append(f"({signo_txt}1 * {e} * {m})")
-        
-        pasos.append("   " + tr("Operación: {operacion}", operacion=" + ".join(txt_suma_parts)))
-        pasos.append(tr("   Valor Determinante = {determinante_total}", determinante_total=res.determinante_total))
-        
-        # Fase 2: Cofactores (Ejemplo)
-        if res.ejemplo_cofactor:
-            c11 = res.ejemplo_cofactor
-            pasos.append(tr("\n2. MATRIZ DE COFACTORES"))
-            pasos.append(tr("   [Ejemplo detallado: Fila 1, Columna 1]"))
-            pasos.append("     - " + tr("Signo: {signo}", signo=tr("Positivo (+)") if c11.signo > 0 else tr("Negativo (-)")))
-            pasos.append(tr("     - Menor: {determinante_menor}", determinante_menor=c11.determinante_menor))
-            pasos.append(tr("     - Cofactor: {resultado}", resultado=c11.resultado))
-            pasos.append(tr("   Matriz de Cofactores Completa:\n{matriz_cofactores}", matriz_cofactores=self._matriz_a_texto(res.matriz_cofactores)))
-
-        # Fase 3: Adjunta
-        pasos.append(tr("\n3. MATRIZ ADJUNTA (Transpuesta de Cofactores)"))
-        pasos.append(f"   {self._matriz_a_texto(res.matriz_adjunta)}")
-
-        # Fase 4: Resultado (SECCIÓN MODIFICADA PARA NARRATIVA EXAMEN)
-        pasos.append(tr("\n4. CÁLCULO FINAL Y SIMPLIFICACIÓN"))
-        pasos.append(tr("   Para obtener la matriz inversa, aplicamos la definición:"))
-        pasos.append(tr("   A⁻¹ = (1 / |A|) · Adj(A)"))
-        pasos.append(tr("   Sustituyendo valores: A⁻¹ = (1 / {determinante_total}) · Adj(A)", determinante_total=res.determinante_total))
-        pasos.append(tr("   Esto implica dividir cada elemento de la Matriz Adjunta entre el determinante ({determinante_total}).", determinante_total=res.determinante_total))
-        pasos.append(tr("   Simplificando cada fracción resultante, obtenemos la solución definitiva:"))
-        pasos.append(f"\n{self._matriz_a_texto(res.matriz_inversa)}")
-
-        return "\n".join([
-            tr("Resultado Inversa ({filas}x{columnas}):", filas=rows, columnas=cols),
-            self._matriz_a_texto(res.matriz_inversa),
-            "-" * 40,
-        ] + pasos)
+        resultado = [tr("RESULTADO:")] + [self._fila(list(res.matriz_inversa.row(i))) for i in range(A.rows)]
+        if A.rows == 1:
+            pasos = [PasoCalculo(
+                tr("Inversa de un número"),
+                regla=tr("una matriz 1x1 es un número: su inversa es 1 entre ese número."),
+                partes=tr("el elemento es {elemento}.", elemento=texto(A[0, 0])),
+                calculo=(tr("La inversa es 1/{elemento}{igual}.", elemento=entre_parentesis(A[0, 0]),
+                            igual="" if f"1/{entre_parentesis(A[0, 0])}" == texto(res.matriz_inversa[0, 0])
+                            else f" = {texto(res.matriz_inversa[0, 0])}"),),
+                queda=self._fila([res.matriz_inversa[0, 0]]))]
+        else:
+            pasos = self._pasos_inversa(res)
+        return "\n".join(resultado + ["=" * 30] + encabezado + ["", tr("PASO A PASO:")]
+                         + [texto_paso(i, p) for i, p in enumerate(pasos, 1)])
