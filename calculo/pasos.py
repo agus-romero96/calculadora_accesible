@@ -93,6 +93,25 @@ def forma_final(base: Any, exponente: Any) -> List[str]:
     return cuentas
 
 
+def agrupa_semejantes(terminos: List[Any]) -> List[str]:
+    """
+    Si al sumar los términos se juntan algunos semejantes (3*x^2*cos(x) + 3*x^2*cos(x)), la
+    cuenta de cada grupo: '3*x^2*cos(x) + 3*x^2*cos(x) = 6*x^2*cos(x)'.
+    """
+    grupos = {}
+    for termino in terminos:
+        for sumando in sympy.Add.make_args(sympy.sympify(termino)):
+            if sumando == 0:
+                continue
+            grupos.setdefault(sumando.as_coeff_Mul()[1], []).append(sumando)
+    lineas = []
+    for grupo in grupos.values():
+        if len(grupo) > 1:
+            lineas.append(tr("Agrupamos términos semejantes: {suma} = {resultado}.", suma=suma_texto(grupo),
+                             resultado=texto(sympy.Add(*grupo))))
+    return lineas
+
+
 def multiplica_numeros(*factores: Any) -> List[str]:
     """Si hay varios coeficientes numéricos que multiplicar, la cuenta: 3 * 2 = 6."""
     numeros = [sympy.sympify(f).as_coeff_Mul()[0] for f in factores]

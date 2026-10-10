@@ -680,7 +680,13 @@ class Calculo:
 
             pasos: List[PasoCalculo] = []
             actual = expr
-            pasos.append(PasoCalculo(tr("Inicio"), tr("Función original."), str(actual)))
+            nombres = [self._nombre_derivada(i, var) for i in range(n + 1)]
+            pasos.append(PasoCalculo(
+                tr("Derivada de orden {n}", n=n),
+                regla=tr("la derivada de orden n se obtiene derivando n veces seguidas: cada derivada se calcula a "
+                         "partir del resultado de la anterior."),
+                partes=tr("{f} = {expresion}; hay que derivar {n} veces: {lista}.", f=nombres[0], expresion=texto(expr),
+                          n=n, lista=", ".join(nombres[1:]))))
 
             # Política: simplificar cada k pasos, no siempre (evita explosión de costo)
             simplificar_cada = 2 if n <= 6 else 3
@@ -699,14 +705,13 @@ class Calculo:
                     # Una explicación demasiado larga ya no ayuda: el resto, solo los resultados
                     explicar = bool(sub_pasos) and len(sub_pasos) <= MAX_PASOS_DERIVADA and len(pasos) <= MAX_PASOS_ENESIMA
                     if explicar:
-                        pasos.append(PasoCalculo(tr("Derivada {i}", i=i),
-                                                 tr("Derivamos el resultado anterior, {expresion}.", expresion=texto(anterior))))
+                        pasos.append(self._paso_orden(i, nombres, anterior))
                         pasos.extend(sub_pasos)
                         continue
                     if sub_pasos:
                         avisos.append(tr("Desde la derivada {i} se muestra solo el resultado de cada derivada: "
                                          "la explicación completa sería demasiado larga.", i=i))
-                pasos.append(PasoCalculo(tr("Derivada {i}", i=i), tr("Resultado iterativo."), str(actual)))
+                pasos.append(self._paso_orden(i, nombres, anterior, actual))
 
             if actual.has(sympy.Derivative):
                 avisos.append(tr("NOTA: la derivada enésima contiene Derivative(...): quedó en forma simbólica."))
@@ -725,6 +730,20 @@ class Calculo:
 
         except Exception as e:
             return ResultadoCalculo(False, "DERIVADA DE ORDEN N", expresion, None, None, None, mensaje_error=str(e))
+
+    @staticmethod
+    def _nombre_derivada(i: int, var: Symbol) -> str:
+        """f(x), f'(x), f''(x), con tantos apóstrofos como el orden hasta 3, y desde la cuarta f^(4)(x)."""
+        return f"f{chr(39) * i}({var})" if i <= 3 else f"f^({i})({var})"
+
+    @staticmethod
+    def _paso_orden(i: int, nombres: List[str], anterior: Any, resultado: Any = None) -> PasoCalculo:
+        """Encabezado de la derivada i (con su resultado si no se explica regla a regla)."""
+        return PasoCalculo(
+            tr("Derivada {i}: {nombre}", i=i, nombre=nombres[i]),
+            regla=tr("{nombre} es la derivada de {anterior}.", nombre=nombres[i], anterior=nombres[i - 1]),
+            partes=tr("derivamos {anterior} = {expresion}.", anterior=nombres[i - 1], expresion=texto(anterior)),
+            queda="" if resultado is None else f"{nombres[i]} = {texto(resultado)}")
 
     # ---------------------------------------------------------
     # 5) RENDERIZADO ACCESIBLE (RESULTADO PRIMERO)

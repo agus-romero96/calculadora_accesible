@@ -133,9 +133,11 @@ def test_explicacion_que_no_coincide_no_se_muestra(core, monkeypatch):
 def test_derivada_enesima_explica_cada_derivada(core):
     res = core.calculo.DerivadaEnecima("x^5", "x", 3)
     titulos = [p.titulo for p in res.pasos]
-    assert titulos == ["Inicio", "Derivada 1", "Regla de la potencia en x^5", "Derivada 2",
-                       "Regla de la potencia con coeficiente en 5*x^4", "Derivada 3",
+    assert titulos == ["Derivada de orden 3", "Derivada 1: f'(x)", "Regla de la potencia en x^5", "Derivada 2: f''(x)",
+                       "Regla de la potencia con coeficiente en 5*x^4", "Derivada 3: f'''(x)",
                        "Regla de la potencia con coeficiente en 20*x^3"]
+    assert res.pasos[0].partes == "f(x) = x^5; hay que derivar 3 veces: f'(x), f''(x), f'''(x)."
+    assert res.pasos[3].partes == "derivamos f'(x) = 5*x^4."
     assert res.pasos[-1].queda == "60*x^2"
 
 
@@ -143,7 +145,15 @@ def test_derivada_enesima_larga_sigue_sin_pasos(core):
     res = core.calculo.DerivadaEnecima("exp(x)*sin(x)", "x", 12)
     assert res.es_exitoso and sympy.simplify(res.resultado - sympy.diff(sympy.exp(x) * sympy.sin(x), x, 12)) == 0
     assert any("se muestra solo el resultado" in a for a in res.advertencias)
-    assert res.pasos[-1].descripcion == "Resultado iterativo."
+    # Sin el detalle de las reglas, cada derivada sigue diciendo de cuál sale y cuánto vale
+    assert res.pasos[-1].titulo == "Derivada 12: f^(12)(x)"
+    assert res.pasos[-1].regla == "f^(12)(x) es la derivada de f^(11)(x)."
+    assert res.pasos[-1].queda == "f^(12)(x) = -64*exp(x)*sin(x)"
+
+
+def test_terminos_semejantes_no_se_juntan_sin_avisar(core):
+    pasos = core.DerivadaEnecima("x^3*sin(x)", "x", 2)
+    assert "Agrupamos términos semejantes: 3*x^2*cos(x) + 3*x^2*cos(x) = 6*x^2*cos(x)." in pasos
 
 
 def test_texto_de_un_paso():

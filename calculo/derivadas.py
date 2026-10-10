@@ -24,7 +24,7 @@ from typing import Any, List, NamedTuple, Optional, Tuple
 import sympy
 from sympy import Dummy, Symbol
 
-from calculo.pasos import (PasoCalculo, como_potencia, entre_parentesis as _p, forma_final,
+from calculo.pasos import (PasoCalculo, agrupa_semejantes, como_potencia, entre_parentesis as _p, forma_final,
                            multiplica_numeros, suma_texto, texto)
 from i18n import N_, tr
 
@@ -310,7 +310,8 @@ class ExplicadorDerivada:
         derivadas = [self.derivar(t, tr("término {i} de la suma", i=i)) for i, t in enumerate(terminos, 1)]
         resultado = sympy.Add(*derivadas)
         self._paso(SUMA, expr, rol,
-                   calculo=[tr("Juntamos las derivadas de los términos: {suma}.", suma=suma_texto(derivadas))],
+                   calculo=[tr("Juntamos las derivadas de los términos: {suma}.", suma=suma_texto(derivadas))]
+                   + agrupa_semejantes(derivadas),
                    queda=resultado, sustitucion=True)
         return resultado
 

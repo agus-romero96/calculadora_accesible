@@ -26,7 +26,7 @@ from sympy.integrals.manualintegrate import (
 )
 
 from calculo.derivadas import Regla
-from calculo.pasos import (PasoCalculo, como_potencia, entre_parentesis, forma_final, multiplica_numeros,
+from calculo.pasos import (PasoCalculo, agrupa_semejantes, como_potencia, entre_parentesis, forma_final, multiplica_numeros,
                            suma_texto, texto)
 from i18n import N_, tr
 
@@ -263,7 +263,8 @@ class ExplicadorIntegral:
         primitiva = sympy.Add(*primitivas)
         self._paso(SUMA, f, v, rol,
                    calculo=[tr("Juntamos las integrales de los términos: {suma}.",
-                               suma=suma_texto([p.xreplace(self._nombres) for p in primitivas]))],
+                               suma=suma_texto([p.xreplace(self._nombres) for p in primitivas]))]
+                   + agrupa_semejantes([p.xreplace(self._nombres) for p in primitivas]),
                    queda=primitiva, final=tr("sustitución"))
         return primitiva
 

@@ -61,6 +61,10 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
   - `tests/test_pasos_limites.py`: 183 pruebas (los 90 límites se explican con la estructura completa, el contenido de cada método y la explicación que no llega al valor).
   - Ayuda (F1) y README.
 
+- **Derivada de orden N y términos semejantes.** La derivada de orden N empezaba con "Inicio. Función original. [Fórmula]: x**5" y cada derivada con "Derivada 2. Derivamos el resultado anterior" (también la primera, que deriva la función original), sin regla. Ahora empieza con el planteamiento ("hay que derivar 3 veces: f'(x), f''(x), f'''(x)") y cada derivada dice cuál es y de cuál sale ("Derivada 2: f''(x). Regla: f''(x) es la derivada de f'(x)"); las que no se explican regla a regla (por ser demasiado largas) también dan su valor con ese formato, en lugar de "Resultado iterativo".
+  - Al juntar las derivadas (o las integrales) de una suma, los términos semejantes se agrupaban sin decirlo: "... + 3*x^2*cos(x) + 3*x^2*cos(x) ..." pasaba a "6*x^2*cos(x)" en la línea siguiente. Ahora una línea lo dice: "Agrupamos términos semejantes: 3*x^2*cos(x) + 3*x^2*cos(x) = 6*x^2*cos(x)" (`agrupa_semejantes` en `calculo/pasos.py`).
+  - `tests/test_derivadas.py`: los títulos y el planteamiento de la derivada de orden N, la derivada larga sin reglas y los términos semejantes.
+
 ### Corregido
 
 - **Integrales por partes cíclicas que dejaban de resolverse en la misma sesión**: tras unas cuantas integrales, `∫ exp(x)*sin(x)` (o `exp(x)*cos(x)`) se quedaba sin método ("Sin regla conocida") hasta reiniciar la calculadora. SymPy limita a tres los usos de `sin`, `cos`, `exp`... como `u` de la integración por partes, para no dar vueltas sin fin, pero solo pone esa cuenta a cero en `manualintegrate()`, y la calculadora usa `integral_steps()` para obtener los pasos: la cuenta se acumulaba entre integrales. Ahora se pone a cero tras cada una. Apareció al probar las nuevas explicaciones de las integrales, cuyo resultado dependía del orden de las pruebas. `tests/test_calculo.py` integra cinco veces seguidas `exp(x)*sin(x)`.
