@@ -9,6 +9,7 @@ informe y devuelve el código de salida 0 si todo es correcto (1 si algo falla).
 Sirve para comprobar que el empaquetado (cx_Freeze) incluyó todo lo necesario:
 el ejecutable usa Win32GUI y no tiene consola, así que el informe va a un archivo.
 """
+import os
 from typing import Callable, List, Optional, Tuple
 
 import i18n
@@ -58,7 +59,9 @@ def _en_ingles(llamada):
 def ejecutar(ruta_informe: Optional[str] = None) -> int:
     lineas: List[str] = []
     fallos = 0
-    # Los textos esperados están en español (idioma de origen)
+    # Los textos esperados son los del código, en español: sin locales/es.json, que el
+    # usuario puede haber editado (la variable la hereda también el proceso de cálculo)
+    os.environ[i18n.TEXTOS_ORIGEN] = "1"
     i18n.establecer_idioma(i18n.IDIOMA_ORIGEN)
     try:
         core = CoreMatematico()

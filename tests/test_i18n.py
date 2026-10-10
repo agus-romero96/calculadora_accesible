@@ -1,8 +1,8 @@
 """
-Traducciones: el catálogo inglés debe cubrir todos los textos del código, con los
-mismos {marcadores}, y los resultados en inglés no deben dejar texto en español.
+Traducciones: los catálogos (es.json, en.json) deben cubrir todos los textos del
+código, con los mismos {marcadores}, y los resultados en inglés no deben dejar texto
+en español.
 """
-import ast
 import json
 import os
 import re
@@ -11,31 +11,8 @@ import string
 import pytest
 
 import i18n
+from catalogos import textos_marcados
 from conftest import RAIZ, primera_linea
-
-CARPETAS_CODIGO = ["", "algebra", "calculo", os.path.join("calculo", "lim_estrategias")]
-EXCLUIR = {"setup.py", "compilar.py", "tests_limites.py"}
-
-
-def archivos_codigo():
-    for carpeta in CARPETAS_CODIGO:
-        base = os.path.join(RAIZ, carpeta)
-        for nombre in sorted(os.listdir(base)):
-            if nombre.endswith(".py") and nombre not in EXCLUIR:
-                yield os.path.join(base, nombre)
-
-
-def textos_marcados():
-    """Primer argumento literal de cada llamada tr("...") o N_("...") del código."""
-    textos = {}
-    for ruta in archivos_codigo():
-        arbol = ast.parse(open(ruta, encoding="utf-8").read())
-        for nodo in ast.walk(arbol):
-            if (isinstance(nodo, ast.Call) and isinstance(nodo.func, ast.Name)
-                    and nodo.func.id in ("tr", "N_") and nodo.args
-                    and isinstance(nodo.args[0], ast.Constant) and isinstance(nodo.args[0].value, str)):
-                textos.setdefault(nodo.args[0].value, os.path.relpath(ruta, RAIZ))
-    return textos
 
 
 def marcadores(texto):
@@ -43,6 +20,7 @@ def marcadores(texto):
 
 
 CATALOGO_EN = json.load(open(os.path.join(RAIZ, "locales", "en.json"), encoding="utf-8"))
+CATALOGO_ES = json.load(open(os.path.join(RAIZ, "locales", "es.json"), encoding="utf-8"))
 TEXTOS = textos_marcados()
 
 
@@ -63,6 +41,61 @@ def test_traduccion_conserva_marcadores(texto):
 def test_catalogo_sin_textos_obsoletos():
     sobrantes = sorted(set(CATALOGO_EN) - set(TEXTOS))
     assert not sobrantes, f"Traducciones que ya no se usan: {sobrantes}"
+
+
+# ---------------- Catálogo del español (editable) ----------------
+
+def test_catalogo_espanol_completo():
+    """Para añadir los textos nuevos y quitar los que sobran: python -X utf8 catalogos.py"""
+    faltan = sorted(set(TEXTOS) - set(CATALOGO_ES))
+    sobran = sorted(set(CATALOGO_ES) - set(TEXTOS))
+    assert not faltan and not sobran, f"Ejecute catalogos.py. Faltan: {faltan}. Sobran: {sobran}"
+
+
+@pytest.mark.parametrize("texto", sorted(CATALOGO_ES))
+def test_espanol_conserva_marcadores(texto):
+    assert marcadores(texto) == marcadores(CATALOGO_ES[texto]), texto
+
+
+@pytest.fixture
+def catalogo_es_editado(tmp_path, monkeypatch):
+    """Un es.json con un texto cambiado, en una carpeta de locales temporal."""
+    editado = dict(CATALOGO_ES, **{"RESULTADO: {valor}": "LA RESPUESTA ES {valor}"})
+    (tmp_path / "es.json").write_text(json.dumps(editado, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr(i18n, "carpeta_locales", lambda: str(tmp_path))
+    monkeypatch.delenv(i18n.TEXTOS_ORIGEN)
+    yield tmp_path
+    monkeypatch.undo()
+    i18n.establecer_idioma("es")
+
+
+def test_es_json_cambia_el_texto_mostrado(core, catalogo_es_editado):
+    i18n.establecer_idioma("es")
+    assert primera_linea(core.Derivar("x^3")) == "LA RESPUESTA ES 3*x**2"
+
+
+def test_es_json_danado_usa_los_textos_del_codigo(core, catalogo_es_editado):
+    (catalogo_es_editado / "es.json").write_text('{"RESULTADO: {valor}": ', encoding="utf-8")
+    i18n.establecer_idioma("es")
+    assert primera_linea(core.Derivar("x^3")) == "RESULTADO: 3*x**2"
+
+
+def test_es_json_ausente_usa_los_textos_del_codigo(core, catalogo_es_editado):
+    (catalogo_es_editado / "es.json").unlink()
+    i18n.establecer_idioma("es")
+    assert primera_linea(core.Derivar("x^3")) == "RESULTADO: 3*x**2"
+
+
+def test_marcador_mal_escrito_no_rompe_el_calculo(core, catalogo_es_editado):
+    editado = {"RESULTADO: {valor}": "RESULTADO: {valoor}"}
+    (catalogo_es_editado / "es.json").write_text(json.dumps(editado), encoding="utf-8")
+    i18n.establecer_idioma("es")
+    assert primera_linea(core.Derivar("x^3")) == "RESULTADO: 3*x**2"
+
+
+def test_textos_origen_ignora_es_json(catalogo_es_editado, monkeypatch):
+    monkeypatch.setenv(i18n.TEXTOS_ORIGEN, "1")
+    assert i18n.cargar_catalogo("es") == {}
 
 
 def test_ayuda_existe_en_cada_idioma():

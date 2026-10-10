@@ -320,6 +320,8 @@ if __name__ == "__main__":
     # El historial se guarda junto a la configuración: una carpeta temporal en lugar de la del usuario
     carpeta_appdata = tempfile.mkdtemp()
     os.environ["APPDATA"] = carpeta_appdata
+    # Se comparan los textos del código, no los de locales/es.json (editable)
+    os.environ["CALCULADORA_TEXTOS_ORIGEN"] = "1"
     import wx
     wx.MessageBox = lambda msg, *a, **k: mensajes.append(msg)
     import i18n

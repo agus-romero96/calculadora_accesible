@@ -2,8 +2,10 @@
 Traducción de la interfaz y de los resultados.
 
 El idioma de origen es el español: los textos se escriben en español en el código y
-el catálogo locales/<idioma>.json da su traducción. Si falta una traducción, se
-muestra el texto en español (nunca falla).
+el catálogo locales/<idioma>.json da su traducción. El texto del código es solo la
+clave: también el español tiene su catálogo (locales/es.json), para corregir o
+mejorar la redacción sin tocar el código. Si falta una traducción, se muestra el
+texto del código (nunca falla).
 
 Uso:
     from i18n import tr, N_
@@ -18,7 +20,12 @@ descartable (num, _ = ...), y eso ocultaría la función de traducción.
 N_ marca textos que se guardan sin traducir porque también se usan como
 identificadores (por ejemplo, nombres de estrategia que se comparan en el código)
 y se traducen solo al mostrarlos. tests/test_i18n.py recoge los textos de tr("...")
-y N_("...") del código fuente y comprueba que todos tengan traducción.
+y N_("...") del código fuente y comprueba que todos tengan traducción; para añadir
+a locales/es.json los textos nuevos, ejecute  python -X utf8 catalogos.py .
+
+Las pruebas y la autoprueba comparan con los textos del código, no con los de
+es.json (que el usuario puede cambiar): con la variable de entorno
+CALCULADORA_TEXTOS_ORIGEN=1 no se carga es.json. Se hereda en el proceso de cálculo.
 """
 import json
 import os
@@ -30,8 +37,8 @@ IDIOMAS = {"es": "Español", "en": "English"}
 # Idioma en que wxWidgets escribe sus propios textos: no necesita catálogo.
 IDIOMA_WX_ORIGEN = "en"
 
-_idioma = IDIOMA_ORIGEN
-_catalogo: Dict[str, str] = {}
+# Variable de entorno: usar los textos del código en lugar de locales/es.json
+TEXTOS_ORIGEN = "CALCULADORA_TEXTOS_ORIGEN"
 
 
 def carpeta_recursos() -> str:
@@ -50,11 +57,32 @@ def catalogos_wx() -> list:
     return [codigo for codigo in IDIOMAS if codigo != IDIOMA_WX_ORIGEN]
 
 
+def ruta_catalogo(codigo: str) -> str:
+    return os.path.join(carpeta_locales(), f"{codigo}.json")
+
+
 def cargar_catalogo(codigo: str) -> Dict[str, str]:
+    """
+    Catálogo de un idioma. El del español es opcional: si falta, está dañado (por
+    ejemplo, tras editarlo a mano) o se pide CALCULADORA_TEXTOS_ORIGEN, se usan los
+    textos del código. El de otro idioma debe existir (si no, iniciar_idioma vuelve al español).
+    """
     if codigo == IDIOMA_ORIGEN:
-        return {}
-    with open(os.path.join(carpeta_locales(), f"{codigo}.json"), encoding="utf-8") as f:
+        if os.environ.get(TEXTOS_ORIGEN):
+            return {}
+        try:
+            with open(ruta_catalogo(codigo), encoding="utf-8") as f:
+                catalogo = json.load(f)
+            return {k: v for k, v in catalogo.items() if isinstance(k, str) and isinstance(v, str)}
+        except Exception:
+            return {}
+    with open(ruta_catalogo(codigo), encoding="utf-8") as f:
         return json.load(f)
+
+
+_idioma = IDIOMA_ORIGEN
+# Cargado ya al importar: el proceso de cálculo empieza en español sin llamar a establecer_idioma
+_catalogo: Dict[str, str] = cargar_catalogo(IDIOMA_ORIGEN)
 
 
 def establecer_idioma(codigo: str) -> None:
@@ -72,7 +100,14 @@ def idioma_actual() -> str:
 def tr(texto: str, **valores) -> str:
     """Traduce texto al idioma actual y rellena los {marcadores} con valores."""
     traducido = _catalogo.get(texto, texto)
-    return traducido.format(**valores) if valores else traducido
+    if not valores:
+        return traducido
+    try:
+        return traducido.format(**valores)
+    except (KeyError, IndexError, ValueError):
+        # Traducción con un marcador mal escrito (los catálogos se editan a mano):
+        # se muestra el texto del código antes que fallar a mitad de un cálculo
+        return texto.format(**valores)
 
 
 def N_(texto: str) -> str:

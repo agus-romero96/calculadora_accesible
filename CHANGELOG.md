@@ -6,6 +6,17 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Sin publicar]
 
+### Añadido
+
+- **Los textos en español están en `locales/es.json`**, igual que los del inglés en `en.json`, para corregir o mejorar la redacción (menús, diálogos, explicaciones paso a paso, errores) sin tocar el código. Antes el español no tenía catálogo: el texto que se mostraba era el del código, y cambiar una palabra exigía editar el `.py` correspondiente.
+  - El texto del código sigue siendo la clave de todos los catálogos, así que `en.json` y las comparaciones internas (`N_`) no cambian. `es.json` empieza con el mismo texto que el código en sus 641 entradas: nada cambia para el usuario hasta que se edite.
+  - Un `es.json` ausente o con un error de formato no impide abrir la calculadora (se usan los textos del código). Un marcador mal escrito (`{valorr}`) tampoco interrumpe el cálculo: ese texto se muestra como en el código. Antes, `tr()` lanzaba `KeyError` si una traducción tenía un marcador inexistente.
+  - El catálogo del español se carga ya al importar `i18n`. Sin eso, el proceso de cálculo (que empieza en español sin llamar a `establecer_idioma`) habría mostrado los textos del código en los resultados aunque la interfaz usara los de `es.json`.
+  - **`catalogos.py`**: `python -X utf8 catalogos.py` añade a `es.json` los textos nuevos del código, quita los que ya no se usan sin tocar los editados, e informa de las traducciones que faltan o sobran en `en.json` (`--comprobar` solo informa). La extracción de textos de `tests/test_i18n.py` pasa a este módulo para compartirla.
+  - Las pruebas, `tests/verificar_ui.py` y la autoprueba del ejecutable comparan con los textos del código: con la variable de entorno `CALCULADORA_TEXTOS_ORIGEN=1` no se carga `es.json`. Si no, mejorar una redacción haría fallar la suite y `compilar.py` se negaría a generar el instalador.
+  - `tests/test_i18n.py`: `es.json` cubre todos los textos y conserva los marcadores; un `es.json` editado cambia el resultado mostrado; uno dañado, ausente o con un marcador mal escrito usa los textos del código.
+  - README: sección "Editar los textos en español".
+
 ### Cambiado
 
 - **Registro de operaciones** (`puente.REGISTRO`): cada operación se declara una sola vez, con su nombre, el método que la calcula, los datos que pide, su menú, su etiqueta y su atajo. Es el paso previo para añadir operaciones nuevas (la primera será la integral definida): antes, cada una exigía tocar a mano el diccionario `OPERACIONES`, el menú, un manejador propio en `main.py` y el verbo del diálogo de variable, y olvidar uno de ellos (por ejemplo, la clave en `OPERACIONES`) hacía que el historial la descartara al abrir la calculadora sin avisar.

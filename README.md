@@ -19,6 +19,7 @@ Disponible en **español e inglés** (interfaz, explicaciones y ayuda). Los resu
 - [Compilar el ejecutable e instalador](#compilar-el-ejecutable-e-instalador)
 - [Arquitectura](#arquitectura)
 - [Añadir una operación](#añadir-una-operación)
+- [Editar los textos en español](#editar-los-textos-en-español)
 - [Traducir a otro idioma](#traducir-a-otro-idioma)
 - [Pruebas](#pruebas)
 - [Limitaciones conocidas](#limitaciones-conocidas)
@@ -246,7 +247,7 @@ exportar.py             Copiar/exportar (un resultado o el historial): texto, Ma
 historial.py            Historial de operaciones y su archivo (modelo, sin interfaz)
 ventana_historial.py    Diálogo accesible del historial
 i18n.py                 Traducción: tr(), N_(), idioma guardado y detectado
-locales/                en.json (catálogo inglés) y ayuda_es.txt / ayuda_en.txt
+locales/                es.json y en.json (textos de cada idioma), ayuda_es.txt / ayuda_en.txt
   │
 parser_matematico.py    ParserMatematico: parser único compartido (SymPy parse_expr)
   │
@@ -267,6 +268,7 @@ parser_matematico.py    ParserMatematico: parser único compartido (SymPy parse_
         ├── continuidad.py
         └── infinito.py
 
+catalogos.py            Sincroniza locales/es.json con los textos del código
 autoprueba.py           Prueba del núcleo para el ejecutable compilado (--autoprueba)
 _version.py             Versión de la aplicación (única fuente)
 compilar.py             Pruebas + ejecutable + autoprueba + instalador
@@ -281,7 +283,7 @@ Principios de diseño:
 - **DTOs inmutables** (`@dataclass(frozen=True)`): cada motor devuelve un objeto de resultado (`ResultadoAritmetica`, `ResultadoCalculo`, `ResultadoGauss`, …) y un método `renderizar` lo convierte en texto accesible. La lógica matemática y la presentación están separadas.
 - **"La verdad la da SymPy"**: el resultado final siempre se calcula con SymPy; la explicación pedagógica se añade aparte y solo se muestra un patrón (por ejemplo, "diferencia de cuadrados") cuando se puede verificar.
 - **Patrón Strategy en límites**: cada técnica implementa `puede_resolver()` y `resolver()`. El enrutador las prueba en orden y la primera que llega a una conclusión gana.
-- **Traducción**: el código está escrito en español, y cada texto visible pasa por `tr("…")`, que busca su traducción en `locales/<idioma>.json`. Los textos que además funcionan como identificadores (nombres de estrategia que se comparan en el código) se marcan con `N_("…")` y se traducen solo al mostrarlos.
+- **Traducción**: el código está escrito en español, y cada texto visible pasa por `tr("…")`, que busca su texto en `locales/<idioma>.json` (también en español: `es.json`, para cambiar la redacción sin tocar el código). Los textos que además funcionan como identificadores (nombres de estrategia que se comparan en el código) se marcan con `N_("…")` y se traducen solo al mostrarlos.
 - **Resultado estructurado**: la interfaz trabaja con `ResultadoOperacion` (texto, valor SymPy, planteamiento sin evaluar y `es_error`), lo que permite exportar `planteamiento = resultado` y detectar errores sin mirar el texto.
 - **Registro de operaciones**: cada operación se declara una sola vez en `puente.REGISTRO`. La interfaz construye con él los menús Operaciones, Cálculo y Álgebra y pide los datos de cada operación; el historial y la exportación toman de él el nombre visible.
 
@@ -293,14 +295,34 @@ Principios de diseño:
 2. **`puente.py`**: un método de `CoreMatematico` que devuelva un `ResultadoOperacion` con la clave de la operación y, si se puede, el `planteamiento` sin evaluar (por ejemplo `Integral(f, (x, a, b))`), para exportarlo como en un libro.
 3. **`puente.REGISTRO`**: una entrada `Operacion(...)` con la clave, el nombre, el método, los datos que se piden, la descripción ("Calculando …"), el menú, la etiqueta y el atajo. Su posición en la lista es su posición en el menú.
    - Los **datos** son uno de los de `CalculadoraAccesible.PEDIR_DATOS` en `main.py`: `expresion`, `lineas`, `expresion_variable`, `variable_orden` o `variable_tendencia`. Si la operación necesita otros (por ejemplo, los límites de una integral definida), se añade ahí una función que los pida.
-4. **Traducción y ayuda**: los textos nuevos en `locales/en.json` y una sección en `locales/ayuda_es.txt` y `locales/ayuda_en.txt`.
+4. **Traducción y ayuda**: `python -X utf8 catalogos.py` añade los textos nuevos a `locales/es.json`; su traducción va en `locales/en.json`; y una sección en `locales/ayuda_es.txt` y `locales/ayuda_en.txt`.
 5. **Pruebas**: las del motor; un ejemplo en `EJEMPLOS` de `tests/test_registro.py` (comprueba que el método existe, que el resultado lleva su clave y que los atajos no se repiten); un caso en `paso11` de `tests/verificar_ui.py`; y, si el planteamiento es un objeto SymPy nuevo, que se guarde y recupere tal cual en `tests/test_historial.py`. Si usa partes de SymPy que aún no se usaban, un caso en `autoprueba.py` comprueba que el ejecutable las incluye.
+
+---
+
+## Editar los textos en español
+
+Todos los textos que muestra la calculadora en español (menús, diálogos, explicaciones paso a paso y mensajes de error) están en **`locales/es.json`**, así que se pueden corregir o mejorar sin tocar el código:
+
+```json
+"RESULTADO: {valor}": "RESULTADO: {valor}",
+```
+
+- La **clave** (a la izquierda) es el texto tal como está en el código: no se cambia. Se edita solo el **valor** (a la derecha).
+- Los **marcadores** entre llaves (`{valor}`) se rellenan al mostrar el texto: hay que conservarlos con el mismo nombre. Si uno queda mal escrito, se muestra el texto del código en lugar de fallar, y `tests/test_i18n.py` lo detecta.
+- Si `es.json` falta o tiene un error de formato JSON, la calculadora usa los textos del código.
+- En la calculadora instalada, el archivo está en `C:\Program Files\Calculadora Accesible\locales\es.json` (editarlo ahí requiere permisos de administrador, y una actualización lo reemplaza por el del instalador). Lo habitual es editarlo en el repositorio y publicar una versión.
+- La ayuda (F1) está aparte, en `locales/ayuda_es.txt`.
+
+Al añadir un texto nuevo en el código (`tr("…")` o `N_("…")`), ejecute `python -X utf8 catalogos.py`: añade a `es.json` los textos nuevos (con el mismo texto del código, listo para editar), quita los que ya no se usan, no toca lo ya editado e informa de las traducciones que faltan en `en.json`.
+
+Las pruebas, `tests/verificar_ui.py` y la autoprueba del ejecutable comparan con los textos **del código**, no con los de `es.json` (activan la variable de entorno `CALCULADORA_TEXTOS_ORIGEN=1`), para que editar la redacción no las haga fallar.
 
 ---
 
 ## Traducir a otro idioma
 
-1. Copie `locales/en.json` como `locales/<código>.json` (por ejemplo `fr.json`) y traduzca los **valores**. Las claves son el texto original en español y no se modifican; los marcadores entre llaves (`{variable}`) deben conservarse.
+1. Copie `locales/en.json` como `locales/<código>.json` (por ejemplo `fr.json`) y traduzca los **valores**. Las claves son el texto del código (en español) y no se modifican; los marcadores entre llaves (`{variable}`) deben conservarse.
 2. Cree `locales/ayuda_<código>.txt` con la ayuda (F1) traducida.
 3. Añada el idioma a `IDIOMAS` en `i18n.py` (y, si quiere que se elija automáticamente, ajuste `detectar_idioma_sistema()`). No hace falta nada más para los botones propios de wxWidgets (Aceptar/Cancelar): la calculadora busca el idioma de wx por su código y `setup.py` incluye en el ejecutable el catálogo de wxWidgets de cada idioma de `IDIOMAS`.
 4. Ejecute las pruebas: `tests/test_i18n.py` comprueba que el catálogo cubra **todos** los textos del programa, que los marcadores coincidan y que wxWidgets conozca el idioma y traiga su catálogo.
