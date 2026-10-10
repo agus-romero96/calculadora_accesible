@@ -65,6 +65,14 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
        3 4
 
 5. EJEMPLOS PRÁCTICOS
+   - Calcular: Escriba '(2+3)*4 - 2^2'. Pulse Ctrl+Enter.
+     El paso a paso sigue la jerarquía de las operaciones: primero
+     lo que hay entre paréntesis, después las potencias, las
+     multiplicaciones y divisiones, y por último sumas y restas,
+     una operación por paso con su regla y su cuenta.
+   - Factorizar: Escriba 'x^2 - 5*x + 6'. Cada caso (factor común,
+     diferencia de cuadrados, trinomios, Ruffini...) explica sus
+     cuentas, y al final se comprueba multiplicando los factores.
    - Derivar: Escriba '3*x^2 + 5'. Pulse Ctrl+D.
      Cada regla se explica en el mismo orden, una línea por parte:
      "Regla" (el enunciado general), "En este caso" (qué parte

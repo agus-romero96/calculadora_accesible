@@ -78,7 +78,7 @@ def test_derivada_de_abs_es_sign(core):
 
 def test_simplificar_raiz_de_cuadrado(core):
     # Antes: sqrt(x**2) quedaba sin simplificar
-    assert core.Simplificar("sqrt(x^2)").splitlines()[-1] == "RESULTADO FINAL: Abs(x)"
+    assert core.Simplificar("sqrt(x^2)").splitlines()[0] == "RESULTADO: Abs(x)"
 
 
 def test_integral_de_abs(core):

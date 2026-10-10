@@ -34,9 +34,9 @@ Disponible en **español e inglés** (interfaz, explicaciones y ayuda). Los resu
 
 | Operación | Qué hace |
 |---|---|
-| **Evaluar** | Calcula expresiones numéricas. Si el resultado es entero o una fracción simple, lo muestra directamente; si es irracional (por ejemplo `2*pi` o `sqrt(2)`), muestra el valor exacto **y** una aproximación decimal. Rechaza expresiones con variables y sugiere usar *Simplificar*. |
-| **Simplificar** | Reduce expresiones algebraicas. Informa la estrategia usada: agrupación por potencias (`collect`), cancelación de factores en fracciones (`cancel`) o simplificación general. |
-| **Factorizar** | Factoriza polinomios sobre los racionales y **reconoce el caso escolar** solo cuando puede verificarlo: factor común, trinomio cuadrado perfecto, cubo perfecto, diferencia de cuadrados, suma/diferencia de cubos, trinomio `x²+bx+c` y `ax²+bx+c`. Avisa si el polinomio es irreducible. |
+| **Evaluar** | Calcula expresiones numéricas operación a operación, en el orden de la jerarquía (paréntesis y funciones, potencias, multiplicaciones y divisiones, sumas y restas, de izquierda a derecha), con la regla de cada una: fracciones con denominador común y simplificación, regla de los signos, potencias desarrolladas (`2^3 = 2*2*2 = 8`), raíces (`sqrt(8) = 2*sqrt(2)`) y valores exactos conocidos (`sin(pi/2) = 1`). Si el resultado es irracional (por ejemplo `2*pi` o `sqrt(2)`), muestra el valor exacto **y** una aproximación decimal. Rechaza expresiones con variables y sugiere usar *Simplificar*. |
+| **Simplificar** | Reduce expresiones algebraicas paso a paso: desarrolla los paréntesis (propiedad distributiva, cuadrado de un binomio, suma por diferencia), agrupa los términos semejantes con la cuenta de los coeficientes (`2*x + 5*x = (2 + 5)*x = 7*x`), suma fracciones con el mínimo común denominador, factoriza y cancela (diciendo para qué valores no vale) y señala las identidades (`exp(log(x)) = x`, `sin(x)^2 + cos(x)^2 = 1`). |
+| **Factorizar** | Factoriza polinomios sobre los racionales explicando cada caso escolar con sus cuentas: factor común (cada término dividido), diferencia de cuadrados, trinomio cuadrado perfecto (comprobando el término central), trinomio `x²+bx+c` (dos números que suman `b` y multiplican `c`), `ax²+bx+c` (discriminante y raíces), suma o diferencia de cubos, agrupación y **Ruffini** (raíces racionales posibles y la tabla). Cada factor se vuelve a factorizar y al final se comprueba multiplicando. Si un polinomio de grado 2 no se factoriza, lo justifica con el discriminante. |
 
 ### Cálculo (menú **Cálculo**)
 
@@ -131,7 +131,7 @@ El menú **Idioma / Language** cambia toda la calculadora entre **español** e *
 ## Accesibilidad
 
 - **Solo teclado**: todas las funciones tienen menú con letra de acceso (`Alt`) y la mayoría tiene atajo directo.
-- **Resultado primero**: en derivadas, integrales, límites y álgebra, la primera línea es siempre `RESULTADO: …`, para no tener que escuchar todo el desarrollo.
+- **Resultado primero**: en todas las operaciones, la primera línea es siempre `RESULTADO: …`, para no tener que escuchar todo el desarrollo.
 - **Gestión del foco**: al calcular, el foco pasa al cuadro de resultados y el cursor vuelve al inicio, listo para leer con las flechas. Si hay un error, el foco vuelve a la entrada.
 - **Texto plano estructurado**: secciones numeradas, viñetas y matrices fila por fila (`[ 1, 2 | 3 ]`), sin depender de imágenes ni de notación visual.
 - **Diálogos de desambiguación**: si una expresión tiene varias variables (`x*y`), se pregunta respecto a cuál derivar o integrar en una lista navegable con flechas.
@@ -319,6 +319,7 @@ locales/                es.json y en.json (textos de cada idioma), ayuda_es.txt 
 parser_matematico.py    ParserMatematico: parser único compartido (SymPy parse_expr)
   │
 ├── aritmetica.py               Evaluar / Simplificar / Factorizar
+├── pasos_aritmetica.py         Su paso a paso (jerarquía de operaciones, desarrollar, factorizar)
 ├── algebra/
 │   ├── gauss_logic.py          Gauss-Jordan paso a paso
 │   ├── matrix_logic.py         Inversa por cofactores

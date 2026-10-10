@@ -25,7 +25,7 @@ def test_evaluar_irracional_da_decimal_y_conserva_exacto(core):
     assert dto.es_exitoso
     assert not dto.es_trivial
     assert abs(float(dto.resultado) - 6.283185307179586) < 1e-12
-    assert any("2*pi" in p for p in dto.pasos)
+    assert dto.pasos[-1].titulo == "Aproximación decimal" and "2*pi" in dto.pasos[-1].partes
 
 
 def test_evaluar_rechaza_variables(core):
@@ -75,12 +75,12 @@ def test_factorizar_irreducible(core):
 def test_factorizar_no_inventa_factor_comun(core):
     # Regresión: antes mostraba "Extracción de factor común: x**2 - 9" y "x**2 - 1*9"
     dto = core.aritmetica.factorizar("x^2-9")
-    assert not any("factor común" in p for p in dto.pasos)
+    assert not any("factor común" in p.titulo for p in dto.pasos)
     assert str(dto.expresion_original) == "x**2 - 9"
 
 
 def test_factorizar_extrae_factor_comun_real(core):
     dto = core.aritmetica.factorizar("2*x^2-18")
-    assert any("factor común" in p for p in dto.pasos)
+    assert dto.pasos[0].titulo == "Sacar factor común"
     assert dto.estrategia == "Diferencia de cuadrados"
     assert sp.expand(dto.resultado - (2 * x**2 - 18)) == 0

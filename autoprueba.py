@@ -21,7 +21,7 @@ def _casos(core: CoreMatematico) -> List[Tuple[str, Callable[[], str], str]]:
     return [
         ("Evaluar", lambda: core.Evaluar("2+2"), "RESULTADO: 4"),
         ("Evaluar irracional", lambda: core.Evaluar("2*pi"), "6.2831853"),
-        ("Simplificar", lambda: core.Simplificar("(x^2-1)/(x-1)"), "RESULTADO FINAL: x + 1"),
+        ("Simplificar", lambda: core.Simplificar("(x^2-1)/(x-1)"), "RESULTADO: x + 1"),
         ("Factorizar", lambda: core.Factorizar("x^3-8"), "Suma/diferencia de cubos"),
         ("Derivar", lambda: core.Derivar("abs(x)"), "RESULTADO: sign(x)"),
         ("Derivada N", lambda: core.DerivadaEnecima("x^5", "x", 3), "RESULTADO: 60*x**2"),

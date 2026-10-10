@@ -46,7 +46,7 @@ def test_excepcion_del_motor(proceso):
     with pytest.raises(ErrorCalculo, match="division by zero"):
         proceso.calcular("factorizar", "fallar")
     # el proceso sigue sirviendo
-    assert proceso.calcular("evaluar", "2+2").texto == "RESULTADO: 4"
+    assert proceso.calcular("evaluar", "2+2").texto.splitlines()[0] == "RESULTADO: 4"
 
 
 def test_cancelar_detiene_el_proceso(proceso):
@@ -63,23 +63,23 @@ def test_cancelar_detiene_el_proceso(proceso):
     # el cálculo cancelado ya no existe y hay otro proceso listo
     assert proceso.esta_vivo() and proceso.pid != pid_anterior
     assert proceso.calcular("pid") != pid_anterior
-    assert proceso.calcular("evaluar", "2+2").texto == "RESULTADO: 4"
+    assert proceso.calcular("evaluar", "2+2").texto.splitlines()[0] == "RESULTADO: 4"
 
 
 def test_cancelar_sin_calculo_en_curso(proceso):
     proceso.cancelar()
-    assert proceso.calcular("evaluar", "3+3").texto == "RESULTADO: 6"
+    assert proceso.calcular("evaluar", "3+3").texto.splitlines()[0] == "RESULTADO: 6"
 
 
 def test_proceso_que_termina_solo(proceso):
     with pytest.raises(ErrorCalculo, match="terminó de forma inesperada"):
         proceso.calcular("morir", "x")
     # el siguiente cálculo arranca otro proceso
-    assert proceso.calcular("evaluar", "2+2").texto == "RESULTADO: 4"
+    assert proceso.calcular("evaluar", "2+2").texto.splitlines()[0] == "RESULTADO: 4"
 
 
 def test_cerrar():
     p = ProcesoCalculo(fabrica=NucleoPruebas)
-    assert p.calcular("evaluar", "1+1").texto == "RESULTADO: 2"
+    assert p.calcular("evaluar", "1+1").texto.splitlines()[0] == "RESULTADO: 2"
     p.cerrar()
     assert not p.esta_vivo()

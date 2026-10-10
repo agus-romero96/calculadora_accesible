@@ -65,6 +65,15 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
        3 4
 
 5. PRACTICAL EXAMPLES
+   - Calculate: Type '(2+3)*4 - 2^2'. Press Ctrl+Enter.
+     The steps follow the order of operations: first what is in
+     parentheses, then powers, multiplications and divisions, and
+     finally additions and subtractions, one operation per step
+     with its rule and its arithmetic.
+   - Factor: Type 'x^2 - 5*x + 6'. Each case (common factor,
+     difference of squares, trinomials, synthetic division...)
+     shows its arithmetic, and the factors are checked by
+     multiplying them at the end.
    - Differentiate: Type '3*x^2 + 5'. Press Ctrl+D.
      Each rule is explained in the same order, one line per part:
      "Rule" (the general statement), "In this case" (which part

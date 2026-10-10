@@ -65,7 +65,7 @@ def portapapeles():
 def paso1():  # rápido: sin diálogo de progreso
     f.proceso.calcular("evaluar", "1")  # espera a que el proceso de cálculo termine de arrancar
     f.input_text.SetValue("2+2"); f.on_evaluar_inteligente(None)
-    wx.CallLater(300, lambda: (check("rápido: resultado", f.output_text.GetValue() == "RESULTADO: 4"),
+    wx.CallLater(300, lambda: (check("rápido: resultado", f.output_text.GetValue().splitlines()[0] == "RESULTADO: 4"),
                                check("rápido: sin diálogo", f._dlg_progreso is None),
                                check("rápido: libre", f._calculo_actual is None), paso2()))
 

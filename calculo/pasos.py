@@ -56,16 +56,23 @@ def texto(expr: Any) -> str:
 
 def entre_parentesis(expr: Any) -> str:
     """Expresión lista para ir dentro de un producto o como exponente: entre paréntesis si hace falta."""
+    expr = sympy.sympify(expr)
     simple = (expr.is_Symbol or (expr.is_Integer and expr >= 0) or expr.is_Function
               or (expr.is_Pow and expr.exp.is_Integer and expr.exp > 0 and expr.base.is_Symbol))
     return texto(expr) if simple else f"({texto(expr)})"
 
 
 def suma_texto(terminos: List[Any]) -> str:
-    """t1 + t2 - t3: los términos negativos se restan en lugar de sumar "(-t3)"."""
+    """
+    t1 + t2 - t3: los términos negativos se restan en lugar de sumar "(-t3)". Un término que
+    es a su vez una suma va entre paréntesis: x + (-x - 1), no x - x + 1.
+    """
     partes = [texto(terminos[0])]
     for t in terminos[1:]:
-        if t.could_extract_minus_sign():
+        t = sympy.sympify(t)
+        if t.is_Add:
+            partes.append(f"+ ({texto(t)})")
+        elif t.could_extract_minus_sign():
             partes.append(f"- {texto(-t)}")
         else:
             partes.append(f"+ {texto(t)}")
