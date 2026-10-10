@@ -24,7 +24,8 @@ from typing import Any, List, NamedTuple, Optional, Tuple
 import sympy
 from sympy import Dummy, Symbol
 
-from calculo.pasos import PasoCalculo
+from calculo.pasos import (PasoCalculo, como_potencia, entre_parentesis as _p, forma_final,
+                           multiplica_numeros, suma_texto, texto)
 from i18n import N_, tr
 
 
@@ -59,36 +60,6 @@ DIRECTA = Regla(N_("Derivada directa"), N_("Directa"), N_("Elemental."))
 _TRIVIALES = {CONSTANTE.estrategia, VARIABLE.estrategia}
 
 
-def texto(expr: Any) -> str:
-    """Expresión para leer: con ^ en lugar de ** (como se escribe en la calculadora)."""
-    return sympy.sstr(expr).replace("**", "^")
-
-
-def _p(expr: Any) -> str:
-    """Expresión lista para ir dentro de un producto o como exponente: entre paréntesis si hace falta."""
-    simple = (expr.is_Symbol or (expr.is_Integer and expr >= 0) or expr.is_Function
-              or (expr.is_Pow and expr.exp.is_Integer and expr.exp > 0 and expr.base.is_Symbol))
-    return texto(expr) if simple else f"({texto(expr)})"
-
-
-def _suma_texto(terminos: List[Any]) -> str:
-    """t1 + t2 - t3: los términos negativos se restan en lugar de sumar "(-t3)"."""
-    partes = [texto(terminos[0])]
-    for t in terminos[1:]:
-        if t.could_extract_minus_sign():
-            partes.append(f"- {texto(-t)}")
-        else:
-            partes.append(f"+ {texto(t)}")
-    return " ".join(partes)
-
-
-def _como_potencia(expr: Any, forma: str) -> str:
-    """Final de la frase que identifica la potencia: por qué sqrt(x), 1/x o x tienen exponente."""
-    if texto(expr) == forma:
-        return "."
-    return tr(", porque {expresion} es lo mismo que {potencia}.", expresion=texto(expr), potencia=forma)
-
-
 def _resta_exponente(n: Any) -> List[str]:
     """Cuenta del exponente nuevo (n - 1) y, si sale 0, por qué desaparece la potencia."""
     if not n.is_Number:
@@ -97,30 +68,6 @@ def _resta_exponente(n: Any) -> List[str]:
     if n - 1 == 0:
         cuentas.append(tr("Cualquier base elevada a 0 vale 1, así que la potencia desaparece."))
     return cuentas
-
-
-def _forma_final(base: Any, exponente: Any) -> List[str]:
-    """Cómo se escribe la potencia que queda: exponente negativo -> fracción, 1/2 -> raíz."""
-    if not exponente.is_Number or exponente in (0, 1):
-        return []
-    cuentas = []
-    if exponente.is_negative:
-        cuentas.append(tr("Un exponente negativo pasa la potencia al denominador: {potencia} = 1/{positiva}.",
-                          potencia=f"{_p(base)}^{_p(exponente)}", positiva=f"{_p(base)}^{_p(-exponente)}"))
-    if abs(exponente) == sympy.Rational(1, 2):
-        cuentas.append(tr("Elevar a 1/2 es sacar la raíz cuadrada: {potencia} = {raiz}.",
-                          potencia=f"{_p(base)}^(1/2)", raiz=texto(sympy.sqrt(base))))
-    return cuentas
-
-
-def _multiplica_numeros(*factores: Any) -> List[str]:
-    """Si hay varios coeficientes numéricos que multiplicar, la cuenta: 3 * 2 = 6."""
-    numeros = [f.as_coeff_Mul()[0] for f in factores]
-    numeros = [n for n in numeros if n != 1]
-    if len(numeros) < 2:
-        return []
-    return [tr("Multiplicamos los números: {cuenta} = {resultado}.",
-               cuenta=" * ".join(_p(n) for n in numeros), resultado=texto(sympy.Mul(*numeros)))]
 
 
 class ExplicadorDerivada:
@@ -225,7 +172,7 @@ class ExplicadorDerivada:
         n = expr.exp if expr.is_Pow else sympy.S.One
         resultado = coeficiente * n * x ** (n - 1)
         forma = f"{x}^{_p(n)}"
-        nota = _como_potencia(expr, forma)
+        nota = como_potencia(expr, forma)
 
         sustitucion = f"{_p(n)}*{x}^({texto(n)} - 1)"
         if coeficiente == 1:
@@ -241,8 +188,8 @@ class ExplicadorDerivada:
                         c=texto(coeficiente), x=x, n=texto(n)) + nota
             calculo = [tr("Sustituimos c = {c} y n = {n}: {formula}.", c=texto(coeficiente), n=texto(n),
                           formula=f"{_p(coeficiente)}*{sustitucion}")]
-            calculo += _multiplica_numeros(coeficiente, n)
-        calculo += _resta_exponente(n) + _forma_final(x, n - 1)
+            calculo += multiplica_numeros(coeficiente, n)
+        calculo += _resta_exponente(n) + forma_final(x, n - 1)
 
         self._reglas.append(regla)
         self._paso(regla, coeficiente * expr, rol, enunciado, partes, calculo, resultado)
@@ -325,7 +272,7 @@ class ExplicadorDerivada:
         calculo = [tr("Sustituimos u = {u} en f'(u): {externa}.", u=texto(u), externa=texto(derivada_externa)),
                    tr("Multiplicamos por u' = {du}: {formula}.", du=texto(du),
                       formula=f"{_p(derivada_externa)}*{_p(du)}")]
-        calculo += _multiplica_numeros(derivada_externa, du)
+        calculo += multiplica_numeros(derivada_externa, du)
         self._paso(CADENA, expr, rol, calculo=calculo, queda=resultado, sustitucion=True)
         return resultado
 
@@ -349,7 +296,7 @@ class ExplicadorDerivada:
         resultado = coeficiente * df
         calculo = [tr("Multiplicamos la constante por f' = {df}: {formula}.", df=texto(df),
                       formula=f"{_p(coeficiente)}*{_p(df)}")]
-        calculo += _multiplica_numeros(coeficiente, df)
+        calculo += multiplica_numeros(coeficiente, df)
         self._paso(FACTOR_CONSTANTE, expr, rol, calculo=calculo, queda=resultado, sustitucion=True)
         return resultado
 
@@ -363,7 +310,7 @@ class ExplicadorDerivada:
         derivadas = [self.derivar(t, tr("término {i} de la suma", i=i)) for i, t in enumerate(terminos, 1)]
         resultado = sympy.Add(*derivadas)
         self._paso(SUMA, expr, rol,
-                   calculo=[tr("Juntamos las derivadas de los términos: {suma}.", suma=_suma_texto(derivadas))],
+                   calculo=[tr("Juntamos las derivadas de los términos: {suma}.", suma=suma_texto(derivadas))],
                    queda=resultado, sustitucion=True)
         return resultado
 
@@ -401,7 +348,7 @@ class ExplicadorDerivada:
     def _cadena_potencia(self, base: Any, n: Any, expr: Any, rol: str) -> Any:
         x = self.var
         forma = f"{_p(base)}^{_p(n)}"
-        nota = _como_potencia(expr, forma)
+        nota = como_potencia(expr, forma)
         self._reglas.append(CADENA_POTENCIA)
         self._paso(CADENA_POTENCIA, expr, rol,
                    tr("la derivada de u^n es n*u^(n-1)*u', donde u es una función de {x}: "
@@ -411,8 +358,8 @@ class ExplicadorDerivada:
         resultado = n * base ** (n - 1) * du
         calculo = [tr("Sustituimos n = {n} y u' = {du}: {formula}.", n=texto(n), du=texto(du),
                       formula=f"{_p(n)}*{_p(base)}^({texto(n)} - 1)*{_p(du)}")]
-        calculo += _resta_exponente(n) + _forma_final(base, n - 1)
-        calculo += _multiplica_numeros(n, du)
+        calculo += _resta_exponente(n) + forma_final(base, n - 1)
+        calculo += multiplica_numeros(n, du)
         self._paso(CADENA_POTENCIA, expr, rol, calculo=calculo, queda=resultado, sustitucion=True)
         return resultado
 

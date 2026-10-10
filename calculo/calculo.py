@@ -14,6 +14,7 @@ Nota: Se mantiene la inyección de dependencias: self.parser.parsear(...) como e
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any, List, Optional, Tuple
 
@@ -22,16 +23,13 @@ from sympy import Symbol
 from sympy.calculus.util import continuous_domain
 
 from calculo.derivadas import ExplicadorDerivada, texto
+from calculo.integrales import ExplicadorIntegral
 from calculo.pasos import PasoCalculo, texto_paso
 from i18n import N_, tr
 
 # Reglas de integración manual (manualintegrate)
 from sympy.integrals import manualintegrate
-from sympy.integrals.manualintegrate import (
-    integral_steps,
-    ConstantTimesRule, AddRule, URule, PartsRule, TrigRule, ExpRule,
-    ReciprocalRule, PowerRule, NestedPowRule, ConstantRule, DontKnowRule, AlternativeRule
-)
+from sympy.integrals.manualintegrate import integral_steps, AlternativeRule
 
 
 # =============================================================
@@ -210,8 +208,12 @@ class Calculo:
     # 3) MOTOR DE INTEGRALES (RIGOR + HONESTIDAD DIDÁCTICA)
     # ---------------------------------------------------------
 
-    def _primitiva(self, expr: Any, var: Symbol) -> Tuple[Any, str, List[PasoCalculo], List[str]]:
-        """Primitiva con SymPy y sus pasos (manualintegrate): (primitiva, estrategia, pasos, avisos)."""
+    def _primitiva(self, expr: Any, var: Symbol,
+                   constante: bool = False) -> Tuple[Any, str, List[PasoCalculo], List[str]]:
+        """
+        Primitiva con SymPy y sus pasos (manualintegrate): (primitiva, estrategia, pasos, avisos).
+        constante: añadir el paso de la constante de integración (integral indefinida).
+        """
         avisos: List[str] = []
         pasos_rule = None
         try:
@@ -233,9 +235,9 @@ class Calculo:
 
         if pasos_rule:
             estrategia = self._obtener_nombre_regla(pasos_rule)
-            pasos_dto = self._regla_a_pasos(pasos_rule, var)
-        else:
-            pasos_dto = [PasoCalculo(tr("Cálculo Avanzado"), tr("Sin pasos manuales simples."), tr("Algoritmo / heurísticas de SymPy"))]
+            pasos_dto, principal = self._explicar_integral(pasos_rule, expr, var, integral, avisos, constante)
+            if principal is not None:
+                estrategia = principal.estrategia
 
         if integral.has(sympy.Integral):
             avisos.append(tr("ADVERTENCIA: SymPy no encontró solución cerrada (resultado queda como Integral(...))."))
@@ -253,7 +255,7 @@ class Calculo:
             expr = self._parsear(expresion)
             var, avisos = self._resolver_variable(expr, variable, "INTEGRAL")
 
-            integral, estrategia, pasos_dto, avisos_primitiva = self._primitiva(expr, var)
+            integral, estrategia, pasos_dto, avisos_primitiva = self._primitiva(expr, var, constante=True)
             avisos.extend(avisos_primitiva)
 
             return ResultadoCalculo(
@@ -272,54 +274,56 @@ class Calculo:
         except Exception as e:
             return ResultadoCalculo(False, "INTEGRAL", expresion, None, None, None, mensaje_error=str(e))
 
-    def _regla_a_pasos(self, rule: Any, var: Symbol, nivel: int = 0) -> List[PasoCalculo]:
+    @staticmethod
+    def _explicar_integral(regla: Any, expr: Any, var: Symbol, primitiva: Any, avisos: List[str],
+                           constante: bool) -> Tuple[List[PasoCalculo], Optional[Any]]:
         """
-        Convierte el árbol de manualintegrate en pasos.
-        Importante: en URule no fingimos el cambio de variable recalculando con Symbol('u'),
-        porque eso puede ser pedagógicamente engañoso. Mostramos u y du, y describimos el subpaso.
+        (pasos, regla principal) de la integral de expr hasta primitiva (la de SymPy, que es
+        la que se muestra); sin pasos ni regla si no se puede explicar.
         """
-        pasos: List[PasoCalculo] = []
+        if primitiva.has(sympy.Integral):
+            return [], None  # SymPy no la cerró: no hay a dónde llegar (ya hay un aviso)
+        for alternativa in (0, -1):
+            explicador = ExplicadorIntegral(var, alternativa)
+            try:
+                explicada = explicador.explicar(regla, expr)
+                # Una primitiva es correcta si al derivarla se obtiene la función, y debe llegar
+                # a la que se muestra (o diferenciarse de ella en una constante)
+                diferencia = sympy.simplify(explicada - primitiva)
+                if sympy.simplify(sympy.diff(explicada, var) - expr) == 0 and not diferencia.has(var):
+                    break
+            except Exception:  # SinExplicacion, o una forma que las reglas no prevén
+                pass
+        else:
+            avisos.append(tr("No se pudo explicar esta integral paso a paso; el resultado es el que calcula SymPy."))
+            return [], None
 
-        if isinstance(rule, AlternativeRule):
-            # Varios caminos posibles (p. ej. dos sustituciones): se explica el primero
-            return self._regla_a_pasos(rule.alternatives[0], var, nivel)
-
-        if isinstance(rule, ConstantTimesRule):
-            pasos.append(PasoCalculo(tr("Extraer Constante"), tr("Sacamos {constante} fuera de la integral.", constante=rule.constant), "k∫f = ∫kf"))
-            pasos.extend(self._regla_a_pasos(rule.substep, var, nivel + 1))
-            return pasos
-
-        if isinstance(rule, AddRule):
-            pasos.append(PasoCalculo(tr("Linealidad"), tr("Separamos la integral en suma de integrales."), "∫(u+v)=∫u+∫v"))
-            for sub in rule.substeps:
-                pasos.extend(self._regla_a_pasos(sub, var, nivel + 1))
-            return pasos
-
-        if isinstance(rule, URule):
-            u = rule.u_func
-            du = sympy.diff(u, var)
-            pasos.append(PasoCalculo(tr("Sustitución (u)"), tr("Elegimos u = {u}", u=u), f"du = d({u}) = {du}"))
-            # No cambiamos var a 'u' artificialmente: describimos el subpaso
-            pasos.append(PasoCalculo(tr("Integrar en función de u"), tr("Reescribimos la integral en u y resolvemos."), tr("Subpaso: {regla}", regla=tr(self._obtener_nombre_regla(rule.substep)))))
-            pasos.extend(self._regla_a_pasos(rule.substep, var, nivel + 1))
-            pasos.append(PasoCalculo(tr("Revertir Sustitución"), tr("Volvemos a la variable original."), f"u → {u}"))
-            return pasos
-
-        if isinstance(rule, PartsRule):
-            pasos.append(PasoCalculo(tr("Integración por Partes"), tr("Elegimos u={u} y dv={dv}", u=rule.u, dv=rule.dv), "∫u dv = uv - ∫v du"))
-            pasos.extend(self._regla_a_pasos(rule.second_step, var, nivel + 1))
-            return pasos
-
-        if isinstance(rule, (PowerRule, NestedPowRule, TrigRule, ExpRule, ReciprocalRule, ConstantRule)):
-            pasos.append(PasoCalculo(tr("Integral Inmediata"), tr("Aplicamos regla: {regla}.", regla=tr(self._obtener_nombre_regla(rule))), tr("Tabla de integrales")))
-            return pasos
-
-        if isinstance(rule, DontKnowRule):
-            pasos.append(PasoCalculo(tr("Método Desconocido"), tr("No hay regla manual clara para este caso."), tr("Se requiere técnica avanzada / CAS")))
-            return pasos
-
-        pasos.append(PasoCalculo(tr("Paso Intermedio"), tr("Regla detectada: {regla}", regla=type(rule).__name__), ""))
-        return pasos
+        pasos = list(explicador.pasos)
+        if texto(explicada) != texto(primitiva):
+            if diferencia == 0:
+                pasos.append(PasoCalculo(
+                    tr("Simplificación"),
+                    regla=tr("se reescribe la expresión de forma más compacta (factor común, términos semejantes, "
+                             "fracciones, identidades trigonométricas) sin cambiar su valor."),
+                    calculo=(f"{texto(explicada)} = {texto(primitiva)}",),
+                    queda=texto(primitiva)))
+            else:
+                pasos.append(PasoCalculo(
+                    tr("Otra forma de la primitiva"),
+                    regla=tr("dos primitivas de una misma función se diferencian en una constante, porque la derivada "
+                             "de una constante es 0. La calculadora muestra la forma que da SymPy."),
+                    partes=tr("la primitiva obtenida es {obtenida} y la de SymPy es {sympy}.",
+                              obtenida=texto(explicada), sympy=texto(primitiva)),
+                    calculo=(tr("Se diferencian en una constante: {obtenida} - ({sympy}) = {diferencia}.",
+                                obtenida=texto(explicada), sympy=texto(primitiva), diferencia=texto(diferencia)),),
+                    queda=texto(primitiva)))
+        if constante:
+            pasos.append(PasoCalculo(
+                tr("Constante de integración"),
+                regla=tr("se suma una constante C: si F es una primitiva, F + C también lo es para cualquier "
+                         "número C, porque la derivada de una constante es 0."),
+                queda=f"{texto(primitiva)} + C"))
+        return pasos, explicador.principal
 
     # Nombres de las reglas de manualintegrate (clase sin "Rule") en lenguaje de clase.
     NOMBRES_REGLAS = {
@@ -459,16 +463,22 @@ class Calculo:
         if primitiva.has(sympy.Integral, sympy.I, sympy.exp_polar):
             return None  # sin primitiva cerrada, o escrita con complejos: no ayuda a explicar
         if a == b:
-            return sympy.S.Zero, [PasoCalculo(tr("Límites iguales"),
-                                              tr("Si los dos límites son iguales, la integral vale 0."), "")], N_("Límites iguales")
+            return sympy.S.Zero, [PasoCalculo(
+                tr("Límites iguales"),
+                regla=tr("la integral entre un punto y él mismo vale 0: no hay área que acumular."),
+                partes=tr("los dos límites valen {a}.", a=a),
+                queda="0")], N_("Límites iguales")
 
         pasos: List[PasoCalculo] = []
         lo, hi, signo = a, b, 1
         if (a > b) == sympy.true:
             lo, hi, signo = b, a, -1
-            paso_invertir = (PasoCalculo(tr("Invertir los límites"),
-                                     tr("El límite inferior es mayor que el superior: se intercambian y el resultado cambia de signo."),
-                                     tr("∫ de {a} a {b} = −∫ de {b} a {a}", a=a, b=b)),)
+            paso_invertir = (PasoCalculo(
+                tr("Invertir los límites"),
+                regla=tr("cambiar el orden de los límites cambia el signo de la integral: ∫ de a a b = −∫ de b a a."),
+                partes=tr("el límite inferior, {a}, es mayor que el superior, {b}.", a=a, b=b),
+                calculo=(tr("∫ de {a} a {b} = −∫ de {b} a {a}", a=a, b=b),),
+                queda=tr("−∫ de {b} a {a}; al final se cambia el signo.", a=a, b=b)),)
         else:
             paso_invertir = ()
 
@@ -479,8 +489,10 @@ class Calculo:
         else:
             # Límites con parámetros (∫ de 0 a k): no se puede estudiar la continuidad
             puntos = []
-            pasos.append(PasoCalculo(tr("Suposición"),
-                                     tr("Los límites tienen parámetros: se supone que la función es continua entre ellos."), ""))
+            pasos.append(PasoCalculo(
+                tr("Suposición"),
+                regla=tr("la regla de Barrow exige que la función sea continua entre los límites."),
+                partes=tr("los límites tienen parámetros: se supone que la función es continua entre ellos.")))
 
         impropios = set(puntos) | {sympy.oo, -sympy.oo}
         cortes = [lo] + [p for p in puntos if (lo < p) == sympy.true and (p < hi) == sympy.true] + [hi]
@@ -499,7 +511,16 @@ class Calculo:
             if not any(v.has(sympy.I) for tramo in evaluados for v in tramo):
                 break
 
-        pasos.insert(0, PasoCalculo(tr("Primitiva"), tr("Una primitiva es F({variable}) = {primitiva}.", variable=var, primitiva=F), ""))
+        nota_abs = ()
+        if F != primitiva:
+            nota_abs = (tr("En el intervalo hay valores negativos: se usa log(Abs(u)), el logaritmo del valor absoluto, "
+                           "que también es primitiva y no da logaritmos de números negativos."),)
+        pasos.insert(0, PasoCalculo(
+            tr("Primitiva"),
+            regla=tr("para evaluar la integral basta una primitiva cualquiera: la constante C se anula al restar."),
+            partes=tr("una primitiva es F({variable}) = {primitiva}.", variable=var, primitiva=texto(F)),
+            calculo=nota_abs,
+            queda=f"F({var}) = {texto(F)}"))
         pasos[1:1] = paso_invertir
 
         piezas = [vr - vl for vl, vr in evaluados]
@@ -508,10 +529,15 @@ class Calculo:
 
         if not es_impropia:
             vl, vr = evaluados[0]
-            pasos.append(PasoCalculo(tr("Regla de Barrow"),
-                                     tr("La función es continua en el intervalo: la integral es F({superior}) − F({inferior}).",
-                                        superior=hi, inferior=lo),
-                                     f"F({hi}) − F({lo}) = {self._texto_valor(vr)} − {self._restando(vl)} = {piezas[0]}"))
+            pasos.append(PasoCalculo(
+                tr("Regla de Barrow"),
+                regla=tr("si f es continua en [a, b] y F es una primitiva de f, la integral de a a b es F(b) − F(a)."),
+                partes=tr("la función es continua en [{inferior}, {superior}], así que a = {inferior}, "
+                          "b = {superior} y la integral es F({superior}) − F({inferior}).", superior=hi, inferior=lo),
+                calculo=(self._valor_en(F, var, hi, vr), self._valor_en(F, var, lo, vl),
+                         tr("Restamos: {formula}.", formula=f"F({hi}) − F({lo}) = {self._texto_valor(vr)} − "
+                                                            f"{self._restando(vl)} = {piezas[0]}")),
+                queda=self._texto_valor(piezas[0])))
             metodo = N_("Regla de Barrow")
         else:
             motivos = []
@@ -521,29 +547,51 @@ class Calculo:
             if discontinuos:
                 motivos.append(tr("la función no es continua en {variable} = {puntos}",
                                   variable=var, puntos=", ".join(str(p) for p in discontinuos)))
-            pasos.append(PasoCalculo(tr("Integral impropia"),
-                                     tr("No se puede aplicar Barrow directamente: {motivos}. "
-                                        "En cada extremo impropio se calcula el límite de la primitiva.",
-                                        motivos="; ".join(motivos)), ""))
+            division = ()
             if len(tramos) > 1:
-                pasos.append(PasoCalculo(tr("Dividir el intervalo"),
-                                         tr("Se separa en {n} integrales: {tramos}.", n=len(tramos),
-                                            tramos=", ".join(tr("de {inferior} a {superior}", inferior=l, superior=r)
-                                                             for l, r in tramos)), ""))
-            for i, ((l, r), (vl, vr), pieza, div) in enumerate(zip(tramos, evaluados, piezas, diverge), 1):
+                division = (tr("Se separa en {n} integrales: {tramos}.", n=len(tramos),
+                               tramos=", ".join(tr("de {inferior} a {superior}", inferior=l, superior=r)
+                                                for l, r in tramos)),)
+            pasos.append(PasoCalculo(
+                tr("Integral impropia"),
+                regla=tr("si el intervalo llega a infinito o la función no es continua en algún punto, no se puede "
+                         "aplicar Barrow directamente: en cada extremo problemático (impropio) se calcula el límite "
+                         "de la primitiva. La integral converge si todos esos límites son finitos; si alguno es "
+                         "infinito o no existe, diverge."),
+                partes=tr("{motivos}.", motivos="; ".join(motivos)),
+                calculo=division))
+            for (l, r), (vl, vr), pieza, div in zip(tramos, evaluados, piezas, diverge):
                 izq = self._extremo(var, l, "+") if l in impropios else f"F({l})"
                 der = self._extremo(var, r, "-") if r in impropios else f"F({r})"
-                estado = tr("diverge") if div else tr("converge")
-                pasos.append(PasoCalculo(tr("Tramo de {inferior} a {superior}", inferior=l, superior=r),
-                                         tr("Este tramo {estado}.", estado=estado),
-                                         f"{der} − {izq} = {self._texto_valor(vr)} − {self._restando(vl)} = {self._texto_valor(pieza)}"))
+                calculo = []
+                for punto, lado, nombre, valor in ((r, "-", der, vr), (l, "+", izq, vl)):
+                    if punto in impropios:
+                        calculo.append(tr("Extremo impropio en {punto}: {limite} = {valor}.", punto=punto,
+                                          limite=nombre, valor=self._texto_valor(valor)))
+                    else:
+                        calculo.append(self._valor_en(F, var, punto, valor))
+                calculo.append(tr("Restamos: {formula}.", formula=f"{der} − {izq} = {self._texto_valor(vr)} − "
+                                                                 f"{self._restando(vl)} = {self._texto_valor(pieza)}"))
+                calculo.append(tr("Este tramo {estado}.", estado=tr("diverge") if div else tr("converge")))
+                extremos = [str(p) for p in (l, r) if p in impropios]
+                pasos.append(PasoCalculo(
+                    tr("Tramo de {inferior} a {superior}", inferior=l, superior=r),
+                    partes=(tr("el extremo impropio de este tramo es {extremo}.", extremo=extremos[0]) if len(extremos) == 1
+                            else tr("los dos extremos de este tramo, {a} y {b}, son impropios.", a=extremos[0], b=extremos[1])),
+                    calculo=tuple(calculo),
+                    queda=self._texto_valor(pieza)))
             if any(diverge):
-                pasos.append(PasoCalculo(tr("Conclusión"),
-                                         tr("Al menos un tramo diverge, así que la integral diverge."), ""))
+                pasos.append(PasoCalculo(
+                    tr("Conclusión"),
+                    regla=tr("una integral impropia solo converge si convergen todos sus tramos."),
+                    calculo=(tr("Al menos un tramo diverge, así que la integral diverge."),)))
             elif len(tramos) > 1:
-                pasos.append(PasoCalculo(tr("Conclusión"),
-                                         tr("Todos los tramos convergen: la integral converge y vale la suma."),
-                                         " + ".join(f"({p})" for p in piezas)))
+                pasos.append(PasoCalculo(
+                    tr("Conclusión"),
+                    regla=tr("una integral impropia solo converge si convergen todos sus tramos, y entonces vale su suma."),
+                    calculo=(tr("Todos los tramos convergen: la integral converge y vale la suma."),
+                             " + ".join(f"({p})" for p in piezas) + f" = {sympy.simplify(sympy.Add(*piezas))}",),
+                    queda=str(sympy.simplify(sympy.Add(*piezas)))))
             metodo = N_("Integral impropia")
 
         total = sympy.Add(*piezas)
@@ -552,10 +600,26 @@ class Calculo:
         elif not any(diverge):
             total = sympy.simplify(total)
         if signo == -1:
-            pasos.append(PasoCalculo(tr("Cambiar el signo"), tr("Por la inversión de los límites."),
-                                     f"−({self._texto_valor(total)}) = {self._texto_valor(-total)}"))
+            pasos.append(PasoCalculo(
+                tr("Cambiar el signo"),
+                calculo=(tr("Por la inversión de los límites."), f"−({self._texto_valor(total)}) = {self._texto_valor(-total)}",),
+                queda=self._texto_valor(-total)))
             total = -total
         return total, pasos, metodo
+
+    @staticmethod
+    def _valor_en(F: Any, var: Symbol, punto: Any, valor: Any) -> str:
+        """'Sustituimos x = 1 en F: 1^3/3 = 1/3.'"""
+        nombre = texto(punto)
+        if not (punto.is_Symbol or (punto.is_Integer and punto >= 0)):
+            nombre = f"({nombre})"
+        # log(Abs((-1))) -> log(Abs(-1)): el paréntesis del número ya lo pone la función
+        sustituida = re.sub(r"\(\(([^()]+)\)\)", r"(\1)", texto(F.subs(var, Symbol(nombre))))
+        if sustituida == Calculo._texto_valor(valor).replace("**", "^"):
+            return tr("Sustituimos {variable} = {punto} en F: F({punto}) = {valor}.", variable=var, punto=punto,
+                      valor=Calculo._texto_valor(valor))
+        return tr("Sustituimos {variable} = {punto} en F: F({punto}) = {sustitucion} = {valor}.", variable=var,
+                  punto=punto, sustitucion=sustituida, valor=Calculo._texto_valor(valor))
 
     def _evaluar_tramo(self, F: Any, var: Symbol, l: Any, r: Any, impropios: set) -> Tuple[Any, Any]:
         """(F en l, F en r): límite lateral hacia dentro del tramo en los extremos impropios."""

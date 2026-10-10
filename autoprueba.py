@@ -25,7 +25,7 @@ def _casos(core: CoreMatematico) -> List[Tuple[str, Callable[[], str], str]]:
         ("Factorizar", lambda: core.Factorizar("x^3-8"), "Suma/diferencia de cubos"),
         ("Derivar", lambda: core.Derivar("abs(x)"), "RESULTADO: sign(x)"),
         ("Derivada N", lambda: core.DerivadaEnecima("x^5", "x", 3), "RESULTADO: 60*x**2"),
-        ("Integrar (pasos)", lambda: core.Integrar("x*exp(x)"), "Integración por Partes"),
+        ("Integrar (pasos)", lambda: core.Integrar("x*exp(x)"), "Integración por partes en ∫ x*exp(x) dx"),
         # Usa sympy.calculus.util (continuidad) para dividir la integral en x = 0
         ("Integral definida impropia", lambda: core.integral_definida("1/x^2", None, "-1", "1").texto,
          "RESULTADO: +Infinito (la integral diverge)"),

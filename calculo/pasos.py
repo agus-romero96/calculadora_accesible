@@ -12,7 +12,9 @@ Un paso tiene un título y, según el motor que lo genera:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import Any, List, Tuple
+
+import sympy
 
 from i18n import tr
 
@@ -43,3 +45,59 @@ def texto_paso(numero: int, paso: PasoCalculo) -> str:
     if paso.queda:
         lineas.append(tr("Queda: {expresion}", expresion=paso.queda))
     return "\n   ".join(lineas)
+
+
+# ---------------- Expresiones dentro de los pasos ----------------
+
+def texto(expr: Any) -> str:
+    """Expresión para leer: con ^ en lugar de ** (como se escribe en la calculadora)."""
+    return sympy.sstr(expr).replace("**", "^")
+
+
+def entre_parentesis(expr: Any) -> str:
+    """Expresión lista para ir dentro de un producto o como exponente: entre paréntesis si hace falta."""
+    simple = (expr.is_Symbol or (expr.is_Integer and expr >= 0) or expr.is_Function
+              or (expr.is_Pow and expr.exp.is_Integer and expr.exp > 0 and expr.base.is_Symbol))
+    return texto(expr) if simple else f"({texto(expr)})"
+
+
+def suma_texto(terminos: List[Any]) -> str:
+    """t1 + t2 - t3: los términos negativos se restan en lugar de sumar "(-t3)"."""
+    partes = [texto(terminos[0])]
+    for t in terminos[1:]:
+        if t.could_extract_minus_sign():
+            partes.append(f"- {texto(-t)}")
+        else:
+            partes.append(f"+ {texto(t)}")
+    return " ".join(partes)
+
+
+def como_potencia(expr: Any, forma: str) -> str:
+    """Final de la frase que identifica la potencia: por qué sqrt(x), 1/x o x tienen exponente."""
+    if texto(expr) == forma:
+        return "."
+    return tr(", porque {expresion} es lo mismo que {potencia}.", expresion=texto(expr), potencia=forma)
+
+
+def forma_final(base: Any, exponente: Any) -> List[str]:
+    """Cómo se escribe la potencia que queda: exponente negativo -> fracción, 1/2 -> raíz."""
+    if not exponente.is_Number or exponente in (0, 1):
+        return []
+    cuentas = []
+    if exponente.is_negative:
+        cuentas.append(tr("Un exponente negativo pasa la potencia al denominador: {potencia} = 1/{positiva}.",
+                          potencia=f"{entre_parentesis(base)}^{entre_parentesis(exponente)}", positiva=f"{entre_parentesis(base)}^{entre_parentesis(-exponente)}"))
+    if abs(exponente) == sympy.Rational(1, 2):
+        cuentas.append(tr("Elevar a 1/2 es sacar la raíz cuadrada: {potencia} = {raiz}.",
+                          potencia=f"{entre_parentesis(base)}^(1/2)", raiz=texto(sympy.sqrt(base))))
+    return cuentas
+
+
+def multiplica_numeros(*factores: Any) -> List[str]:
+    """Si hay varios coeficientes numéricos que multiplicar, la cuenta: 3 * 2 = 6."""
+    numeros = [sympy.sympify(f).as_coeff_Mul()[0] for f in factores]
+    numeros = [n for n in numeros if n != 1]
+    if len(numeros) < 2:
+        return []
+    return [tr("Multiplicamos los números: {cuenta} = {resultado}.",
+               cuenta=" * ".join(entre_parentesis(n) for n in numeros), resultado=texto(sympy.Mul(*numeros)))]

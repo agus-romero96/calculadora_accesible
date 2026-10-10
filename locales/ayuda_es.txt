@@ -71,6 +71,8 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
      de su expresión es cada pieza de la regla), las cuentas
      (por ejemplo 2 - 1 = 1) y "Queda" (cómo queda la expresión).
    - Integrar: Escriba 'sin(x)'. Pulse Ctrl+I.
+     Los pasos siguen el mismo orden que en las derivadas, y en
+     el cambio de variable se dice qué parte es u y cuál es du.
    - Integral definida: Escriba 'x^2'. Pulse Ctrl+Mayús+I.
      Límite inferior: 0. Límite superior: 1. Resultado: 1/3.
      Los límites pueden ser expresiones (pi/2) o infinito (oo, -oo).

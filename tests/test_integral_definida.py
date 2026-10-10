@@ -64,7 +64,7 @@ def test_discontinuidad_interior_no_aplica_barrow(core):
     assert primera_linea(texto) == "RESULTADO: +Infinito (la integral diverge)"
     assert "no es continua en x = 0" in texto
     assert "Se separa en 2 integrales: de -1 a 0, de 0 a 1." in texto
-    assert "-2" not in texto.replace("[-1", "")
+    assert "= -2" not in texto and "− 1 = -2" not in texto
     assert "Al menos un tramo diverge" in texto
 
 
