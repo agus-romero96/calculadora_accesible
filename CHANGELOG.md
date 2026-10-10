@@ -6,6 +6,10 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Sin publicar]
 
+## [1.5.0] - 2026-10-10
+
+Versión del paso a paso: todas las operaciones (derivadas, integrales, límites, álgebra, Evaluar, Simplificar y Factorizar) explican cada regla sin saltos, con el mismo formato (Regla, En este caso, las cuentas intermedias y Queda), empiezan por el resultado y comprueban sus pasos contra SymPy. Añade la integral definida y corrige derivadas e integrales de logaritmos en otra base.
+
 ### Añadido
 
 - **Integral definida** (menú **Cálculo**, `Ctrl+Shift+I`). Pide el límite inferior y el superior: números, expresiones (`pi/2`), parámetros (`k`) u `oo` / `-oo`. El valor lo calcula SymPy; la explicación es la de clase:
@@ -318,6 +322,7 @@ Versión de calidad: corrige resultados matemáticos incorrectos (límites bilat
 Primera versión publicada con instalador para Windows: evaluación, simplificación y factorización; derivadas, integrales y límites con explicación paso a paso; sistemas por Gauss-Jordan e inversa por cofactores; interfaz accesible para NVDA.
 
 [Sin publicar]: https://github.com/agus-romero96/calculadora_accesible/compare/v1.4.0...HEAD
+[1.5.0]: https://github.com/agus-romero96/calculadora_accesible/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/agus-romero96/calculadora_accesible/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/agus-romero96/calculadora_accesible/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/agus-romero96/calculadora_accesible/compare/v1.1.0...v1.2.0
