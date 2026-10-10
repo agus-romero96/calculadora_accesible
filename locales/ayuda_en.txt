@@ -131,3 +131,18 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
        result without calculating it again.
      - The history and exported files always keep the full
        explanation, and Ctrl + Shift + A copies it.
+
+11. UPDATES
+   When it opens, the calculator checks whether a new version is
+   available (only if you are connected to the internet; if not,
+   it says nothing). If there is one, it shows what's new and
+   offers three buttons:
+     - Update now       : downloads the new version (with a progress
+                          dialog you can cancel), closes, installs it
+                          and opens again. Windows will ask for
+                          permission to install it.
+     - Skip this version : it will not be offered again at startup.
+     - Later (or Escape) : it will be offered next time.
+   To check at any time: Help menu, 'Check for updates'.
+   To stop checking at startup, uncheck 'Check for updates at
+   startup' in the Options menu.

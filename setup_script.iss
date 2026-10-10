@@ -47,3 +47,16 @@ Source: "{#CarpetaBuild}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdi
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+
+[Run]
+; Instalación normal: casilla "Ejecutar Calculadora Accesible" en la última página
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent
+; Actualización desde la calculadora (actualizador.py la lanza en modo silencioso con
+; /ACTUALIZAR=1 y se cierra): se vuelve a abrir al terminar, como el usuario, no como administrador
+Filename: "{app}\{#MyAppExeName}"; Flags: nowait runasoriginaluser; Check: EsActualizacion
+
+[Code]
+function EsActualizacion: Boolean;
+begin
+  Result := ExpandConstant('{param:ACTUALIZAR|0}') = '1';
+end;

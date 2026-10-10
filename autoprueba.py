@@ -36,7 +36,18 @@ def _casos(core: CoreMatematico) -> List[Tuple[str, Callable[[], str], str]]:
         ("Inglés", lambda: _en_ingles(lambda: core.Derivar("x^3")), "RESULT: 3*x**2"),
         # Proceso de cálculo: en el ejecutable es otra copia del .exe (freeze_support)
         ("Proceso de cálculo", _en_proceso, "RESULTADO: 4"),
+        # Actualizaciones: el ejecutable debe incluir ssl y leer los certificados de Windows
+        # (sin conectarse: la autoprueba no debe depender de la red)
+        ("Actualizaciones (HTTPS)", _https, "HTTPS disponible"),
     ]
+
+
+def _https():
+    import ssl
+
+    import actualizador  # noqa: F401 (comprueba que el módulo y urllib están en el paquete)
+    certificados = ssl.create_default_context().cert_store_stats()["x509_ca"]
+    return f"HTTPS disponible ({certificados} certificados)" if certificados else "sin certificados raíz"
 
 
 def _en_proceso():

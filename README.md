@@ -17,6 +17,7 @@ Disponible en **español e inglés** (interfaz, explicaciones y ayuda). Los resu
 - [Ejemplos de uso](#ejemplos-de-uso)
 - [Instalación y ejecución](#instalación-y-ejecución)
 - [Compilar el ejecutable e instalador](#compilar-el-ejecutable-e-instalador)
+- [Publicar una versión (actualizaciones automáticas)](#publicar-una-versión-actualizaciones-automáticas)
 - [Arquitectura](#arquitectura)
 - [Añadir una operación](#añadir-una-operación)
 - [Editar los textos en español](#editar-los-textos-en-español)
@@ -110,6 +111,14 @@ Cada cálculo correcto se guarda en el historial (hasta 200 operaciones). El his
   ```
 
 Al cambiar la opción, el resultado actual se vuelve a mostrar en el nuevo modo, así que se puede consultar el paso a paso de un resultado sin recalcularlo. El historial, la exportación y **Copiar explicación completa** conservan siempre la explicación completa. La elección se recuerda en `config.json`.
+
+### Actualizaciones automáticas
+
+Al abrirse, la calculadora instalada consulta la última versión publicada en GitHub. Si hay una más nueva, muestra sus novedades y ofrece **Actualizar ahora**, **Omitir esta versión** o **Más tarde**. Al actualizar, descarga el instalador con un diálogo de progreso (se puede cancelar), comprueba su tamaño y su resumen SHA-256, se cierra, lo instala en modo silencioso (Windows pide permiso de administrador) y se vuelve a abrir.
+
+- Sin conexión, la comprobación al abrir no dice nada. **Ayuda → Buscar actualizaciones...** la hace en cualquier momento e informa del resultado.
+- **Opciones → Buscar actualizaciones al iniciar** la desactiva. Una versión omitida no se vuelve a ofrecer al abrir, pero sí al buscar desde el menú.
+- Al ejecutar el código fuente (`python main.py`) no se busca al abrir; desde el menú, se abre la página de la versión nueva en lugar de instalarla.
 
 ### Idioma
 
@@ -248,6 +257,20 @@ La versión se define **solo** en `_version.py`; el título de la ventana, el ej
 
 ---
 
+## Publicar una versión (actualizaciones automáticas)
+
+Las calculadoras instaladas buscan la versión nueva en las **Releases** de GitHub (`releases/latest` del repositorio, que debe ser **público**: la consulta y la descarga se hacen sin credenciales). Para publicar:
+
+1. Suba la versión en `_version.py`, documente los cambios en `CHANGELOG.md` y ejecute `python compilar.py`.
+2. Cree en GitHub una Release con la etiqueta **`vX.Y.Z`** (la misma versión) y **adjunte el instalador** `Output\setup-calculadora-accesible-vX.Y.Z.exe` con ese nombre exacto. La descripción de la Release es lo que se muestra como "Novedades".
+3. No la marque como *pre-release* ni la deje como borrador: GitHub no las devuelve como la última versión, así que nadie las recibiría.
+
+GitHub publica el resumen SHA-256 de cada archivo adjunto, y la calculadora rechaza un instalador que no coincida. El instalador recibe `/SILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /ACTUALIZAR=1`; con `/ACTUALIZAR=1`, `setup_script.iss` vuelve a abrir la calculadora al terminar.
+
+Las versiones anteriores a la que incluye el actualizador no se actualizan solas: hay que instalar esa versión a mano una vez.
+
+---
+
 ## Arquitectura
 
 ```
@@ -264,6 +287,7 @@ exportar.py             Copiar/exportar (un resultado o el historial): texto, Ma
 historial.py            Historial de operaciones y su archivo (modelo, sin interfaz)
 ventana_historial.py    Diálogo accesible del historial
 configuracion.py        Preferencias del usuario (config.json): idioma, paso a paso, actualizaciones
+actualizador.py         Busca, descarga (verificando SHA-256) e instala la versión nueva
 i18n.py                 Traducción: tr(), N_(), idioma guardado y detectado
 locales/                es.json y en.json (textos de cada idioma), ayuda_es.txt / ayuda_en.txt
   │

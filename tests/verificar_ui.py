@@ -343,9 +343,148 @@ def paso12():  # opción "Mostrar el paso a paso" (Ctrl+Shift+P)
         f.on_modo_respuesta(None)
         check("modo: sin resultado, lo confirma con un diálogo", any("solo el resultado" in m for m in mensajes[n:]))
         f.on_modo_respuesta(None)
-        fin()
+        paso13()
 
     cuando_libre(despues)
+
+
+def esperar(condicion, siguiente, limite=10):
+    """Llama a siguiente() cuando se cumple condicion() (o se agota el límite)."""
+    inicio = time.monotonic()
+    def comprobar():
+        if condicion() or time.monotonic() - inicio > limite:
+            siguiente()
+        else:
+            wx.CallLater(50, comprobar)
+    wx.CallLater(50, comprobar)
+
+
+class DialogoMensajeFalso:
+    """Sustituye a wx.MessageDialog: guarda el mensaje y 'pulsa' el botón de respuesta."""
+    respuesta = None
+    mensajes = []
+    def __init__(self, padre, mensaje, *a, **k): DialogoMensajeFalso.mensajes.append(mensaje)
+    def SetYesNoCancelLabels(self, *etiquetas): self.etiquetas = etiquetas
+    def ShowModal(self): return DialogoMensajeFalso.respuesta
+    def Destroy(self): pass
+
+
+def paso13():  # actualizaciones: buscar, ofrecer, omitir, descargar e instalar (red simulada)
+    import actualizador
+    import configuracion
+    mb = f.GetMenuBar()
+    casilla = mb.GetMenu(mb.FindMenu("Opciones")).GetMenuItems()[1]
+    check("actualizar: casilla 'al iniciar' marcada por defecto",
+          casilla.IsCheckable() and casilla.IsChecked() and "actualizaciones" in casilla.GetItemLabelText())
+    check("actualizar: opción en el menú Ayuda", any("actualizaciones" in i.GetItemLabelText()
+                                                    for i in mb.GetMenu(mb.FindMenu("Ayuda")).GetMenuItems()))
+    f.on_buscar_al_iniciar(None)
+    check("actualizar: desmarcar 'al iniciar' se guarda",
+          configuracion.leer(configuracion.BUSCAR_ACTUALIZACIONES) is False
+          and not f.GetMenuBar().GetMenu(f.GetMenuBar().FindMenu("Opciones")).GetMenuItems()[1].IsChecked())
+    f.on_buscar_al_iniciar(None)
+
+    nueva = actualizador.Actualizacion("9.0.0", "- Novedad de prueba", "https://ejemplo/v9.0.0",
+                                       url_instalador="https://ejemplo/setup.exe",
+                                       nombre_instalador="setup.exe", tamano=4 * 1048576)
+    respuestas = {"buscar": None}
+    llamadas = []
+
+    def buscar():
+        if isinstance(respuestas["buscar"], Exception):
+            raise respuestas["buscar"]
+        return respuestas["buscar"]
+
+    def descargar(act, progreso):
+        for i in range(1, 5):
+            time.sleep(0.15)
+            if not progreso(i * 1048576, act.tamano):
+                raise actualizador.DescargaCancelada()
+        return os.path.join(carpeta_tmp, "setup.exe")
+
+    originales = (actualizador.buscar_actualizacion, actualizador.descargar, actualizador.instalar,
+                  main.es_instalada, wx.MessageDialog)
+    actualizador.buscar_actualizacion = buscar
+    actualizador.descargar = descargar
+    actualizador.instalar = lambda ruta: llamadas.append(("instalar", ruta))
+    main.es_instalada = lambda: True
+    wx.MessageDialog = DialogoMensajeFalso
+    f.Close = lambda *a: llamadas.append(("cerrar",))
+
+    def restaurar():
+        (actualizador.buscar_actualizacion, actualizador.descargar, actualizador.instalar,
+         main.es_instalada, wx.MessageDialog) = originales
+        del f.Close
+
+    def buscando(): return f._buscando_actualizacion
+
+    # 1. Ya está al día
+    n = len(mensajes)
+    f._buscar_actualizaciones(False)
+    def al_dia():
+        check("actualizar: al día lo dice", any("Ya tiene la última versión" in m for m in mensajes[n:]))
+        check("actualizar: info restaurada", f.lbl_info.GetValue().startswith("Escriba"))
+        respuestas["buscar"] = actualizador.ErrorActualizacion("No hay conexión con GitHub (prueba).")
+        m = len(mensajes)
+        f._buscar_actualizaciones(False)
+        esperar(lambda: not buscando(), lambda: sin_conexion(m))
+
+    # 2. Sin conexión: la búsqueda manual avisa; la automática calla
+    def sin_conexion(m):
+        check("actualizar: sin conexión avisa", any("No hay conexión con GitHub" in x for x in mensajes[m:]))
+        m = len(mensajes)
+        f._buscar_actualizaciones(True)
+        esperar(lambda: not buscando(), lambda: automatica_sin_conexion(m))
+
+    def automatica_sin_conexion(m):
+        check("actualizar: la búsqueda al iniciar no avisa si falla", len(mensajes) == m)
+        respuestas["buscar"] = nueva
+        DialogoMensajeFalso.respuesta = wx.ID_CANCEL  # Más tarde
+        f._buscar_actualizaciones(False)
+        esperar(lambda: not buscando(), mas_tarde)
+
+    # 3. Versión nueva: Más tarde no cambia nada; Omitir la recuerda
+    def mas_tarde():
+        ofrecido = DialogoMensajeFalso.mensajes[-1] if DialogoMensajeFalso.mensajes else ""
+        check("actualizar: ofrece la versión nueva con sus novedades", "9.0.0" in ofrecido and "Novedad de prueba" in ofrecido)
+        check("actualizar: Más tarde no descarga ni omite",
+              not llamadas and configuracion.leer(configuracion.VERSION_OMITIDA) is None)
+        DialogoMensajeFalso.respuesta = wx.ID_NO  # Omitir esta versión
+        f._buscar_actualizaciones(False)
+        esperar(lambda: not buscando(), omitir)
+
+    def omitir():
+        check("actualizar: Omitir la recuerda", configuracion.leer(configuracion.VERSION_OMITIDA) == "9.0.0")
+        DialogoMensajeFalso.mensajes.clear()
+        f._buscar_actualizaciones(True)
+        esperar(lambda: not buscando(), omitida_al_iniciar)
+
+    def omitida_al_iniciar():
+        check("actualizar: la omitida no se ofrece al iniciar", not DialogoMensajeFalso.mensajes)
+        # 4. Actualizar ahora: descarga con progreso, instala y cierra
+        DialogoMensajeFalso.respuesta = wx.ID_YES
+        f._buscar_actualizaciones(False)
+        esperar(lambda: llamadas, actualizado, limite=15)
+
+    def actualizado():
+        check("actualizar: descarga, instala y cierra",
+              llamadas == [("instalar", os.path.join(carpeta_tmp, "setup.exe")), ("cerrar",)])
+        check("actualizar: avisa antes de cerrar", any("se cerrará para instalar" in m for m in mensajes))
+        # 5. Si se rechaza el permiso de administrador, sigue abierta
+        def rechazar(ruta): raise actualizador.ErrorActualizacion("cancelada por el usuario")
+        actualizador.instalar = rechazar
+        llamadas.clear()
+        n = len(mensajes)
+        f._buscar_actualizaciones(False)
+        esperar(lambda: any("No se instaló" in m for m in mensajes[n:]), lambda: rechazado(n), limite=15)
+
+    def rechazado(n):
+        check("actualizar: permiso rechazado, avisa y no cierra",
+              any("No se instaló" in m for m in mensajes[n:]) and not llamadas)
+        restaurar()
+        fin()
+
+    esperar(lambda: not buscando(), al_dia)
 
 
 def fin():
@@ -356,9 +495,6 @@ def fin():
     fallos = sum(not ok for _, ok in resultados)
     print(f"\n{len(resultados) - fallos}/{len(resultados)} comprobaciones correctas")
     app.codigo_salida = 1 if fallos else 0
-    # Cerrar la última ventana debería terminar el bucle de eventos, pero a veces no lo
-    # hacía y el script se quedaba abierto hasta el tiempo agotado
-    app.ExitMainLoop()
 
 
 if __name__ == "__main__":
@@ -386,7 +522,7 @@ if __name__ == "__main__":
         for n, ok in resultados: print(("OK  " if ok else "FAIL"), n)
         abiertas = [f"{type(v).__name__} {v.GetTitle()!r}" for v in wx.GetTopLevelWindows()]
         print(f"TIEMPO AGOTADO tras {len(resultados)} comprobaciones; ventanas abiertas: {abiertas}", flush=True)
-        os._exit(1)  # ExitMainLoop no sale si quedó abierto un diálogo modal
+        os._exit(1)  # el bucle de eventos puede no terminar (ver "Pendiente" en el CHANGELOG)
     wx.CallLater(60000, tiempo_agotado)
     app.MainLoop()
     sys.exit(app.codigo_salida)

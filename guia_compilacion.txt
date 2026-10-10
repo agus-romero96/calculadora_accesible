@@ -55,6 +55,13 @@ ATENCIÓN: si no cambió la versión, el instalador nuevo reemplaza al anterior
 con el mismo nombre en Output\. Guarde una copia si ya lo distribuyó.
 
 
+PUBLICAR: cree en GitHub una Release con la etiqueta vX.Y.Z y adjunte el
+instalador con su nombre exacto (setup-calculadora-accesible-vX.Y.Z.exe).
+Las calculadoras instaladas la detectan y se actualizan solas (actualizador.py).
+El repositorio debe ser público, y la Release no debe ser "pre-release" ni
+borrador. Detalles en el README, "Publicar una versión".
+
+
 4. COMPROBAR EL EJECUTABLE A MANO
 ---------------------------------
 

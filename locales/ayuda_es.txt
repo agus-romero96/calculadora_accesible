@@ -131,3 +131,18 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
        un resultado sin calcularlo otra vez.
      - El historial y la exportación siempre guardan la
        explicación completa, y Ctrl + Mayús + A la copia.
+
+11. ACTUALIZACIONES
+   Al abrirse, la calculadora comprueba si hay una versión nueva
+   (solo si tiene conexión a internet; si no la hay, no dice nada).
+   Si la hay, muestra sus novedades y le ofrece tres botones:
+     - Actualizar ahora : descarga la versión nueva (con un diálogo
+                          de progreso que puede cancelar), se cierra,
+                          la instala y se vuelve a abrir. Windows le
+                          pedirá permiso para instalarla.
+     - Omitir esta versión : no volverá a ofrecerla al abrir.
+     - Más tarde (o Escape) : se la ofrecerá la próxima vez.
+   Para comprobarlo en cualquier momento: menú Ayuda,
+   'Buscar actualizaciones'.
+   Para que no lo compruebe al abrir, desmarque en el menú
+   Opciones la casilla 'Buscar actualizaciones al iniciar'.

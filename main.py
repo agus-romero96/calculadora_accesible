@@ -7,6 +7,7 @@ import time
 import wx
 import wx.lib.dialogs
 
+import actualizador
 import configuracion
 import exportar
 import i18n
@@ -18,6 +19,11 @@ import ventana_historial
 from _version import __version__
 
 
+def es_instalada() -> bool:
+    """True en el ejecutable compilado; False al ejecutar el código fuente (las pruebas lo sustituyen)."""
+    return getattr(sys, "frozen", False)
+
+
 def texto_info():
     return tr("Escriba su expresión. F1 Ayuda. Alt para menús.")
 
@@ -25,6 +31,10 @@ def texto_info():
 class CalculadoraAccesible(wx.Frame):
     # Si un cálculo tarda más que esto, se abre el diálogo "Calculando…" (NVDA lo anuncia)
     MS_ANTES_DE_AVISAR = 600
+    # Espera tras abrir la ventana antes de buscar actualizaciones (no retrasa el arranque)
+    MS_ANTES_DE_BUSCAR_ACTUALIZACIONES = 3000
+    # Largo máximo de las novedades de una versión en el diálogo de actualización
+    LARGO_MAXIMO_NOVEDADES = 1500
 
     # Menús con las operaciones del registro (Operacion.menu), en el orden de la barra
     MENUS = {"operaciones": N_("&Operaciones"), "calculo": N_("&Cálculo"), "algebra": N_("&Álgebra")}
@@ -43,6 +53,8 @@ class CalculadoraAccesible(wx.Frame):
         self.historial = Historial(ruta_historial())
         # Explicación paso a paso o solo el resultado (menú Opciones); se recuerda
         self.modo_respuesta = configuracion.leer(configuracion.MODO_RESPUESTA)
+        self.buscar_al_iniciar = configuracion.leer(configuracion.BUSCAR_ACTUALIZACIONES)
+        self._buscando_actualizacion = False
 
         # Estado del cálculo en segundo plano. _calculo_actual es un "token" único por
         # cálculo: si el usuario cancela, se pone a None y el resultado tardío se descarta.
@@ -61,6 +73,10 @@ class CalculadoraAccesible(wx.Frame):
         self.Bind(wx.EVT_CLOSE, self._on_cerrar)
         self.Centre()
         self.input_text.SetFocus()
+
+        # Al ejecutar el código fuente no se busca: se actualiza con git
+        if es_instalada() and self.buscar_al_iniciar:
+            wx.CallLater(self.MS_ANTES_DE_BUSCAR_ACTUALIZACIONES, self._buscar_actualizaciones, True)
 
     def _on_cerrar(self, event):
         # Detiene el proceso de cálculo, aunque esté a mitad de un cálculo
@@ -215,9 +231,13 @@ class CalculadoraAccesible(wx.Frame):
         item = m_opciones.AppendCheckItem(wx.ID_ANY, tr("Mostrar el &paso a paso") + "	Ctrl+Shift+P")
         item.Check(self.modo_respuesta == configuracion.MODO_PASOS)
         self.Bind(wx.EVT_MENU, self.on_modo_respuesta, item)
+        item = m_opciones.AppendCheckItem(wx.ID_ANY, tr("Buscar actualizaciones al &iniciar"))
+        item.Check(self.buscar_al_iniciar)
+        self.Bind(wx.EVT_MENU, self.on_buscar_al_iniciar, item)
 
         m_help = wx.Menu()
         self._item(m_help, N_("Ayuda"), "F1", self.mostrar_ayuda)
+        self._item(m_help, N_("Buscar &actualizaciones..."), None, lambda e: self._buscar_actualizaciones(False))
 
         for clave, titulo in self.MENUS.items():
             menubar.Append(menus[clave], tr(titulo))
@@ -624,6 +644,150 @@ class CalculadoraAccesible(wx.Frame):
             self.historial.vaciar()
             wx.MessageBox(tr("Historial borrado."), tr("Borrar historial"), wx.OK | wx.ICON_INFORMATION)
         self.input_text.SetFocus()
+
+    # --- ACTUALIZACIONES ---
+    # La consulta y la descarga (actualizador.py) van en un hilo, para no congelar la
+    # ventana; los diálogos, en el hilo de la interfaz. La búsqueda automática (al abrir)
+    # no dice nada si no hay versión nueva o no hay conexión; la del menú Ayuda, sí.
+
+    def on_buscar_al_iniciar(self, event):
+        self.buscar_al_iniciar = not self.buscar_al_iniciar
+        configuracion.guardar(configuracion.BUSCAR_ACTUALIZACIONES, self.buscar_al_iniciar)
+        self.crear_menus()
+
+    def _buscar_actualizaciones(self, automatica):
+        if self._buscando_actualizacion:
+            return
+        self._buscando_actualizacion = True
+        if not automatica:
+            self.lbl_info.SetValue(tr("Buscando actualizaciones..."))
+
+        def trabajo():
+            try:
+                encontrada, error = actualizador.buscar_actualizacion(), None
+            except Exception as e:
+                encontrada, error = None, e
+            wx.CallAfter(self._resultado_busqueda, automatica, encontrada, error)
+
+        threading.Thread(target=trabajo, daemon=True).start()
+
+    def _resultado_busqueda(self, automatica, act, error):
+        if not self:
+            return  # la ventana se cerró mientras se consultaba
+        self._buscando_actualizacion = False
+        if not automatica:
+            self.lbl_info.SetValue(texto_info())
+            if error is not None:
+                wx.MessageBox(tr("No se pudo comprobar si hay una versión nueva.\n{error}", error=error),
+                              tr("Buscar actualizaciones"), wx.OK | wx.ICON_WARNING)
+            elif act is None:
+                wx.MessageBox(tr("Ya tiene la última versión ({version}).", version=__version__),
+                              tr("Buscar actualizaciones"), wx.OK | wx.ICON_INFORMATION)
+            if act is None:
+                self.input_text.SetFocus()
+                return
+        elif act is None or act.version == configuracion.leer(configuracion.VERSION_OMITIDA):
+            return
+        elif self._calculo_actual is not None:
+            # No interrumpir un cálculo: se ofrece cuando termine
+            wx.CallLater(2000, self._resultado_busqueda, automatica, act, None)
+            return
+        self._ofrecer_actualizacion(act)
+
+    def _ofrecer_actualizacion(self, act):
+        mensaje = tr("Hay una versión nueva de la calculadora: {nueva}. Usted tiene la {actual}.",
+                     nueva=act.version, actual=__version__)
+        if act.notas:
+            notas = act.notas
+            if len(notas) > self.LARGO_MAXIMO_NOVEDADES:
+                notas = notas[:self.LARGO_MAXIMO_NOVEDADES] + "…"
+            mensaje += "\n\n" + tr("Novedades:") + "\n" + notas
+        mensaje += "\n\n" + tr("¿Desea descargarla e instalarla ahora?")
+        dlg = wx.MessageDialog(self, mensaje, tr("Actualización disponible"),
+                               wx.YES_NO | wx.CANCEL | wx.ICON_INFORMATION)
+        # Escape equivale a Cancelar: por eso "Más tarde" es Cancelar y no "Omitir"
+        dlg.SetYesNoCancelLabels(tr("&Actualizar ahora"), tr("&Omitir esta versión"), tr("&Más tarde"))
+        try:
+            respuesta = dlg.ShowModal()
+        finally:
+            dlg.Destroy()
+
+        if respuesta == wx.ID_NO:
+            # No se volverá a ofrecer al abrir la calculadora (sí al buscar desde el menú)
+            configuracion.guardar(configuracion.VERSION_OMITIDA, act.version)
+        elif respuesta == wx.ID_YES:
+            if es_instalada() and act.url_instalador:
+                self._descargar_e_instalar(act)
+                return
+            # Código fuente, o una versión publicada sin instalador: se abre su página
+            wx.LaunchDefaultBrowser(act.pagina)
+        self.input_text.SetFocus()
+
+    def _descargar_e_instalar(self, act):
+        """Descarga el instalador con un diálogo de progreso (con Cancelar) y lo ejecuta."""
+        estado = {"descargado": 0, "total": act.tamano, "cancelar": False, "fin": None}
+
+        def progreso(descargado, total):
+            estado["descargado"], estado["total"] = descargado, total
+            return not estado["cancelar"]
+
+        def trabajo():
+            try:
+                estado["fin"] = ("descargado", actualizador.descargar(act, progreso=progreso))
+            except actualizador.DescargaCancelada:
+                estado["fin"] = ("cancelado", None)
+            except Exception as e:
+                estado["fin"] = ("error", e)
+
+        # El mensaje inicial es largo para que el diálogo tenga el ancho de los siguientes
+        dlg = wx.ProgressDialog(
+            tr("Descargando actualización"),
+            tr("Descargando la versión {version}: {mb} de {total_mb} MB.",
+               version=act.version, mb="0.0", total_mb=f"{act.tamano / 1048576:.1f}"),
+            maximum=100, parent=self,
+            style=wx.PD_APP_MODAL | wx.PD_CAN_ABORT | wx.PD_ELAPSED_TIME | wx.PD_REMAINING_TIME)
+        def actualizar_dialogo():
+            # Cada 200 ms mientras dura la descarga (wx.CallLater: sin temporizador ligado a la ventana)
+            if estado["fin"] is None:
+                total = estado["total"]
+                porcentaje = min(99, estado["descargado"] * 100 // total) if total else 0
+                continuar, _ = dlg.Update(porcentaje, tr("Descargando la versión {version}: {mb} de {total_mb} MB.",
+                                                         version=act.version,
+                                                         mb=f"{estado['descargado'] / 1048576:.1f}",
+                                                         total_mb=f"{total / 1048576:.1f}"))
+                if not continuar:
+                    estado["cancelar"] = True
+                wx.CallLater(200, actualizar_dialogo)
+                return
+            dlg.Destroy()
+            # Fuera de este callback, porque puede acabar cerrando la ventana
+            wx.CallAfter(self._descarga_terminada, act, *estado["fin"])
+
+        threading.Thread(target=trabajo, daemon=True).start()
+        wx.CallLater(200, actualizar_dialogo)
+
+    def _descarga_terminada(self, act, resultado, valor):
+        if resultado == "cancelado":
+            self.input_text.SetFocus()
+            return
+        if resultado == "error":
+            wx.MessageBox(tr("No se pudo descargar la actualización.\n{error}", error=valor),
+                          tr("Actualización"), wx.OK | wx.ICON_ERROR)
+            self.input_text.SetFocus()
+            return
+        wx.MessageBox(tr("Descarga completa. La calculadora se cerrará para instalar la versión {version} "
+                         "y se abrirá de nuevo al terminar.\nWindows le pedirá permiso para instalarla.",
+                         version=act.version),
+                      tr("Actualización"), wx.OK | wx.ICON_INFORMATION)
+        try:
+            actualizador.instalar(valor)
+        except actualizador.ErrorActualizacion as e:
+            # Por ejemplo, si se rechazó el permiso de administrador: la calculadora sigue abierta
+            wx.MessageBox(tr("No se instaló la actualización.\n{error}", error=e),
+                          tr("Actualización"), wx.OK | wx.ICON_WARNING)
+            self.input_text.SetFocus()
+            return
+        self.Close()  # el instalador necesita que la calculadora esté cerrada
 
     # --- AYUDA ---
 
