@@ -198,7 +198,8 @@ def _escapar_latex(texto: str) -> str:
 
 def _parametros_legibles(res: ResultadoOperacion, excluir=()) -> List[str]:
     etiquetas = {"variable": tr("Variable"), "tendencia": tr("Tendencia"),
-                 "orden": tr("Orden"), "metodo": tr("Método")}
+                 "orden": tr("Orden"), "metodo": tr("Método"),
+                 "inferior": tr("Límite inferior"), "superior": tr("Límite superior")}
     return [f"{etiquetas.get(k, k)}: {v}" for k, v in res.parametros.items()
             if v not in (None, "") and k not in excluir]
 

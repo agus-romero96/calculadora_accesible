@@ -21,6 +21,7 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Corregido
 
+- **Límites de la integral definida sin nombre**: con **Opciones → Mostrar el paso a paso** desactivado, y en la exportación (texto, Markdown y HTML), los límites aparecían como `inferior: 0` y `superior: 1`, con el nombre interno del parámetro y sin traducir. Ahora dicen **Límite inferior** / **Límite superior** (*Lower limit* / *Upper limit*). Apareció al juntar la integral definida, escrita antes de existir el modo "solo el resultado", con la versión 1.4.0. `tests/test_exportar.py` comprueba el resumen de una integral definida.
 - **Pasos de integración sin nombre**: cuando SymPy encontraba varios caminos (`AlternativeRule`, por ejemplo `exp(-x)`, que se puede sustituir de dos formas) o una potencia escrita como fracción (`NestedPowRule`, `1/x^2`), la explicación decía "Paso Intermedio. Regla detectada: AlternativeRule". Ahora se explica el primer camino y `1/x^2` usa la regla de la potencia. Afecta también a la integral indefinida.
 
 ## [1.4.0] - 2026-10-10

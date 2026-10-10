@@ -141,6 +141,9 @@ def test_resumen_de_cada_resultado(resultado):
     (lambda c: c.limite("abs(x)/x", "x", "0"),
      ["RESULTADO: No existe (los límites laterales no coinciden)", "Operación: Límite", "Entrada: abs(x)/x",
       "Variable: x", "Tendencia: 0"]),
+    (lambda c: c.integral_definida("x^2", None, "0", "1"),
+     ["RESULTADO: 1/3", "Operación: Integral definida", "Entrada: x^2", "Variable: x",
+      "Límite inferior: 0", "Límite superior: 1"]),
     # Soluciones y filas, una por línea
     (lambda c: c.sistema_gauss(["x + y = 10", "x - y = 2"]),
      ["RESULTADO:", "x = 6", "y = 4", "Operación: Sistema de ecuaciones (Gauss-Jordan)",
