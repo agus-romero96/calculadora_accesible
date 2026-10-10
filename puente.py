@@ -30,7 +30,6 @@ from algebra.gauss_logic import MotorGauss
 from algebra.classic_systems import MotorSistemasClasicos
 
 # Módulos de CÁLCULO
-from calculo.limite import GestorLimites
 from calculo.router import RouterMatematico
 from calculo.calculo import Calculo
 
@@ -164,8 +163,7 @@ class CoreMatematico:
 
         # Especialistas en Cálculo
         self.calculo = Calculo(self.parser_comun)
-        self.limites_backend = GestorLimites(self.parser_comun)
-        self.router = RouterMatematico(self.parser_comun, self.limites_backend)
+        self.router = RouterMatematico(self.parser_comun)
 
     def _expresion(self, texto: str) -> Optional[Any]:
         """La entrada interpretada (para exportarla en LaTeX/MathML), o None si no se puede."""

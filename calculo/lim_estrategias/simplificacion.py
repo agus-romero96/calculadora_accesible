@@ -4,7 +4,9 @@ from typing import Any, List, Optional
 
 import sympy
 
+from calculo.pasos import PasoCalculo, entre_parentesis, texto
 from i18n import N_, tr
+from ._pasos import paso_evaluacion, paso_sustitucion, tendencia
 from ._base import (
     Estrategia,
     ResultadoEstrategia,
@@ -45,8 +47,7 @@ class SimplificacionCancelacion(Estrategia):
             return False
 
     def resolver(self, expr, var, punto, **kwargs) -> ResultadoEstrategia:
-        pasos: List[str] = []
-        pasos.append(tr("Intentamos simplificación algebraica (together + cancel) antes de métodos especiales."))
+        dir_ = kwargs.get("dir", None)
 
         # 0) ¿Hay realmente una indeterminación 0/0 que cancelar?
         try:
@@ -54,59 +55,67 @@ class SimplificacionCancelacion(Estrategia):
             n0 = sympy.simplify(num0.subs(var, punto))
             d0 = sympy.simplify(den0.subs(var, punto))
         except Exception:
-            return self._no_concluyente(expr, expr, pasos, tr("No se pudo evaluar la sustitución directa."))
+            return self._no_concluyente(expr, expr, [], tr("No se pudo evaluar la sustitución directa."))
 
         if not (n0 == 0 and d0 == 0):
-            return self._no_concluyente(expr, expr, pasos, tr("La sustitución directa no produce 0/0: no hay factor que cancelar."))
+            return self._no_concluyente(expr, expr, [], tr("La sustitución directa no produce 0/0: no hay factor que cancelar."))
 
-        pasos.append(tr("Sustitución directa x = {punto}: numerador → 0 y denominador → 0 (forma 0/0).", punto=punto))
+        paso_inicial, _ = paso_sustitucion(expr, var, punto, dir_)
+        pasos: List[PasoCalculo] = [paso_inicial] if paso_inicial else []
 
-        expr_trabajo = expr
-
-        # 1) Agrupar fracciones (fracción de fracciones -> fracción simple)
+        # 1) Una sola fracción (fracción de fracciones -> fracción simple)
         try:
-            expr_t = sympy.together(expr_trabajo)
-            if expr_t != expr_trabajo:
-                pasos.append(tr("Aplicamos together(): {expr_t}", expr_t=expr_t))
-            expr_trabajo = expr_t
-        except Exception as e:
-            pasos.append(tr("(Aviso) together() falló: {e}", e=e))
-
-        # 2) Cancelación de factores comunes
-        try:
-            expr_c = sympy.cancel(expr_trabajo)
-            if expr_c != expr_trabajo:
-                pasos.append(tr("Aplicamos cancel(): {expr_c}", expr_c=expr_c))
-            expr_trabajo = expr_c
-        except Exception as e:
-            pasos.append(tr("(Aviso) cancel() falló: {e}", e=e))
-
-        # 3) Factorización ligera (solo si num/den son polinomios en var)
-        try:
-            num, den = expr_trabajo.as_numer_denom()
-            if num.is_polynomial(var) and den.is_polynomial(var):
-                expr_f = sympy.cancel(sympy.factor(num) / sympy.factor(den))
-                if expr_f != expr_trabajo:
-                    pasos.append(tr("Factorizamos num/den y recancelamos: {expr_f}", expr_f=expr_f))
-                    expr_trabajo = expr_f
+            junta = sympy.together(expr)
         except Exception:
-            # silencioso: factor es opcional
-            pass
+            junta = expr
+        if junta != expr:
+            pasos.append(PasoCalculo(
+                tr("Una sola fracción"),
+                regla=tr("para cancelar factores, primero se escribe todo como una sola fracción (común denominador)."),
+                partes=tr("{antes} = {despues}.", antes=texto(expr), despues=texto(junta)),
+                queda=texto(junta)))
 
-        # 4) Tras simplificar, ¿la sustitución directa ya es un valor finito?
+        # 2) Factorizar y cancelar el factor común
+        num, den = junta.as_numer_denom()
+        try:
+            num_f, den_f = sympy.factor(num), sympy.factor(den)
+            comun = sympy.gcd(num, den)
+            expr_trabajo = sympy.cancel(junta)
+        except Exception:
+            return self._no_concluyente(expr, expr, pasos, tr("La simplificación no eliminó la indeterminación."))
+        if comun.is_number:
+            return self._no_concluyente(expr, expr_trabajo, pasos, tr("La simplificación no eliminó la indeterminación."))
+
+        calculo = []
+        for etiqueta, original, factorizado in ((tr("Factorizamos el numerador: {antes} = {despues}."), num, num_f),
+                                                (tr("Factorizamos el denominador: {antes} = {despues}."), den, den_f)):
+            if factorizado != original:
+                calculo.append(etiqueta.format(antes=texto(original), despues=texto(factorizado)))
+        calculo.append(tr("El factor común es {factor}: vale 0 en {variable} = {punto}, y es lo que producía el 0/0.",
+                          factor=texto(comun), variable=var, punto=punto))
+        calculo.append(tr("Cancelamos {factor}: {antes} = {despues}.", factor=texto(comun),
+                          antes=f"{texto(num_f) if num_f.is_Mul else entre_parentesis(num_f)}/{entre_parentesis(den_f)}",
+                          despues=texto(expr_trabajo)))
+        pasos.append(PasoCalculo(
+            tr("Factorizar y cancelar"),
+            regla=tr("si un polinomio vale 0 en {variable} = a, tiene el factor ({variable} - a). Se factorizan "
+                     "numerador y denominador y se cancela el factor común: mientras {variable} se acerca a a sin "
+                     "llegar, ese factor no es 0, así que cancelarlo no cambia el límite.", variable=var),
+            partes=tr("el numerador es {num} y el denominador es {den}.", num=texto(num), den=texto(den)),
+            calculo=tuple(calculo),
+            queda=tr("lim {expresion} cuando {tendencia}", expresion=texto(expr_trabajo),
+                     tendencia=tendencia(var, punto, dir_))))
+
+        # 3) Tras simplificar, ¿la sustitución directa ya es un valor finito?
         try:
             val = sympy.simplify(expr_trabajo.subs(var, punto))
         except Exception:
             val = None
 
         if val is None or val.is_finite is not True:
-            return self._no_concluyente(
-                expr, expr_trabajo,
-                pasos + [tr("Tras simplificar, la sustitución sigue sin dar un valor finito: {val}", val=val)],
-                tr("La simplificación no eliminó la indeterminación."),
-            )
+            return self._no_concluyente(expr, expr_trabajo, pasos, tr("La simplificación no eliminó la indeterminación."))
 
-        pasos.append(tr("La expresión simplificada es continua en x = {punto}; sustituimos: {val}", punto=punto, val=val))
+        pasos.append(paso_evaluacion(expr_trabajo, var, punto, dir_, val))
 
         return ResultadoEstrategia(
             aplica=True,

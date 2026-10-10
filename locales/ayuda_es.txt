@@ -85,6 +85,9 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
      Para un límite lateral escriba la tendencia con + o -,
      por ejemplo 0+ (por la derecha) o 0- (por la izquierda).
      Para infinito escriba oo, o -oo para menos infinito.
+     El paso a paso empieza siempre sustituyendo y diciendo qué
+     forma sale (0/0, infinito entre infinito...); después cada
+     transformación tiene su regla y sus cuentas.
    - Sistema 2x2: Escriba dos líneas:
        x + y = 10
        x - y = 2

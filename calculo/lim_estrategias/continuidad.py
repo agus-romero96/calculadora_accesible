@@ -7,7 +7,9 @@ from sympy import S
 from sympy.assumptions import Q, ask
 
 from .trigonometria import LimitesTrigNotables
+from calculo.pasos import PasoCalculo, entre_parentesis, texto
 from i18n import N_, tr
+from ._pasos import cuenta, tendencia, valor_texto
 from ._base import (
     Estrategia,
     ResultadoEstrategia,
@@ -121,8 +123,9 @@ class ContinuidadComposicion(Estrategia):
                 expr_trabajo=expr,
             )
 
-        pasos.append(tr("Aplicamos el teorema: si g(x)->L y f es continua en L, entonces lim f(g(x)) = f(L)."))
-        pasos.append(tr("Evaluamos f(L) = {resultado}", resultado=resultado))
+        resultado = sympy.simplify(resultado)
+        pasos = self._pasos_interno(inner, var, punto, dir_, L)
+        pasos.append(self._paso(outer, inner, var, punto, dir_, L, motivo, resultado, explicado=bool(pasos)))
 
         # 4) Estado coherente
         estado = ESTADO_FINITO
@@ -132,13 +135,63 @@ class ContinuidadComposicion(Estrategia):
         return ResultadoEstrategia(
             aplica=True,
             estado=estado,
-            resultado=sympy.simplify(resultado),
+            resultado=resultado,
             nombre_estrategia=self.nombre(),
             explicacion=N_("Se evaluó el límite usando continuidad por composición."),
             pasos=pasos,
             expr_original=expr,
             expr_trabajo=expr,
         )
+
+    def _pasos_interno(self, inner: Any, var: sympy.Symbol, punto: Any, dir_: Optional[str], L: Any) -> List[Any]:
+        """Pasos del límite de la función de dentro, si es un límite notable (exp(sin(x)/x): sin(x)/x → 1)."""
+        if cuenta(inner, var, punto) is not None:
+            return []  # se ve sustituyendo, en el mismo paso
+        try:
+            if self._trig.puede_resolver(inner, var, punto, dir=dir_):
+                res = self._trig.resolver(inner, var, punto, dir=dir_)
+                if res.estado != ESTADO_NO_CONCLUYENTE and res.resultado == L:
+                    return list(res.pasos)
+        except Exception:
+            pass
+        return []
+
+    def _paso(self, outer: Any, inner: Any, var: sympy.Symbol, punto: Any, dir_: Optional[str], L: Any,
+              motivo: str, resultado: Any, explicado: bool = False) -> PasoCalculo:
+        """Un paso: g(x) → L, f continua en L, f(L)."""
+        if self._es_potencia(outer) and outer[1] == sympy.Rational(1, 2):
+            externa = tr("la raíz cuadrada (elevar a 1/2)")
+            evaluada = f"sqrt({texto(L)})"
+        elif self._es_potencia(outer):
+            c = outer[1]
+            externa = tr("elevar a {c}", c=texto(c))
+            evaluada = f"{entre_parentesis(L)}^{entre_parentesis(c)}"
+        else:
+            externa = outer.__name__
+            evaluada = f"{outer.__name__}({texto(L)})"
+        texto_cuenta = cuenta(inner, var, punto)
+        if texto_cuenta is not None:
+            limite_dentro = tr("Límite de la función de dentro, sustituyendo: g({punto}) = {cuenta}.", punto=punto,
+                               cuenta=texto_cuenta)
+        elif explicado:
+            limite_dentro = tr("Límite de la función de dentro, calculado en los pasos anteriores: L = {valor}.",
+                               valor=valor_texto(L))
+        else:
+            limite_dentro = tr("Límite de la función de dentro: g(x) tiende a {valor}.", valor=valor_texto(L))
+        calculo = [limite_dentro,
+                   tr("¿Es f continua en L = {L}? {motivo}", L=texto(L), motivo=motivo),
+                   tr("Evaluamos f en L: {evaluada} = {resultado}.", evaluada=evaluada, resultado=valor_texto(resultado))
+                   if evaluada != valor_texto(resultado)
+                   else tr("Evaluamos f en L: {resultado}.", resultado=valor_texto(resultado))]
+        return PasoCalculo(
+            tr("Continuidad de una composición"),
+            regla=tr("si la función de dentro, g(x), tiende a L, y la de fuera, f, es continua en L, el límite de "
+                     "f(g(x)) es f(L): el límite pasa dentro de la función."),
+            partes=tr("la función de fuera es f = {externa} y la de dentro es g(x) = {interna}; buscamos el límite "
+                      "cuando {tendencia}.", externa=externa, interna=texto(inner),
+                      tendencia=tendencia(var, punto, dir_)),
+            calculo=tuple(calculo),
+            queda=valor_texto(resultado))
 
     # --------------------------
     # V1.5: límite interno mejorado

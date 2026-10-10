@@ -4,7 +4,9 @@ from typing import Any, List, Optional, Tuple
 import sympy
 from sympy import S
 
+from calculo.pasos import PasoCalculo, entre_parentesis, texto
 from i18n import N_, tr
+from ._pasos import paso_evaluacion, paso_sustitucion, tendencia
 from ._base import (
     Estrategia,
     ResultadoEstrategia,
@@ -53,9 +55,7 @@ class RacionalizacionRaices(Estrategia):
         dir_ = kwargs.get("dir", None)
         expr_s = self._prep(expr)
 
-        pasos: List[str] = []
-        pasos.append(tr("Análisis: se detectaron raíces cuadradas. Intentaremos racionalizar con conjugados."))
-        pasos.append(tr("Objetivo: eliminar indeterminaciones tipo 0/0 o ∞-∞ provocadas por raíces."))
+        pasos: List[Any] = []
 
         num, den = expr_s.as_numer_denom()
 
@@ -85,14 +85,10 @@ class RacionalizacionRaices(Estrategia):
                 expr_trabajo=expr_s,
             )
 
-        pasos.append(tr("Se encontraron {intentos} candidato(s) a racionalizar (binomios con raíz).", intentos=len(intentos)))
-
         # 2) Probar racionalizar: el primero que produzca un límite evaluable gana
         for ubicacion, bloque in intentos:
             bloque_norm, conj = self._normalize_and_conjugate(bloque)
 
-            pasos.append(tr("Probando racionalización en {ubicacion} con bloque: {bloque_norm}", ubicacion=tr(ubicacion).lower(), bloque_norm=bloque_norm))
-            pasos.append(tr("Conjugado propuesto: {conj}", conj=conj))
 
             try:
                 # Racionalizamos multiplicando por conj/conj.
@@ -109,8 +105,7 @@ class RacionalizacionRaices(Estrategia):
                 # Cancelación es CLAVE para quitar el factor que causa 0/0
                 nueva_expr_simp = sympy.cancel(nueva_expr)
 
-            except Exception as e:
-                pasos.append(tr("Este intento falló al transformar la expresión: {e}", e=e))
+            except Exception:
                 continue
 
             limite_candidato = self._limite_seguro(nueva_expr_simp, var, punto, dir_)
@@ -118,11 +113,7 @@ class RacionalizacionRaices(Estrategia):
             if self._es_resuelto(limite_candidato, var):
                 res_final = sympy.simplify(limite_candidato)
 
-                pasos.append(tr("Intento exitoso ✅"))
-                pasos.append(tr("1) Multiplicamos y dividimos por el conjugado: {conj}", conj=conj))
-                pasos.append(tr("2) Aplicamos producto notable (A+B)(A-B) = A² - B²."))
-                pasos.append(tr("3) Expresión transformada y simplificada: {nueva_expr_simp}", nueva_expr_simp=nueva_expr_simp))
-                pasos.append(tr("4) Evaluamos el límite: {res_final}", res_final=res_final))
+                pasos = self._pasos(expr_s, var, punto, dir_, ubicacion, bloque, num, den, nueva_expr_simp, res_final)
 
                 estado = ESTADO_FINITO
                 if res_final in (S.Infinity, S.NegativeInfinity) or getattr(res_final, "is_infinite", False):
@@ -139,8 +130,6 @@ class RacionalizacionRaices(Estrategia):
                     expr_trabajo=nueva_expr_simp,
                 )
 
-            pasos.append(tr("Este intento no produjo un límite evaluable (o quedó indeterminado)."))
-
         return ResultadoEstrategia(
             aplica=True,
             estado=ESTADO_NO_CONCLUYENTE,
@@ -151,6 +140,51 @@ class RacionalizacionRaices(Estrategia):
             expr_original=expr,
             expr_trabajo=expr_s,
         )
+
+    # ---------------- Pasos ----------------
+
+    def _pasos(self, expr: Any, var: sympy.Symbol, punto: Any, dir_: Optional[str], ubicacion: str, bloque: Any,
+               num: Any, den: Any, nueva: Any, valor: Any) -> List[PasoCalculo]:
+        """Sustitución, racionalización con el conjugado (A - B)(A + B) = A^2 - B^2 y límite final."""
+        paso_inicial, _ = paso_sustitucion(expr, var, punto, dir_)
+
+        # El bloque como A - B, con A un término sin signo menos: sqrt(x + 1) - 1 da A = sqrt(x + 1) y B = 1;
+        # 3 - sqrt(x + 9), A = 3 y B = sqrt(x + 9)
+        positivos = [termino for termino in bloque.args if not termino.could_extract_minus_sign()]
+        a = positivos[0] if positivos else bloque.args[0]
+        b = sympy.expand(a - bloque)
+        conjugado = a + b
+        cuadrados = sympy.expand(a ** 2 - b ** 2)
+        lado = num if ubicacion == "Numerador" else den
+        lado_nuevo = sympy.expand(lado * conjugado)
+        otro = den if ubicacion == "Numerador" else num
+        en_el_lado = tr("numerador") if ubicacion == "Numerador" else tr("denominador")
+
+        calculo = [tr("Multiplicamos el numerador y el denominador por el conjugado, {conjugado}: "
+                      "es multiplicar por 1, así que el límite no cambia.", conjugado=texto(conjugado)),
+                   tr("En el {lado}: ({a} - {b})*({a} + {b}) = {a2} - {b2} = {resultado}.", lado=en_el_lado,
+                      a=texto(a), b=entre_parentesis(b) if b.could_extract_minus_sign() else texto(b),
+                      a2=f"{entre_parentesis(a)}^2", b2=f"{entre_parentesis(b)}^2", resultado=texto(cuadrados))]
+        if lado != bloque:
+            calculo.append(tr("Con el resto de factores, el {lado} queda {nuevo}.", lado=en_el_lado, nuevo=texto(lado_nuevo)))
+        if ubicacion == "Numerador":
+            transformada = f"{entre_parentesis(lado_nuevo)}/({texto(otro)}*{entre_parentesis(conjugado)})" if otro != 1                 else f"{entre_parentesis(lado_nuevo)}/{entre_parentesis(conjugado)}"
+        else:
+            transformada = f"{texto(otro)}*{entre_parentesis(conjugado)}/{entre_parentesis(lado_nuevo)}" if otro != 1                 else f"{entre_parentesis(conjugado)}/{entre_parentesis(lado_nuevo)}"
+        calculo.append(tr("La expresión queda {expresion}.", expresion=transformada))
+        if texto(nueva) != transformada:
+            calculo.append(tr("Simplificamos (se cancela el factor que producía la indeterminación): {expresion}.",
+                              expresion=texto(nueva)))
+        paso = PasoCalculo(
+            tr("Racionalizar con el conjugado"),
+            regla=tr("si una resta (o suma) con raíces, A - B, produce la indeterminación, se multiplican numerador "
+                     "y denominador por su conjugado, A + B: como (A - B)*(A + B) = A^2 - B^2, las raíces cuadradas "
+                     "desaparecen al elevarlas al cuadrado."),
+            partes=tr("en el {lado} está {bloque}: A = {a} y B = {b}, y su conjugado es {conjugado}.", lado=en_el_lado,
+                      bloque=texto(bloque), a=texto(a), b=texto(b), conjugado=texto(conjugado)),
+            calculo=tuple(calculo),
+            queda=tr("lim {expresion} cuando {tendencia}", expresion=texto(nueva), tendencia=tendencia(var, punto, dir_)))
+        return [p for p in (paso_inicial, paso, paso_evaluacion(nueva, var, punto, dir_, valor)) if p]
 
     # ---------------- Helpers ----------------
 

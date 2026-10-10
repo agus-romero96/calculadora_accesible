@@ -46,15 +46,16 @@ Disponible en **español e inglés** (interfaz, explicaciones y ayuda). Los resu
 | **Derivada de orden N** | Calcula derivadas sucesivas y explica cada una con el mismo paso a paso que **Derivar** (si la explicación se hace demasiado larga, desde ahí muestra solo cada resultado, con un aviso). Simplifica cada pocos pasos para que el resultado no crezca sin control. |
 | **Integrar** | Integral indefinida (con `+ C`). Explica cada regla con el mismo formato que las derivadas (**Regla**, **En este caso**, las cuentas y **Queda**): potencia (`2 + 1 = 3`, dividir entre `3/2` es multiplicar por `2/3`), factor constante, suma, integrales de la tabla con su comprobación derivando, cambio de variable (qué es `u`, cuánto vale `du` y qué parte del integrando se cambia por `du`, con su signo y su constante), integración por partes (`u`, `dv`, `du`, `v` y la integral que queda), partes cíclica (despejando la integral) y funciones reescritas (identidades, fracciones). Termina con la constante de integración. Avisa si no existe solución cerrada o si aparecen funciones especiales (`erf`, `Ei`, `Si`, …). |
 | **Integral definida** | Pide el límite inferior y el superior (números, expresiones como `pi/2`, o `oo`/`-oo`). Si la función es continua en un intervalo acotado, aplica la **regla de Barrow**: explica la primitiva, sustituye cada límite en `F` (`F(1) = 1^3/3 = 1/3`) y resta. Si un límite es infinito o la función no es continua en el intervalo, la trata como **integral impropia**: la divide en tramos en los puntos de discontinuidad, toma el límite de la primitiva en cada extremo impropio e indica si **converge o diverge** (por ejemplo, `1/x^2` entre -1 y 1 diverge; aplicar Barrow sin mirar daría -2). Si no hay primitiva elemental, da una aproximación decimal. |
-| **Límite** | Calcula límites en un punto, en `±∞` y **laterales** (`2+`, `2-`). Un enrutador elige la estrategia didáctica más adecuada (ver abajo) y, si ninguna aplica, recurre a un motor general con diagnóstico de indeterminación (`0/0`, `∞/∞`, `k/0`), L'Hôpital validado, límites laterales y clasificación del comportamiento (función continua, discontinuidad evitable, de salto, asíntota vertical u horizontal). |
+| **Límite** | Calcula límites en un punto, en `±∞` y **laterales** (`2+`, `2-`). Un enrutador elige la estrategia didáctica más adecuada (ver abajo) y, si ninguna aplica, el **modo general**. Todas explican con el mismo formato que derivadas e integrales: primero la sustitución directa y la forma que sale (`0/0`, `∞/∞`, `∞ - ∞`, `k/0`), y después cada transformación con su regla y sus cuentas, hasta el valor. |
 
 **Estrategias de límites** (`calculo/lim_estrategias/`):
 
-1. **Simplificación y cancelación**: `together` + `cancel` + factorización.
-2. **Límites trigonométricos notables**: extrae núcleos `sin(u)/u → 1`, `tan(u)/u → 1` y `(1−cos u)/u² → 1/2`.
-3. **Racionalización**: multiplica por el conjugado en binomios con raíz cuadrada.
-4. **Continuidad por composición**: `lim f(g(x)) = f(lim g(x))`, comprobando el dominio de `f` (log, sqrt, asin, acos, …).
-5. **Comparación de grados**: cocientes de polinomios cuando `x → ±∞`, incluido el signo de la divergencia.
+1. **Simplificación y cancelación**: factoriza numerador y denominador, muestra el factor común `(x - a)` y lo cancela (`(x - 2)*(x + 2)`...).
+2. **Límites trigonométricos notables**: escribe la expresión como núcleo por resto (`sin(u)/u → 1`, `tan(u)/u → 1`, `(1−cos u)/u² → 1/2`), dice de dónde sale el resto y calcula su límite.
+3. **Racionalización**: multiplica por el conjugado y muestra `(A - B)(A + B) = A² - B²` con las raíces de la expresión.
+4. **Continuidad por composición**: `lim f(g(x)) = f(lim g(x))`, comprobando el dominio de `f` (log, sqrt, asin, acos, …); si el límite de dentro es notable, lo explica antes.
+5. **Comparación de grados**: cocientes de polinomios cuando `x → ±∞`: términos principales, grados y signo de la divergencia.
+6. **Modo general** (`general.py`), si ninguna aplica: sustitución directa, límites laterales (quitando el valor absoluto a cada lado), número entre cero con su signo, regla de L'Hôpital, formas `1^∞`, `0^0`, `∞^0` (`f^g = exp(g*log(f))`), `0*∞` y `∞ - ∞` reescritas como cociente, y el término de mayor grado de un polinomio. El valor siempre es el de SymPy: si la explicación no llega a él, se da el resultado con un aviso.
 
 ### Álgebra lineal (menú **Álgebra**)
 
@@ -328,7 +329,6 @@ parser_matematico.py    ParserMatematico: parser único compartido (SymPy parse_
     ├── integrales.py           Explicación de las integrales (árbol de reglas de SymPy)
     ├── pasos.py                PasoCalculo y su texto (Regla, En este caso, cuentas, Queda)
     ├── router.py               Enrutador de estrategias de límites
-    ├── limite.py               Motor general de límites (fallback)
     └── lim_estrategias/        Estrategias didácticas (patrón Strategy)
         ├── _base.py
         ├── simplificacion.py

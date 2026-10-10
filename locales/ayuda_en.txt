@@ -85,6 +85,9 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
      For a one-sided limit, type the value followed by + or -,
      for example 0+ (from the right) or 0- (from the left).
      For infinity type oo, or -oo for minus infinity.
+     The steps always start by substituting and saying which form
+     appears (0/0, infinity over infinity...); then each
+     transformation has its rule and its arithmetic.
    - 2x2 system: Type two lines:
        x + y = 10
        x - y = 2

@@ -5,7 +5,9 @@ from typing import Any, Tuple, List, Optional
 import sympy
 from sympy import S
 
+from calculo.pasos import PasoCalculo, entre_parentesis, texto
 from i18n import N_, tr
+from ._pasos import cuenta, paso_sustitucion, valor_texto
 from ._base import (
     Estrategia,
     ResultadoEstrategia,
@@ -48,63 +50,88 @@ class LimitesTrigNotables(Estrategia):
         ok, *_ = self._match_one_minus_cos(expr, var, punto, dir_)
         return ok
 
+    # Núcleos: (función que lo detecta, cómo se escribe con u, su límite, enunciado)
+    NUCLEOS = (
+        ("_match_sin", "sin({u})/{up}", 1,
+         N_("cuando u → 0, sin(u)/u → 1 (límite notable). Si la expresión se escribe como (sin(u)/u)*R, "
+            "su límite es 1 por el límite de R.")),
+        ("_match_tan", "tan({u})/{up}", 1,
+         N_("cuando u → 0, tan(u)/u → 1 (límite notable, porque tan(u) = sin(u)/cos(u) y cos(0) = 1). "
+            "Si la expresión se escribe como (tan(u)/u)*R, su límite es 1 por el límite de R.")),
+        ("_match_one_minus_cos", "(1 - cos({u}))/{up}^2", sympy.Rational(1, 2),
+         N_("cuando u → 0, (1 - cos(u))/u^2 → 1/2 (límite notable). Si la expresión se escribe como "
+            "((1 - cos(u))/u^2)*R, su límite es 1/2 por el límite de R.")),
+    )
+
     def resolver(self, expr, var, punto, **kwargs) -> ResultadoEstrategia:
         dir_ = kwargs.get("dir", None)
 
-        pasos: List[str] = []
-        pasos.append(tr("Buscamos un núcleo trigonométrico notable (sin series)."))
+        for metodo, plantilla, factor, enunciado in self.NUCLEOS:
+            ok, u, resto, lim_resto = getattr(self, metodo)(expr, var, punto, dir_)
+            if not ok:
+                continue
+            res = sympy.simplify(factor * lim_resto)
+            nucleo = plantilla.format(u=texto(u), up=texto(u) if u.is_Symbol else entre_parentesis(u))
+            paso_inicial, _ = paso_sustitucion(expr, var, punto, dir_)
 
-        ok, u, resto, lim_resto = self._match_sin(expr, var, punto, dir_)
-        if ok:
-            pasos.append(tr("Detectamos un candidato tipo sin(u)."))
-            pasos.append(f"  • u = {u}")
-            pasos.append(tr("Construimos el núcleo K = sin(u)/u, cuyo límite es 1 si u→0."))
-            pasos.append(tr("Separamos: expr = K * R, donde R = expr / K."))
-            pasos.append(f"  • R = {resto}")
-            pasos.append(tr("Calculamos lim R = {lim_resto}", lim_resto=lim_resto))
-            pasos.append(tr("Aplicamos: lim sin(u)/u = 1."))
-            res = sympy.simplify(lim_resto)
-            pasos.append(tr("Resultado final: 1 * {lim_resto} = {res}", lim_resto=lim_resto, res=res))
-            return self._ok(expr, pasos, res, tr("Extracción de núcleo sin(u)/u con u={u}", u=u))
-
-        ok, u, resto, lim_resto = self._match_tan(expr, var, punto, dir_)
-        if ok:
-            pasos.append(tr("Detectamos un candidato tipo tan(u)."))
-            pasos.append(f"  • u = {u}")
-            pasos.append(tr("Construimos el núcleo K = tan(u)/u, cuyo límite es 1 si u→0."))
-            pasos.append(tr("R = expr / K = {resto}", resto=resto))
-            pasos.append(tr("Calculamos lim R = {lim_resto}", lim_resto=lim_resto))
-            pasos.append(tr("Aplicamos: lim tan(u)/u = 1."))
-            res = sympy.simplify(lim_resto)
-            pasos.append(tr("Resultado final: {res}", res=res))
-            return self._ok(expr, pasos, res, tr("Extracción de núcleo tan(u)/u con u={u}", u=u))
-
-        ok, u, resto, lim_resto = self._match_one_minus_cos(expr, var, punto, dir_)
-        if ok:
-            pasos.append(tr("Detectamos un candidato tipo (1 - cos(u))."))
-            pasos.append(f"  • u = {u}")
-            pasos.append(tr("Construimos el núcleo K = (1 - cos(u))/u^2, cuyo límite es 1/2 si u→0."))
-            pasos.append(tr("R = expr / K = {resto}", resto=resto))
-            pasos.append(tr("Calculamos lim R = {lim_resto}", lim_resto=lim_resto))
-            pasos.append(tr("Aplicamos: lim (1-cos(u))/u^2 = 1/2."))
-            res = sympy.simplify(sympy.Rational(1, 2) * lim_resto)
-            pasos.append(tr("Resultado final: 1/2 * {lim_resto} = {res}", lim_resto=lim_resto, res=res))
-            return self._ok(expr, pasos, res, tr("Extracción de núcleo (1-cos(u))/u^2 con u={u}", u=u))
+            cuenta_u = cuenta(u, var, punto)
+            if u == var or cuenta_u is None:
+                tiende_u = tr("u → 0 cuando {variable} → {punto}", variable=var, punto=punto)
+            else:
+                tiende_u = tr("u → 0: {cuenta}", cuenta=cuenta_u)
+            calculo = [tr("Escribimos la expresión como el núcleo por un resto: {expresion} = ({nucleo})*R.",
+                          expresion=texto(expr), nucleo=nucleo),
+                       tr("R es la expresión dividida entre el núcleo: R = ({expresion})/({nucleo}) = {resto}.",
+                          expresion=texto(expr), nucleo=nucleo, resto=texto(resto))]
+            calculo += self._explicar_resto(resto, var, punto, dir_, lim_resto)
+            calculo.append(tr("Multiplicamos los dos límites: {factor} * {resto} = {resultado}.", factor=texto(factor),
+                              resto=entre_parentesis(lim_resto), resultado=valor_texto(res)))
+            paso = PasoCalculo(
+                tr("Límite trigonométrico notable"),
+                regla=tr(enunciado),
+                partes=tr("el núcleo es {nucleo} con u = {u} ({tiende}).", nucleo=nucleo, u=texto(u), tiende=tiende_u),
+                calculo=tuple(calculo),
+                queda=valor_texto(res))
+            return self._ok(expr, [p for p in (paso_inicial, paso) if p], res,
+                            tr("Extracción de núcleo {nucleo} con u={u}", nucleo=plantilla.format(u="u", up="u"), u=u))
 
         return ResultadoEstrategia(
             aplica=True,
             estado=ESTADO_NO_CONCLUYENTE,
             resultado=None,
             nombre_estrategia=self.nombre(),
-            pasos=[tr("Parecía trigonométrico, pero no se pudo aislar un núcleo notable con un resto evaluable.")],
+            pasos=[],
             avisos=[tr("Requiere identidad adicional, encaje u otro método.")],
             expr_original=expr,
             expr_trabajo=expr,
         )
 
+    def _explicar_resto(self, resto: Any, var: sympy.Symbol, punto: Any, dir_: Optional[str],
+                        lim_resto: Any) -> List[str]:
+        """Cómo se obtiene el límite del resto: sustituyendo, o con el núcleo invertido v/sin(v) → 1."""
+        texto_cuenta = cuenta(resto, var, punto)
+        if texto_cuenta is not None:
+            return [tr("Límite del resto, sustituyendo: R = {cuenta}.", cuenta=texto_cuenta)]
+        # sin(2x)/sin(3x): R = 2*x/sin(3*x) = (3*x/sin(3*x)) * (2*x/(3*x)), y 3*x/sin(3*x) → 1
+        _, den = resto.as_numer_denom()
+        for f in sympy.Mul.make_args(den):
+            if getattr(f, "func", None) in (sympy.sin, sympy.tan) and self._u_tiende_a_0(f.args[0], var, punto, dir_):
+                v = f.args[0]
+                otro = sympy.simplify(resto * f / v)
+                cuenta_otro = cuenta(otro, var, punto)
+                if cuenta_otro is None:
+                    break
+                return [tr("El resto tiene {funcion}(v) en el denominador, con v = {v} → 0: R = ({v}/{funcion}({v}))*{otro}, "
+                           "y {v}/{funcion}({v}) → 1 porque es el inverso del límite notable.",
+                           funcion=f.func.__name__, v=texto(v), otro=entre_parentesis(otro)),
+                        tr("El otro factor, sustituyendo: {cuenta}.", cuenta=cuenta_otro),
+                        tr("Límite del resto: 1 * {valor} = {valor}.", valor=valor_texto(lim_resto))]
+        return [tr("Límite del resto: R tiende a {valor}.", valor=valor_texto(lim_resto))]
+
+
     # ---------------- helpers ----------------
 
-    def _ok(self, expr: Any, pasos: List[str], res: Any, explicacion: str) -> ResultadoEstrategia:
+    def _ok(self, expr: Any, pasos: List[Any], res: Any, explicacion: str) -> ResultadoEstrategia:
         # ✅ FIX: estado coherente con el valor del resultado
         estado = ESTADO_FINITO
         if res in (S.Infinity, S.NegativeInfinity) or getattr(res, "is_infinite", False):

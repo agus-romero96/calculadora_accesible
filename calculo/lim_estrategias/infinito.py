@@ -5,7 +5,9 @@ from typing import Any, Optional, Tuple, List
 import sympy
 from sympy import S
 
+from calculo.pasos import PasoCalculo, entre_parentesis, texto
 from i18n import N_, tr
+from ._pasos import paso_sustitucion
 from ._base import (
     Estrategia,
     ResultadoEstrategia,
@@ -77,7 +79,7 @@ class LimiteRacionalInfinito(Estrategia):
 
         # Caso 1: deg(n) < deg(d) -> 0
         if deg_n < deg_d:
-            pasos.append(tr("Como el grado del denominador es mayor, el cociente tiende a 0."))
+            pasos = self._pasos(expr, n, d, var, punto, sympy.Integer(0))
             return ResultadoEstrategia(
                 aplica=True,
                 estado=ESTADO_FINITO,
@@ -110,8 +112,7 @@ class LimiteRacionalInfinito(Estrategia):
         # Caso 2: deg(n) == deg(d) -> cociente de líderes
         if deg_n == deg_d:
             res = sympy.simplify(lc_n / lc_d)
-            pasos.append(tr("Grados iguales: el límite es la razón de coeficientes principales."))
-            pasos.append(tr("Límite = {lc_n}/{lc_d} = {res}", lc_n=lc_n, lc_d=lc_d, res=res))
+            pasos = self._pasos(expr, n, d, var, punto, res)
             return ResultadoEstrategia(
                 aplica=True,
                 estado=ESTADO_FINITO,
@@ -134,7 +135,7 @@ class LimiteRacionalInfinito(Estrategia):
         # 3A) Intento: decidir signo totalmente
         inf = self._infinito_con_signo(ratio, k, punto)
         if inf is not None:
-            pasos.append(tr("Como el signo se puede decidir, el límite diverge hacia {inf}.", inf=inf))
+            pasos = self._pasos(expr, n, d, var, punto, inf)
             return ResultadoEstrategia(
                 aplica=True,
                 estado=ESTADO_INFINITO,
@@ -176,6 +177,49 @@ class LimiteRacionalInfinito(Estrategia):
             expr_original=expr,
             expr_trabajo=expr,
         )
+
+    # ---------------- Pasos ----------------
+
+    def _pasos(self, expr: Any, n: Any, d: Any, var: sympy.Symbol, punto: Any, valor: Any) -> List[PasoCalculo]:
+        """Sustitución (∞/∞) y comparación de los términos principales."""
+        paso_inicial, _ = paso_sustitucion(expr, var, punto)
+        deg_n, deg_d = (int(g) for g in self._safe_degree_pair(n, d, var))
+        lc_n, lc_d = self._safe_lc_pair(n, d, var)
+        principal_n, principal_d = lc_n * var ** deg_n, lc_d * var ** deg_d
+        cociente = sympy.simplify(principal_n / principal_d)
+        calculo = [tr("Cociente de los términos principales: {num}/{den} = {cociente}.",
+                      num=entre_parentesis(principal_n), den=entre_parentesis(principal_d), cociente=texto(cociente))]
+        if deg_n == deg_d:
+            calculo.append(tr("Los grados son iguales ({n} = {d}): las potencias de {x} se cancelan y queda el cociente "
+                              "de los coeficientes principales, {cociente}.", n=deg_n, d=deg_d, x=var,
+                              cociente=f"{entre_parentesis(lc_n)}/{entre_parentesis(lc_d)} = {texto(valor)}"
+                              if f"{entre_parentesis(lc_n)}/{entre_parentesis(lc_d)}" != texto(valor) else texto(valor)))
+        elif deg_n < deg_d:
+            calculo.append(tr("El grado del denominador es mayor ({n} < {d}): queda un número entre una potencia de {x}, "
+                              "que crece sin límite, así que el cociente tiende a 0.", n=deg_n, d=deg_d, x=var))
+        else:
+            k = deg_n - deg_d
+            ratio = sympy.simplify(lc_n / lc_d)
+            calculo.append(tr("El grado del numerador es mayor ({n} > {d}): queda {ratio}*{x}^{k}, con k = {n} - {d} = {k}, "
+                              "que crece sin límite.", n=deg_n, d=deg_d, ratio=entre_parentesis(ratio), x=var, k=k))
+            if k % 2 == 0:
+                calculo.append(tr("{x}^{k} tiene exponente par: es positivo tanto si {x} → oo como si {x} → -oo.", x=var, k=k))
+            elif punto == S.Infinity:
+                calculo.append(tr("{x}^{k} tiene exponente impar: cuando {x} → oo es positivo.", x=var, k=k))
+            else:
+                calculo.append(tr("{x}^{k} tiene exponente impar: cuando {x} → -oo es negativo.", x=var, k=k))
+            calculo.append(tr("El coeficiente {ratio} es {signo}, así que el límite es {valor}.", ratio=texto(ratio),
+                              signo=tr("positivo") if ratio.is_positive else tr("negativo"), valor=texto(valor)))
+        paso = PasoCalculo(
+            tr("Comparar los grados"),
+            regla=tr("cuando {x} → ±∞, en cada polinomio manda el término de mayor grado, porque los demás crecen más "
+                     "despacio: el cociente se comporta como el cociente de los términos principales.", x=var),
+            partes=tr("el numerador tiene grado {n} y su término principal es {principal_n}; el denominador tiene "
+                      "grado {d} y su término principal es {principal_d}.", n=deg_n, principal_n=texto(principal_n),
+                      d=deg_d, principal_d=texto(principal_d)),
+            calculo=tuple(calculo),
+            queda=texto(valor))
+        return [p for p in (paso_inicial, paso) if p]
 
     # ---------------- Helpers robustos ----------------
 

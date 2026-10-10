@@ -4,13 +4,15 @@ from typing import Optional, Any, List
 import sympy as sp
 from sympy import Symbol, S
 
+from calculo.pasos import PasoCalculo, texto_paso
 from i18n import tr
 from .lim_estrategias.trigonometria import LimitesTrigNotables
 from .lim_estrategias.racionalizacion import RacionalizacionRaices
 from .lim_estrategias.infinito import LimiteRacionalInfinito
 from .lim_estrategias.continuidad import ContinuidadComposicion
 from .lim_estrategias.simplificacion import SimplificacionCancelacion
-from .lim_estrategias._base import ESTADO_NO_CONCLUYENTE, limite_seguro
+from .lim_estrategias._base import ESTADO_NO_CONCLUYENTE, ResultadoEstrategia, limite_seguro
+from .lim_estrategias.general import LimiteGeneral
 
 
 def humanizar_limite(val: Any) -> str:
@@ -36,9 +38,9 @@ class ResultadoRouter:
 
 
 class RouterMatematico:
-    def __init__(self, parser_compartido, motor_limites_viejo):
+    def __init__(self, parser_compartido):
         self.parser = parser_compartido
-        self.motor_limites = motor_limites_viejo
+        self.general = LimiteGeneral()
 
         # Orden: de la estrategia más específica a la más general.
         # La primera que llega a una conclusión gana, así que las técnicas didácticas
@@ -56,7 +58,8 @@ class RouterMatematico:
 
     def calcular(self, expresion: str, variable: Optional[str] = None, tendencia: str = "0") -> ResultadoRouter:
         try:
-            expr = self.parser.parsear(expresion)
+            # El parser no evalúa (evaluate=False): doit() quita formas como sqrt(x + 1) - 1*1
+            expr = self.parser.parsear(expresion).doit()
             var = self._resolver_var(expr, variable)
             punto, dir_ = self._parsear_tendencia(tendencia)
         except Exception as e:
@@ -73,62 +76,28 @@ class RouterMatematico:
             if res.aplica and res.estado != ESTADO_NO_CONCLUYENTE:
                 return ResultadoRouter(self._render_estrategia(expresion, var, punto, dir_, res), res.resultado)
 
-        return self._fallback(expresion, variable, tendencia, expr, var, punto, dir_)
+        return self._modo_general(expresion, expr, var, punto, dir_)
 
     # -------------------------
-    # PASO 1: Fallback robusto
+    # Modo general: lo que no resuelve ninguna estrategia
     # -------------------------
-    def _fallback(self, expr_str: str, var_str: Optional[str], tend_str: str,
-                  expr_parsed: Any, var_sym: Any, punto: Any, dir_: Optional[str]) -> ResultadoRouter:
+    def _modo_general(self, expr_str: str, expr: Any, var: Any, punto: Any, dir_: Optional[str]) -> ResultadoRouter:
         """
-        Regla de oro para tu auditor:
-        - SIEMPRE devolver una línea 'RESULTADO: ...'
-        - SIEMPRE devolver una línea 'MÉTODO: ...'
+        El valor lo da SymPy; la explicación, LimiteGeneral (sustitución, laterales, L'Hôpital,
+        forma exponencial...). Si no llega a ese valor, se da el resultado sin pasos y con un aviso.
         """
-
-        # 1) Si es lateral explícito, intentamos SymPy directo (es lo más fiel al dir)
-        if dir_ in {"+", "-"}:
-            val = limite_seguro(expr_parsed, var_sym, punto, dir_)
-            if val is not None:
-                return ResultadoRouter("\n".join([
-                    tr("RESULTADO: {valor}", valor=humanizar_limite(val)),
-                    "=" * 30,
-                    tr("MÉTODO: {metodo}", metodo=tr("Modo General (límite lateral calculado con SymPy, dir='{dir}')", dir=dir_)),
-                    tr("Límite de {expresion} cuando {variable} -> {punto}", expresion=expr_str, variable=var_sym, punto=f"{punto}{dir_}"),
-                ]), val)
-            # Si falla, igual devolvemos RESULTADO parseable
-            return ResultadoRouter("\n".join([
-                tr("RESULTADO: {valor}", valor=tr("No concluyente")),
-                "=" * 30,
-                tr("MÉTODO: {metodo}", metodo=tr("Modo General (Motor Viejo) + Error en lateral directo")),
-                "",
-                self._motor_viejo(expr_str, var_str, tend_str),
-            ]))
-
-        # 2) Bilateral / infinito: SymPy da el RESULTADO; el motor viejo, la explicación
-        sympy_val = limite_seguro(expr_parsed, var_sym, punto)
-        base = self._motor_viejo(expr_str, var_str, tend_str)
-
-        metodo = tr("Modo General (Motor Viejo)")
-        if sympy_val is not None:
-            metodo += " + " + tr("Verificación SymPy")
-
-        return ResultadoRouter("\n".join([
-            tr("RESULTADO: {valor}", valor=humanizar_limite(sympy_val)),
-            "=" * 30,
-            tr("MÉTODO: {metodo}", metodo=metodo),
-            tr("Límite de {expresion} cuando {variable} -> {punto}", expresion=expr_str, variable=var_sym, punto=punto),
-            "",
-            base,
-        ]), sympy_val)
-
-    def _motor_viejo(self, expr_str: str, var_str: Optional[str], tend_str: str) -> str:
-        # El motor viejo espera strings; si var_str es None, pasamos "x" como default
-        v = var_str if var_str else "x"
-        try:
-            return self.motor_limites.calcular_limite(expr_str, v, tend_str)
-        except Exception as e:
-            return tr("(Motor viejo falló) Error: {error}", error=e)
+        valor = limite_seguro(expr, var, punto, dir_)
+        explicacion = self.general.explicar(expr, var, punto, dir_, valor) if valor is not None else None
+        if explicacion is not None:
+            pasos, tecnica = explicacion
+            res = ResultadoEstrategia(aplica=True, resultado=valor, pasos=pasos,
+                                      nombre_estrategia=tr("Modo General ({tecnica})", tecnica=tr(tecnica)))
+        else:
+            res = ResultadoEstrategia(aplica=True, resultado=valor,
+                                      nombre_estrategia=tr("Modo General ({tecnica})", tecnica="SymPy"),
+                                      avisos=[tr("No se pudo explicar este límite paso a paso; el resultado es el que "
+                                                 "calcula SymPy.")])
+        return ResultadoRouter(self._render_estrategia(expr_str, var, punto, dir_, res), valor)
 
     # -------------------------
     # Helpers existentes
@@ -169,9 +138,12 @@ class RouterMatematico:
         txt.append(tr("Límite de {expresion} cuando {variable} -> {punto}", expresion=expr_in, variable=var, punto=f"{punto}{s}"))
         txt.append("\n" + tr("MÉTODO: {metodo}", metodo=tr(res.nombre_estrategia)))
         if res.explicacion:
-            txt.append(f"• {tr(res.explicacion)}")
+            txt.append(tr(res.explicacion))
         if res.pasos:
-            txt.append("\n" + tr("PASOS:"))
-            for p in res.pasos:
-                txt.append(f"• {p}")
+            txt.append("\n" + tr("PASO A PASO:"))
+            for i, p in enumerate(res.pasos, 1):
+                txt.append(texto_paso(i, p) if isinstance(p, PasoCalculo) else f"• {p}")
+        if res.avisos:
+            txt.append("\n" + tr("[!] AVISOS:"))
+            txt.extend(f" - {a}" for a in res.avisos)
         return "\n".join(txt)
