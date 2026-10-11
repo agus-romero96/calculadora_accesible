@@ -96,8 +96,8 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
      (logarithms, powers and arctangents).
      With a root such as sqrt(4 - x^2), sqrt(x^2 + 4) or
      sqrt(x^2 - 9), trigonometric substitution is used (x = a*sin,
-     a*tan or a*sec of θ): dx is calculated, the root disappears
-     with the Pythagorean identity, the integral is done in θ and
+     a*tan or a*sec of t): dx is calculated, the root disappears
+     with the Pythagorean identity, the integral is done in t and
      the result goes back to x with a right triangle, whose sides
      come from Pythagoras.
    - Definite integral: Type 'x^2'. Press Ctrl+Shift+I.

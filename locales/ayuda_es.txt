@@ -95,8 +95,8 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
      (logaritmos, potencias y arcotangentes).
      Con una raíz como sqrt(4 - x^2), sqrt(x^2 + 4) o sqrt(x^2 - 9)
      se usa la sustitución trigonométrica (x = a*sin, a*tan o
-     a*sec de θ): se calcula dx, la raíz desaparece con la
-     identidad pitagórica, se integra en θ y se vuelve a x con un
+     a*sec de t): se calcula dx, la raíz desaparece con la
+     identidad pitagórica, se integra en t y se vuelve a x con un
      triángulo rectángulo, cuyos lados salen por Pitágoras.
    - Integral definida: Escriba 'x^2'. Pulse Ctrl+Mayús+I.
      Límite inferior: 0. Límite superior: 1. Resultado: 1/3.

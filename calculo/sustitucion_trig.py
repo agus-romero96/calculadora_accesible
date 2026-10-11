@@ -2,11 +2,11 @@
 Integración por sustitución trigonométrica, explicada con el formato de calculo/pasos.py
 (Regla, En este caso, las cuentas y Queda), para integrandos con sqrt(A + B*x^2):
 
-  - A > 0, B < 0 (a^2 - x^2): x = k*sin(θ), y A - A*sin(θ)^2 = A*cos(θ)^2;
-  - A > 0, B > 0 (a^2 + x^2): x = k*tan(θ), y A + A*tan(θ)^2 = A*sec(θ)^2;
-  - A < 0, B > 0 (x^2 - a^2): x = k*sec(θ), y A*sec(θ)^2 - A = A*tan(θ)^2,
+  - A > 0, B < 0 (a^2 - x^2): x = k*sin(t), y A - A*sin(t)^2 = A*cos(t)^2;
+  - A > 0, B > 0 (a^2 + x^2): x = k*tan(t), y A + A*tan(t)^2 = A*sec(t)^2;
+  - A < 0, B > 0 (x^2 - a^2): x = k*sec(t), y A*sec(t)^2 - A = A*tan(t)^2,
 con k = sqrt(|A|/|B|). Pasos: el caso, dx, la raíz con la identidad pitagórica, la integral
-en θ (con el explicador de integrales), y la vuelta a x con el triángulo rectángulo: sus tres
+en t (con el explicador de integrales), y la vuelta a x con el triángulo rectángulo: sus tres
 lados (Pitágoras) y cada razón trigonométrica que aparece.
 
 Calculo comprueba derivando que la primitiva es correcta. Si la de SymPy trae números
@@ -14,6 +14,7 @@ complejos o trozos (Piecewise), se muestra esta, que es real.
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 import sympy
@@ -82,6 +83,8 @@ class ExplicadorTrig:
     def __init__(self, var: Symbol):
         self.x = var
         self.pasos: List[PasoCalculo] = []
+        # El ángulo se llama t (NVDA no lee la letra griega theta); w si la variable ya es t
+        self.t = "t" if var.name != "t" else "w"
 
     @property
     def principal(self) -> Regla:
@@ -96,7 +99,7 @@ class ExplicadorTrig:
         if datos is None:
             raise SinExplicacion()
         base, a, b = datos
-        t = Symbol("θ")
+        t = Symbol(self.t)
         k = sympy.sqrt(abs(a) / abs(b))
         raiz_a = sympy.sqrt(abs(a))
         raiz_b = sympy.sqrt(abs(b))
@@ -106,80 +109,80 @@ class ExplicadorTrig:
         # 1. El caso
         if a > 0 and b < 0:
             caso, cambio, d_cambio = "sin", k * sympy.sin(t), k * sympy.cos(t)
-            identidad = "1 - sin(θ)^2 = cos(θ)^2"
+            identidad = f"1 - sin({self.t})^2 = cos({self.t})^2"
             nueva_raiz = raiz_a * sympy.cos(t)
-            intervalo = tr("θ entre -pi/2 y pi/2, donde cos(θ) >= 0")
+            intervalo = tr("{t} entre -pi/2 y pi/2, donde cos({t}) >= 0", t=self.t)
         elif a > 0 and b > 0:
             caso, cambio, d_cambio = "tan", k * sympy.tan(t), k * sympy.sec(t) ** 2
-            identidad = "1 + tan(θ)^2 = sec(θ)^2"
+            identidad = f"1 + tan({self.t})^2 = sec({self.t})^2"
             nueva_raiz = raiz_a * sympy.sec(t)
-            intervalo = tr("θ entre -pi/2 y pi/2, donde sec(θ) > 0")
+            intervalo = tr("{t} entre -pi/2 y pi/2, donde sec({t}) > 0", t=self.t)
         else:
             caso, cambio, d_cambio = "sec", k * sympy.sec(t), k * sympy.sec(t) * sympy.tan(t)
-            identidad = "sec(θ)^2 - 1 = tan(θ)^2"
+            identidad = f"sec({self.t})^2 - 1 = tan({self.t})^2"
             nueva_raiz = raiz_a * sympy.tan(t)
-            intervalo = tr("θ entre 0 y pi/2 ({variable} >= {k}), donde tan(θ) >= 0", variable=x, k=texto(k))
+            intervalo = tr("{t} entre 0 y pi/2 ({variable} >= {k}), donde tan({t}) >= 0", t=self.t, variable=x, k=texto(k))
         forma = {"sin": "a^2 - x^2", "tan": "a^2 + x^2", "sec": "x^2 - a^2"}[caso]
-        self._paso(tr("Elegir la sustitución trigonométrica"),
-                   regla=tr("una raíz de la forma sqrt(a^2 - x^2) se simplifica con x = a*sin(θ); sqrt(a^2 + x^2), con "
-                            "x = a*tan(θ); y sqrt(x^2 - a^2), con x = a*sec(θ). En cada caso una identidad pitagórica "
-                            "convierte lo de dentro de la raíz en un cuadrado."),
-                   partes=tr("la raíz es {raiz}, del tipo {forma}: A = {a} y B = {b}.", raiz=raiz, forma=forma,
+        self._paso(tr("Elegir la sustitución trigonométrica", t=self.t),
+                   regla=tr("una raíz de la forma sqrt(a^2 - x^2) se simplifica con x = a*sin({t}); sqrt(a^2 + x^2), con "
+                            "x = a*tan({t}); y sqrt(x^2 - a^2), con x = a*sec({t}). En cada caso una identidad pitagórica "
+                            "convierte lo de dentro de la raíz en un cuadrado.", t=self.t),
+                   partes=tr("la raíz es {raiz}, del tipo {forma}: A = {a} y B = {b}.", t=self.t, raiz=raiz, forma=forma,
                              a=texto(a), b=texto(b)),
-                   calculo=(tr("k = sqrt(|A|/|B|) = sqrt({a}/{b}) = {k}.", a=texto(abs(a)), b=texto(abs(b)), k=texto(k)),
-                            tr("Tomamos {variable} = {cambio}.", variable=x, cambio=texto(cambio))),
+                   calculo=(tr("k = sqrt(|A|/|B|) = sqrt({a}/{b}) = {k}.", t=self.t, a=texto(abs(a)), b=texto(abs(b)), k=texto(k)),
+                            tr("Tomamos {variable} = {cambio}.", t=self.t, variable=x, cambio=texto(cambio))),
                    queda=f"{x} = {texto(cambio)}")
 
         # 2. dx
-        self._paso(tr("Calcular d{variable}", variable=x),
-                   regla=tr("se deriva el cambio respecto a θ: d{variable} = (derivada de {cambio}) dθ.", variable=x,
+        self._paso(tr("Calcular d{variable}", t=self.t, variable=x),
+                   regla=tr("se deriva el cambio respecto a {t}: d{variable} = (derivada de {cambio}) d{t}.", t=self.t, variable=x,
                             cambio=texto(cambio)),
                    partes=f"{x} = {texto(cambio)}.",
-                   calculo=(tr("La derivada de {cambio} es {derivada}.", cambio=texto(cambio), derivada=texto(d_cambio)),),
-                   queda=f"d{x} = {texto(d_cambio)} dθ")
+                   calculo=(tr("La derivada de {cambio} es {derivada}.", t=self.t, cambio=texto(cambio), derivada=texto(d_cambio)),),
+                   queda=f"d{x} = {texto(d_cambio)} d{self.t}")
 
         # 3. La raíz
         dentro = sympy.expand(base.subs(x, cambio))
-        lineas = [tr("Sustituimos {variable} = {cambio} dentro de la raíz: {base} = {dentro}.", variable=x,
+        lineas = [tr("Sustituimos {variable} = {cambio} dentro de la raíz: {base} = {dentro}.", t=self.t, variable=x,
                      cambio=texto(cambio), base=texto(base), dentro=texto(dentro))]
         factor = abs(a)
         if caso == "sin":
-            sin_factor = f"{texto(factor)}*(1 - sin(θ)^2)"
+            sin_factor = f"{texto(factor)}*(1 - sin({self.t})^2)"
         elif caso == "tan":
-            sin_factor = f"{texto(factor)}*(1 + tan(θ)^2)"
+            sin_factor = f"{texto(factor)}*(1 + tan({self.t})^2)"
         else:
-            sin_factor = f"{texto(factor)}*(sec(θ)^2 - 1)"
+            sin_factor = f"{texto(factor)}*(sec({self.t})^2 - 1)"
         cuadrado = sympy.trigsimp(dentro)
-        lineas.append(tr("Sacamos {factor} factor común: {dentro} = {factorizado}.", factor=texto(factor),
+        lineas.append(tr("Sacamos {factor} factor común: {dentro} = {factorizado}.", t=self.t, factor=texto(factor),
                          dentro=texto(dentro), factorizado=sin_factor))
-        lineas.append(tr("Identidad pitagórica: {identidad}, así que queda {cuadrado}.", identidad=identidad,
+        lineas.append(tr("Identidad pitagórica: {identidad}, así que queda {cuadrado}.", t=self.t, identidad=identidad,
                          cuadrado=texto(sympy.Mul(factor, (nueva_raiz / raiz_a) ** 2))))
-        lineas.append(tr("La raíz: sqrt({cuadrado}) = {raiz} (con {intervalo}).",
+        lineas.append(tr("La raíz: sqrt({cuadrado}) = {raiz} (con {intervalo}).", t=self.t,
                          cuadrado=texto(sympy.Mul(factor, (nueva_raiz / raiz_a) ** 2)), raiz=texto(nueva_raiz),
                          intervalo=intervalo))
         if sympy.simplify(cuadrado - factor * (nueva_raiz / raiz_a) ** 2) != 0:
             raise SinExplicacion()
-        self._paso(tr("Simplificar la raíz"),
+        self._paso(tr("Simplificar la raíz", t=self.t),
                    regla=tr("al sustituir, lo de dentro de la raíz se convierte en un número por un cuadrado gracias a "
-                            "la identidad pitagórica, y la raíz desaparece."),
-                   partes=tr("la raíz es {raiz}.", raiz=raiz),
+                            "la identidad pitagórica, y la raíz desaparece.", t=self.t),
+                   partes=tr("la raíz es {raiz}.", t=self.t, raiz=raiz),
                    calculo=lineas, queda=f"{raiz} = {texto(nueva_raiz)}")
 
-        # 4. La integral en θ
+        # 4. La integral en el ángulo
         r = sympy.Dummy("r")
         g = _con_raiz(f, base, r)
         en_theta = g.subs({x: cambio, r: nueva_raiz}) * d_cambio
         simplificada = sympy.simplify(sympy.trigsimp(en_theta))
         escrita = f"{entre_parentesis(g.subs({x: cambio, r: nueva_raiz}))}*{entre_parentesis(d_cambio)}"
-        self._paso(tr("Escribir la integral en θ"),
-                   regla=tr("se cambia {variable} por {cambio}, la raíz por {raiz_nueva} y d{variable} por {dx} dθ; "
-                            "después se simplifica.", variable=x, cambio=texto(cambio), raiz_nueva=texto(nueva_raiz),
+        self._paso(tr("Escribir la integral en {t}", t=self.t),
+                   regla=tr("se cambia {variable} por {cambio}, la raíz por {raiz_nueva} y d{variable} por {dx} d{t}; "
+                            "después se simplifica.", t=self.t, variable=x, cambio=texto(cambio), raiz_nueva=texto(nueva_raiz),
                             dx=texto(d_cambio)),
-                   partes=tr("la integral es {integral}.", integral=integral_x),
-                   calculo=(tr("Sustituimos: {integral} = ∫ {escrita} dθ.", integral=integral_x, escrita=escrita),
-                            tr("Simplificamos el integrando: {escrita} = {simplificada}.", escrita=escrita,
+                   partes=tr("la integral es {integral}.", t=self.t, integral=integral_x),
+                   calculo=(tr("Sustituimos: {integral} = ∫ {escrita} d{t}.", t=self.t, integral=integral_x, escrita=escrita),
+                            tr("Simplificamos el integrando: {escrita} = {simplificada}.", t=self.t, escrita=escrita,
                                simplificada=texto(simplificada))),
-                   queda=f"∫ {entre_parentesis(simplificada)} dθ")
+                   queda=f"∫ {entre_parentesis(simplificada)} d{self.t}")
         primitiva_t = self._integrar_en_theta(simplificada, t)
         if sympy.simplify(sympy.diff(primitiva_t, t) - simplificada) != 0:
             raise SinExplicacion()
@@ -188,7 +191,7 @@ class ExplicadorTrig:
         return self._volver(primitiva_t, t, caso, x, raiz_a, raiz_b, base)
 
     def _integrar_en_theta(self, g: Any, t: Symbol) -> Any:
-        """La integral en θ: con el explicador de integrales o, si no la sabe, con la tabla trigonométrica."""
+        """La integral en el ángulo: con el explicador de integrales o, si no la sabe, con la tabla trigonométrica."""
         try:
             regla = sympy.integrals.manualintegrate.integral_steps(g, t)
             explicador = ExplicadorIntegral(t)
@@ -214,25 +217,25 @@ class ExplicadorTrig:
         if sympy.simplify(derivada - integrando) != 0:
             raise SinExplicacion()
         total = constante * primitiva
-        calculo = [tr("Comprobación: la derivada de {primitiva} es {derivada}, que es {integrando}.",
+        calculo = [tr("Comprobación: la derivada de {primitiva} es {derivada}, que es {integrando}.", t=self.t,
                       primitiva=texto(primitiva), derivada=texto(derivada), integrando=texto(integrando))]
         if constante != 1:
-            calculo.insert(0, tr("El número {c} sale fuera de la integral: ∫ {g} dθ = {c}*∫ {f} dθ.", c=texto(constante),
+            calculo.insert(0, tr("El número {c} sale fuera de la integral: ∫ {g} d{t} = {c}*∫ {f} d{t}.", t=self.t, c=texto(constante),
                                  g=entre_parentesis(g), f=entre_parentesis(integrando)))
-            calculo.append(tr("Multiplicamos por {c}: {cuenta} = {total}.", c=texto(constante),
+            calculo.append(tr("Multiplicamos por {c}: {cuenta} = {total}.", t=self.t, c=texto(constante),
                               cuenta=f"{entre_parentesis(constante)}*({texto(primitiva)})", total=texto(total)))
-        self._paso(tr("Integral trigonométrica de la tabla"),
-                   regla=tr("algunas integrales de funciones trigonométricas se conocen de memoria: ∫ sec(θ)^2 dθ = tan(θ), "
-                            "∫ csc(θ)^2 dθ = -cot(θ), ∫ sec(θ) dθ = log(sec(θ) + tan(θ)), ∫ csc(θ) dθ = "
-                            "-log(csc(θ) + cot(θ)) y ∫ sec(θ)^3 dθ = (sec(θ)*tan(θ) + log(sec(θ) + tan(θ)))/2 (esta "
-                            "última sale integrando por partes)."),
-                   partes=tr("en la tabla, ∫ {f} dθ = {p}.", f=texto(integrando), p=texto(primitiva)),
+        self._paso(tr("Integral trigonométrica de la tabla", t=self.t),
+                   regla=tr("algunas integrales de funciones trigonométricas se conocen de memoria: ∫ sec({t})^2 d{t} = tan({t}), "
+                            "∫ csc({t})^2 d{t} = -cot({t}), ∫ sec({t}) d{t} = log(sec({t}) + tan({t})), ∫ csc({t}) d{t} = "
+                            "-log(csc({t}) + cot({t})) y ∫ sec({t})^3 d{t} = (sec({t})*tan({t}) + log(sec({t}) + tan({t})))/2 (esta "
+                            "última sale integrando por partes).", t=self.t),
+                   partes=tr("en la tabla, ∫ {f} d{t} = {p}.", t=self.t, f=texto(integrando), p=texto(primitiva)),
                    calculo=calculo, queda=texto(total))
         return total
 
     def _volver(self, primitiva_t: Any, t: Symbol, caso: str, x: Symbol, raiz_a: Any, raiz_b: Any, base: Any) -> Any:
         expandida = sympy.expand_trig(primitiva_t)
-        # 1/cos(θ) es sec(θ) y 1/sin(θ) es csc(θ): así se leen directamente en el triángulo
+        # 1/cos(t) es sec(t) y 1/sin(t) es csc(t): así se leen directamente en el triángulo
         expandida = expandida.replace(
             lambda e: e.is_Pow and e.exp == -1 and isinstance(e.base, (sympy.cos, sympy.sin)),
             lambda e: (sympy.sec if isinstance(e.base, sympy.cos) else sympy.csc)(e.base.args[0]))
@@ -240,60 +243,61 @@ class ExplicadorTrig:
         r = sympy.sqrt(base)  # la raíz del enunciado: es el tercer lado del triángulo
         if caso == "sin":
             opuesto, hipotenusa, adyacente = lado_x, raiz_a, r
-            razon = tr("sin(θ) = {x}/{k}: el cateto opuesto mide {op} y la hipotenusa {hip}.", x=texto(lado_x),
+            razon = tr("sin({t}) = {x}/{k}: el cateto opuesto mide {op} y la hipotenusa {hip}.", t=self.t, x=texto(lado_x),
                        k=texto(raiz_a), op=texto(lado_x), hip=texto(raiz_a))
-            pitagoras = tr("Cateto adyacente, por Pitágoras: sqrt({hip}^2 - {op}^2) = {lado}.", hip=texto(raiz_a),
+            pitagoras = tr("Cateto adyacente, por Pitágoras: sqrt({hip}^2 - {op}^2) = {lado}.", t=self.t, hip=texto(raiz_a),
                            op=entre_parentesis(lado_x), lado=texto(r))
             angulo = sympy.asin(opuesto / hipotenusa)
-            angulo_txt = f"θ = asin({texto(opuesto / hipotenusa)})"
+            angulo_txt = f"{self.t} = asin({texto(opuesto / hipotenusa)})"
         elif caso == "tan":
             opuesto, adyacente, hipotenusa = lado_x, raiz_a, r
-            razon = tr("tan(θ) = {x}/{k}: el cateto opuesto mide {op} y el adyacente {ady}.", x=texto(lado_x),
+            razon = tr("tan({t}) = {x}/{k}: el cateto opuesto mide {op} y el adyacente {ady}.", t=self.t, x=texto(lado_x),
                        k=texto(raiz_a), op=texto(lado_x), ady=texto(raiz_a))
-            pitagoras = tr("Hipotenusa, por Pitágoras: sqrt({op}^2 + {ady}^2) = {lado}.", op=entre_parentesis(lado_x),
+            pitagoras = tr("Hipotenusa, por Pitágoras: sqrt({op}^2 + {ady}^2) = {lado}.", t=self.t, op=entre_parentesis(lado_x),
                            ady=texto(raiz_a), lado=texto(r))
             angulo = sympy.atan(opuesto / adyacente)
-            angulo_txt = f"θ = atan({texto(opuesto / adyacente)})"
+            angulo_txt = f"{self.t} = atan({texto(opuesto / adyacente)})"
         else:
             hipotenusa, adyacente, opuesto = lado_x, raiz_a, r
-            razon = tr("sec(θ) = {x}/{k}, es decir, cos(θ) = {k}/{x}: la hipotenusa mide {hip} y el cateto adyacente "
-                       "{ady}.", x=texto(lado_x), k=texto(raiz_a), hip=texto(lado_x), ady=texto(raiz_a))
-            pitagoras = tr("Cateto opuesto, por Pitágoras: sqrt({hip}^2 - {ady}^2) = {lado}.", hip=entre_parentesis(lado_x),
+            razon = tr("sec({t}) = {x}/{k}, es decir, cos({t}) = {k}/{x}: la hipotenusa mide {hip} y el cateto adyacente "
+                       "{ady}.", t=self.t, x=texto(lado_x), k=texto(raiz_a), hip=texto(lado_x), ady=texto(raiz_a))
+            pitagoras = tr("Cateto opuesto, por Pitágoras: sqrt({hip}^2 - {ady}^2) = {lado}.", t=self.t, hip=entre_parentesis(lado_x),
                            ady=texto(raiz_a), lado=texto(r))
             angulo = sympy.acos(adyacente / hipotenusa)
-            angulo_txt = f"θ = acos({texto(adyacente / hipotenusa)})"
+            angulo_txt = f"{self.t} = acos({texto(adyacente / hipotenusa)})"
         razones = {
-            sympy.sin(t): (opuesto / hipotenusa, N_("sin(θ) = opuesto/hipotenusa")),
-            sympy.cos(t): (adyacente / hipotenusa, N_("cos(θ) = adyacente/hipotenusa")),
-            sympy.tan(t): (opuesto / adyacente, N_("tan(θ) = opuesto/adyacente")),
-            sympy.sec(t): (hipotenusa / adyacente, N_("sec(θ) = hipotenusa/adyacente")),
-            sympy.csc(t): (hipotenusa / opuesto, N_("csc(θ) = hipotenusa/opuesto")),
-            sympy.cot(t): (adyacente / opuesto, N_("cot(θ) = adyacente/opuesto")),
+            sympy.sin(t): (opuesto / hipotenusa, N_("sin({t}) = opuesto/hipotenusa")),
+            sympy.cos(t): (adyacente / hipotenusa, N_("cos({t}) = adyacente/hipotenusa")),
+            sympy.tan(t): (opuesto / adyacente, N_("tan({t}) = opuesto/adyacente")),
+            sympy.sec(t): (hipotenusa / adyacente, N_("sec({t}) = hipotenusa/adyacente")),
+            sympy.csc(t): (hipotenusa / opuesto, N_("csc({t}) = hipotenusa/opuesto")),
+            sympy.cot(t): (adyacente / opuesto, N_("cot({t}) = adyacente/opuesto")),
         }
         lineas = [razon, pitagoras]
         usadas = {}
         for funcion, (valor, nombre) in razones.items():
             if expandida.has(funcion):
                 usadas[funcion] = valor
-                lineas.append(f"{tr(nombre)} = {texto(valor)}.")
+                lineas.append(f"{tr(nombre, t=self.t)} = {texto(valor)}.")
         if expandida.has(t) and expandida.subs(usadas).has(t):
-            lineas.append(tr("El ángulo: {angulo}.", angulo=angulo_txt))
+            lineas.append(tr("El ángulo: {angulo}.", t=self.t, angulo=angulo_txt))
         en_x = expandida.subs(usadas).subs(t, angulo)
         resultado = sympy.simplify(en_x)
         # La sustitución, sin operar y en el orden en que se escribió: 2*asin(x/2) + 2*(x/2)*(sqrt(4 - x^2)/2)
         cuenta = texto(expandida)
         for funcion, valor in usadas.items():
             cuenta = cuenta.replace(texto(funcion), entre_parentesis(valor))
-        cuenta = cuenta.replace("θ", texto(angulo))
-        lineas.append(tr("Sustituimos en {primitiva}: {cuenta}.", primitiva=texto(expandida), cuenta=cuenta))
+        # El ángulo suelto (no la t de sqrt o tan) por su valor
+        cuenta = re.sub(rf"(?<![A-Za-z_]){self.t}(?![A-Za-z_(])", texto(angulo), cuenta)
+        lineas.append(tr("Sustituimos en {primitiva}: {cuenta}.", t=self.t, primitiva=texto(expandida), cuenta=cuenta))
         if cuenta != texto(resultado):
-            lineas.append(tr("Operamos: {antes} = {despues}.", antes=cuenta, despues=texto(resultado)))
-        self._paso(tr("Volver a {variable} con el triángulo rectángulo", variable=x),
-                   regla=tr("el cambio dice una razón trigonométrica de θ; se dibuja un triángulo rectángulo con esos dos "
-                            "lados, el tercero sale por Pitágoras, y de él se leen las demás razones."),
-                   partes=tr("la primitiva en θ es {primitiva}.", primitiva=texto(primitiva_t))
-                   + (" " + tr("Con las fórmulas del ángulo doble, sin(2*θ) = 2*sin(θ)*cos(θ) y cos(2*θ) = "
-                               "cos(θ)^2 - sin(θ)^2, queda {expandida}.", expandida=texto(expandida))
+            lineas.append(tr("Operamos: {antes} = {despues}.", t=self.t, antes=cuenta, despues=texto(resultado)))
+        self._paso(tr("Volver a {variable} con el triángulo rectángulo", t=self.t, variable=x),
+                   regla=tr("el cambio dice una razón trigonométrica de {t}; se dibuja un triángulo rectángulo con esos dos "
+                            "lados, el tercero sale por Pitágoras, y de él se leen las demás razones.", t=self.t),
+                   partes=tr("la primitiva en {t} es {primitiva}.", t=self.t, primitiva=texto(primitiva_t))
+                   + (" " + tr("Con las fórmulas del ángulo doble, sin(2*{t}) = 2*sin({t})*cos({t}) y cos(2*{t}) = "
+                               "cos({t})^2 - sin({t})^2, queda {expandida}.", t=self.t, expandida=texto(expandida))
                       if expandida != primitiva_t else ""),
                    calculo=lineas, queda=texto(resultado))
         return resultado

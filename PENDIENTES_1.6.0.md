@@ -30,9 +30,9 @@ Una tarea terminada se tacha (`~~...~~`) y se anota el commit.
    - ~~Integrar paso a paso cada fracción simple (logaritmos y arcotangentes).~~
    - Queda fuera: denominadores con raíces irracionales (`x^2 - 2`) y factores cuadráticos repetidos: siguen con las reglas de SymPy.
 9. ~~**Integración por sustitución trigonométrica** (dentro de **Integrar** e **Integral definida**)~~ — **completada** (`calculo/sustitucion_trig.py`)
-   - ~~Identificar el caso según el radical: `a^2 - x^2` (`x = a*sin(θ)`), `a^2 + x^2` (`x = a*tan(θ)`), `x^2 - a^2` (`x = a*sec(θ)`).~~
+   - ~~Identificar el caso según el radical: `a^2 - x^2` (`x = a*sin(t)`), `a^2 + x^2` (`x = a*tan(t)`), `x^2 - a^2` (`x = a*sec(t)`).~~
    - ~~Calcular `dx` y sustituir la raíz, simplificando con las identidades pitagóricas.~~
-   - ~~Integrar en la variable `θ`.~~ Con el paso a paso de Integrar, o una tabla trigonométrica con su comprobación.
+   - ~~Integrar en la variable `t`.~~ Con el paso a paso de Integrar, o una tabla trigonométrica con su comprobación.
    - ~~Volver a `x` con el triángulo rectángulo (despejando las razones trigonométricas).~~
    - Queda fuera: raíces con término lineal (`sqrt(x^2 + 2*x)`, que pide completar el cuadrado antes): siguen con las reglas de SymPy.
 
