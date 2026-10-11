@@ -125,10 +125,14 @@ def test_otra_primitiva_que_difiere_en_una_constante(core):
     assert otra.calculo == ("Se diferencian en una constante: (x + 1)^3/3 - (x^3/3 + x^2 + x) = 1/3.",)
 
 
-def test_alternativa_que_llega_al_resultado_mostrado(core):
-    """La primera alternativa (u = x^2) da log(x^2)/2, que no se reduce a log(x): se explica la otra."""
+def test_cociente_con_division_se_explica_dividiendo(core):
+    """
+    (x^2+1)/x: antes se explicaba con las alternativas de SymPy (la primera, u = x^2, daba
+    log(x^2)/2); ahora, como en clase, dividiendo los polinomios: x + 1/x.
+    """
     res = integral(core, "(x^2+1)/x")
-    assert res.pasos and res.pasos[0].titulo.startswith("Reescribir la función")
+    assert res.pasos and res.pasos[0].titulo == "Dividir los polinomios"
+    assert res.pasos[1].titulo == "Fracción simple"
 
 
 def test_estrategia_es_la_regla_explicada(core):

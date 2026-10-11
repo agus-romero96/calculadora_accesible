@@ -23,6 +23,7 @@ from sympy import Symbol
 from sympy.calculus.util import continuous_domain
 
 from calculo.derivadas import ExplicadorDerivada, texto
+from calculo import fracciones_parciales
 from calculo.integrales import ExplicadorIntegral
 from calculo.pasos import PasoCalculo, texto_paso
 from i18n import N_, tr
@@ -283,13 +284,28 @@ class Calculo:
         """
         if primitiva.has(sympy.Integral):
             return [], None  # SymPy no la cerró: no hay a dónde llegar (ya hay un aviso)
-        for alternativa in (0, -1):
-            explicador = ExplicadorIntegral(var, alternativa)
+        # Cociente de polinomios: fracciones parciales, como en clase (el árbol de SymPy lo hace de golpe)
+        explicadores = []
+        if fracciones_parciales.aplica(expr, var):
+            explicadores.append(fracciones_parciales.ExplicadorFracciones(var))
+        explicadores += [ExplicadorIntegral(var, alternativa) for alternativa in (0, -1)]
+        for explicador in explicadores:
             try:
-                explicada = explicador.explicar(regla, expr)
+                if isinstance(explicador, ExplicadorIntegral):
+                    explicada = explicador.explicar(regla, expr)
+                else:
+                    explicada = explicador.explicar(expr)
                 # Una primitiva es correcta si al derivarla se obtiene la función, y debe llegar
                 # a la que se muestra (o diferenciarse de ella en una constante)
                 diferencia = sympy.simplify(explicada - primitiva)
+                por_logaritmos = False
+                if diferencia.has(sympy.log) and diferencia.has(var):
+                    # log(x) + log(x - 1) y log(x^2 - x): iguales por las propiedades de los logaritmos
+                    factorizada = (explicada - primitiva).replace(
+                        lambda e: isinstance(e, sympy.log), lambda e: sympy.log(sympy.factor(e.args[0])))
+                    combinada = sympy.simplify(sympy.expand_log(factorizada, force=True))
+                    if not combinada.has(var):
+                        diferencia, por_logaritmos = combinada, True
                 if sympy.simplify(sympy.diff(explicada, var) - expr) == 0 and not diferencia.has(var):
                     break
             except Exception:  # SinExplicacion, o una forma que las reglas no prevén
@@ -305,7 +321,9 @@ class Calculo:
                     tr("Simplificación"),
                     regla=tr("se reescribe la expresión de forma más compacta (factor común, términos semejantes, "
                              "fracciones, identidades trigonométricas) sin cambiar su valor."),
-                    calculo=(f"{texto(explicada)} = {texto(primitiva)}",),
+                    calculo=((tr("Propiedades de los logaritmos: log(a) + log(b) = log(a*b) y log(a) - log(b) = "
+                                 "log(a/b)."),) if por_logaritmos else ())
+                            + (f"{texto(explicada)} = {texto(primitiva)}",),
                     queda=texto(primitiva)))
             else:
                 pasos.append(PasoCalculo(

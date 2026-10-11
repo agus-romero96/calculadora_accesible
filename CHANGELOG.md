@@ -8,6 +8,19 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Añadido
 
+- **Integración por fracciones parciales** (en **Integrar** e **Integral definida**). SymPy integra los cocientes de polinomios con una reescritura de golpe ("Reescribir la función: 1/(x^2 - 1) = ..."), que en la explicación era un salto sin justificar. Ahora se sigue el método de clase, paso a paso:
+  - **Simplificar la fracción** si el numerador y el denominador comparten un factor (con las dos factorizaciones y el factor que se cancela).
+  - **Comparar grados** y, si el del numerador es mayor o igual, **dividir los polinomios**: en cada vuelta, el término del cociente, el producto y la resta; al final, el cociente, el resto y la comprobación `divisor*cociente + resto = dividendo`.
+  - **Factorizar el denominador** con los pasos de **Factorizar**, y clasificar cada factor: lineal, lineal repetido o cuadrático irreducible (con su discriminante negativo), con las fracciones simples que aporta.
+  - **Planteamiento con coeficientes indeterminados** (`A/(x - 1) + B/(x + 1) + (C*x + D)/(x^2 + 1)`), **multiplicar por el denominador común**, y hallar los coeficientes: primero **sustituyendo las raíces** de los factores lineales (todos los términos menos uno se anulan, con las cuentas de cada lado) y después **igualando los coeficientes** de cada potencia de `x`, despejando ecuación a ecuación.
+  - **Integrar cada fracción simple**: `A/(x - a)` da un logaritmo; `A/(x - a)^k`, la regla de la potencia; `(M*x + N)/(x^2 + p*x + q)`, se separa en la derivada del denominador (logaritmo) y un número entre el denominador, que se integra **completando el cuadrado** (arcotangente, con la cuenta del número que multiplica).
+  - Un solo factor cuadrático sin raíces reales (`(3*x + 5)/(x^2 + 2*x + 5)`) también se explica así: antes, SymPy hacía un cambio de variable difícil de seguir (`∫ 1/(2*t + (t - 1)^2 + 3) dt`).
+  - Se mantiene el cambio de variable cuando el numerador es un múltiplo de la derivada del denominador (`(2*x + 3)/(x^2 + 3*x + 2)`), y la tabla para `1/(x^2 + k)`. Los denominadores con raíces irracionales (`x^2 - 2`) siguen con las reglas de SymPy.
+  - Si la primitiva obtenida y la de SymPy solo se diferencian por las **propiedades de los logaritmos** (`log(x) + log(x - 1)` y `log(x^2 - x)`), ahora se reconocen como iguales, y el paso de simplificación cita la propiedad. Antes, la explicación se descartaba.
+  - Código: `calculo/fracciones_parciales.py` (`ExplicadorFracciones`); `Calculo._explicar_integral` lo prueba antes que el árbol de SymPy, con la misma comprobación (derivar y comparar con SymPy).
+  - Pruebas: `tests/test_fracciones_parciales.py` (25: 12 integrales comparadas con SymPy y la estructura de cada caso, las cuentas de cada etapa, los casos que van por otro método, la integral definida e inglés). `(x^2+1)/x` se explica ahora dividiendo (antes, con una alternativa de SymPy): se actualiza su prueba en `tests/test_integrales.py`. La suite tiene 5867.
+  - Ayuda (F1) y README.
+
 - **Derivada implícita** (menú **Cálculo**, `Ctrl+J`). `dy/dx` de una curva `F(x, y) = G(x, y)`, con el formato estándar:
   - **Planteamiento**: `y` es una función de `x` aunque no esté despejada; se derivan los dos lados respecto a `x`, y cada vez que se deriva algo con `y`, la regla de la cadena añade el factor `y'`.
   - **Cada término**, con el paso a paso de **Derivar**: los que solo tienen `x`, como siempre; los que tienen `y`, `h(y)`, se derivan respecto a `y` y se multiplican por `y'` (**regla de la cadena**, con la cuenta: `d/dx(y^2) = (2*y)*y' = 2*y*y'`); los productos de una parte con `x` y otra con `y` (`6*x*y`, `x^2*y^3`, `x*exp(y)`), con la **regla del producto** (`u` con `x`, `v` con `y`). Las constantes, derivada 0.
