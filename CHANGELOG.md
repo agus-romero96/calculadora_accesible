@@ -6,6 +6,10 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Sin publicar]
 
+## [1.6.0] - 2026-10-11
+
+Versión de nuevas operaciones, todas con el paso a paso de la 1.5.0: resolver ecuaciones e inecuaciones de una variable, recta tangente y normal, extremos e intervalos de crecimiento, polinomio de Taylor, determinante por cofactores y derivada implícita; y dos métodos de integración explicados como en clase, fracciones parciales y sustitución trigonométrica.
+
 ### Añadido
 
 - **Integración por sustitución trigonométrica** (en **Integrar** e **Integral definida**). Para integrandos con `sqrt(A + B*x^2)` (o sus potencias impares), SymPy aplicaba reglas propias de raíces de una sola pieza (un salto en la explicación), no encontraba pasos, o daba resultados con trozos y números complejos (`∫ sqrt(x^2 - 9)/x dx` salía como un `Piecewise` con `I`). Ahora se sigue el método de clase:
@@ -429,7 +433,8 @@ Versión de calidad: corrige resultados matemáticos incorrectos (límites bilat
 
 Primera versión publicada con instalador para Windows: evaluación, simplificación y factorización; derivadas, integrales y límites con explicación paso a paso; sistemas por Gauss-Jordan e inversa por cofactores; interfaz accesible para NVDA.
 
-[Sin publicar]: https://github.com/agus-romero96/calculadora_accesible/compare/v1.4.0...HEAD
+[Sin publicar]: https://github.com/agus-romero96/calculadora_accesible/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/agus-romero96/calculadora_accesible/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/agus-romero96/calculadora_accesible/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/agus-romero96/calculadora_accesible/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/agus-romero96/calculadora_accesible/compare/v1.2.0...v1.3.0
