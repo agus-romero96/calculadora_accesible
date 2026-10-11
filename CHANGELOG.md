@@ -6,6 +6,10 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Sin publicar]
 
+### Corregido
+
+- **Salto al quitar paréntesis cuando las incógnitas se cancelan.** En `2*(x + 1) - (2*x + 2)` el resultado es un número, y `despejar()` lo trataba como una cuenta solo de números: mostraba "Operamos: 2*(x + 1) - (2*x + 2) = 0" sin la propiedad distributiva. Ahora solo se opera de una vez si no hay incógnitas; si las hay, se desarrolla y se agrupan los términos semejantes a la vista.
+
 ## [1.5.0] - 2026-10-10
 
 Versión del paso a paso: todas las operaciones (derivadas, integrales, límites, álgebra, Evaluar, Simplificar y Factorizar) explican cada regla sin saltos, con el mismo formato (Regla, En este caso, las cuentas intermedias y Queda), empiezan por el resultado y comprueban sus pasos contra SymPy. Añade la integral definida y corrige derivadas e integrales de logaritmos en otra base.

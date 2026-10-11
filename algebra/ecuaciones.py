@@ -44,7 +44,8 @@ def _quitar_parentesis(lado: Any, lineas: List[str], escrito: str = None) -> Any
     escrito: el lado tal como se muestra (2*(y + 1) + 3*y), si no es texto(lado).
     """
     evaluado = sympy.expand(lado.doit())
-    if evaluado.is_number:
+    # Solo números: una cuenta. Si hay incógnitas que se cancelan (2*(x + 1) - 2*x), no: hay que ver cómo
+    if evaluado.is_number and not sympy.sympify(lado).free_symbols:
         # Solo números (2*2 - 1): una cuenta, en el orden en que se escribió
         antes = escrito or texto(lado)
         if antes != texto(evaluado):
