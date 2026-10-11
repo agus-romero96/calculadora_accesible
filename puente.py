@@ -28,6 +28,7 @@ from aritmetica import Aritmetica
 from algebra.matrix_logic import MotorMatrices
 from algebra.gauss_logic import MotorGauss
 from algebra.classic_systems import MotorSistemasClasicos
+from algebra.determinante import MotorDeterminante
 from algebra.resolucion import MotorEcuaciones
 
 # Módulos de CÁLCULO
@@ -109,6 +110,8 @@ REGISTRO: List[Operacion] = [
               variantes=MotorSistemasClasicos.NOMBRES_METODO),
     Operacion("inversa", N_("Matriz inversa (cofactores)"), "inversa", "expresion", N_("la matriz inversa"),
               menu="algebra", etiqueta=N_("Matriz Inversa (Cofactores)"), atajo="Ctrl+M", separador_antes=True),
+    Operacion("determinante", N_("Determinante (cofactores)"), "determinante", "expresion", N_("el determinante"),
+              menu="algebra", etiqueta=N_("&Determinante (Cofactores)"), atajo="Ctrl+K"),
 ]
 
 OPERACION = {op.clave: op for op in REGISTRO}
@@ -177,6 +180,7 @@ class CoreMatematico:
         self.gauss = MotorGauss(self.parser_comun)
         self.clasicos = MotorSistemasClasicos(self.parser_comun)
         self.ecuaciones = MotorEcuaciones(self.parser_comun)
+        self.determinante_motor = MotorDeterminante(self.parser_comun)
 
         # Especialistas en Cálculo
         self.calculo = Calculo(self.parser_comun)
@@ -333,6 +337,15 @@ class CoreMatematico:
                                   valor=valor, es_error=es_error, parametros={"metodo": metodo},
                                   planteamiento=self._ecuaciones(lineas))
 
+    def determinante(self, expresion_matriz: str) -> ResultadoOperacion:
+        """Determinante por cofactores: el valor es el número; el planteamiento, Determinant(A)."""
+        res = self.determinante_motor.resolver(expresion_matriz)
+        return ResultadoOperacion(
+            operacion="determinante", entrada=expresion_matriz, texto=res.texto, valor=res.valor,
+            es_error=res.es_error, expresion=res.matriz,
+            planteamiento=sympy.Determinant(res.matriz) if not res.es_error and res.matriz.rows > 1 else None,
+        )
+
     def inversa(self, expresion_matriz: str) -> ResultadoOperacion:
         res = self.matrices.CalcularInversaCofactores(expresion_matriz)
         return ResultadoOperacion(
@@ -374,6 +387,9 @@ class CoreMatematico:
 
     def ResolverSistemaEducativo(self, lista_ecuaciones, metodo):
         return self.sistema_clasico(lista_ecuaciones, metodo).texto
+
+    def Determinante(self, expresion_matriz):
+        return self.determinante(expresion_matriz).texto
 
     def MatrizInversaCofactores(self, expresion_matriz):
         return self.inversa(expresion_matriz).texto

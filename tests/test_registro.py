@@ -29,6 +29,7 @@ EJEMPLOS = {
     "gauss": (["x + y = 10", "x - y = 2"],),
     "sistema_clasico": (["x + y = 10", "x - y = 2"],),
     "inversa": ("1 2\n3 4",),
+    "determinante": ("2 0 1\n1 3 2\n1 0 4",),
 }
 
 # Marcadores que rellena cada tipo de datos en la descripción ("Calculando ...")

@@ -29,6 +29,7 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
    [Ctrl + R]         : SOLVE an equation or inequality.
    [Ctrl + G]         : Solve a SYSTEM by Gauss-Jordan.
    [Ctrl + M]         : INVERSE MATRIX by cofactors.
+   [Ctrl + K]         : DETERMINANT of a matrix by cofactors.
    [Ctrl + Backspace] : CLEAR the screen to start over.
    [Ctrl + Shift + C] : COPY the result.
    [Ctrl + E]         : EXPORT the result to a file.
@@ -138,6 +139,16 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
      intervals, for example: x < -2 or x > 2, that is,
      (-oo, -2) U (2, oo). It is always checked by substituting
      into the original equation.
+   - Determinant: Type the matrix, one row per line:
+       2 0 1
+       1 3 2
+       1 0 4
+     Press Ctrl+K. Result: det(A) = 21. It is expanded along the
+     row or column with the most zeros (here column 2): the zeros
+     add nothing and their minors are not needed. Every minor and
+     cofactor shows its arithmetic. In a 4x4 matrix, each 3x3
+     minor is expanded in its own steps, with other letters
+     (b, N, D) so as not to confuse it with the matrix A.
    - 2x2 system: Type two lines:
        x + y = 10
        x - y = 2

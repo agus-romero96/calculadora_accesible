@@ -290,6 +290,7 @@ def paso11():  # cada operación del registro pide sus datos y llama a su métod
         "sistema_clasico": (sistema, [], "reduccion",
                             ("sistema_clasico", (sistema.split("\n"), "reduccion"), "el sistema por reducción")),
         "inversa": ("1 2\n3 4", [], None, ("inversa", ("1 2\n3 4",), "la matriz inversa")),
+        "determinante": ("1 2\n3 4", [], None, ("determinante", ("1 2\n3 4",), "el determinante")),
     }
     check("registro: cada operación tiene caso", set(casos) == {op.clave for op in REGISTRO})
     llamadas = []

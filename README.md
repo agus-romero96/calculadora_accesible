@@ -68,6 +68,7 @@ Disponible en **español e inglés** (interfaz, explicaciones y ayuda). Los resu
 | **Sistemas (Gauss-Jordan)** | Resuelve sistemas lineales de cualquier tamaño, escritos como ecuaciones (una por línea) o como matriz aumentada `[[1,1,10],[1,-1,2]]`. Explica cada operación de fila (intercambio, normalización, eliminación) con la cuenta de cada elemento (`F2 → F2 - (-3)*F1: [-3 - (-3)*1, ...] = [0, ...]`) y la matriz resultante, prefiere pivotes `1` o `-1` para evitar fracciones, lee la solución fila a fila y la comprueba en las ecuaciones originales. Diagnostica con el teorema de Rouché-Frobenius: solución **única**, **infinitas** (con parametrización y grados de libertad) o **sin solución**. |
 | **Sistema 2×2 por método clásico** | Resuelve sistemas de dos ecuaciones con dos incógnitas por **sustitución**, **igualación** o **reducción** (submenú *Álgebra → Sistema 2×2 por método clásico*), explicando cada paso como en clase, sin saltos: cada ecuación de primer grado se resuelve a la vista (quitar paréntesis, agrupar términos semejantes, pasar términos al otro lado cambiando de signo, dividir), y al final se comprueba la solución; también despeje, sustitución, eliminación y comprobación final. Detecta sistemas incompatibles e indeterminados. |
 | **Matriz inversa (cofactores)** | Calcula la inversa por el método de la adjunta, para matrices de hasta 4×4: determinante por expansión de la fila 1 con sus cuentas, **todos** los cofactores (cada menor con su determinante y su signo), adjunta, división de cada elemento entre el determinante y comprobación `A·A⁻¹ = I`. Detecta matrices singulares y no cuadradas. |
+| **Determinante (cofactores)** | Calcula el determinante de una matriz cuadrada (una fila por línea). 1x1: el elemento; 2x2: `a*d - b*c` con las cuentas; 3x3 y 4x4: desarrollo por cofactores por la **fila o columna con más ceros** (los ceros anulan su término y su menor no hace falta), con cada menor, el signo `(-1)^(i+j)` de cada cofactor y la suma de los productos. En una 4x4, cada menor 3x3 se desarrolla en sus propios pasos, con otras letras (`b_ij`, `N_ij`, `D_ij`) para no confundirlo con la matriz `A`. Hasta 4x4 con pasos; mayores, el valor de SymPy con una nota. Se exporta como `|A| = valor`. |
 
 > Atajo inteligente: si en la entrada escribe **varias líneas que contienen `=`** y pulsa **Ctrl+Enter**, la calculadora detecta que es un sistema y lo resuelve por Gauss-Jordan automáticamente. Con **una sola línea con `=`, `<` o `>`**, la resuelve como ecuación o inecuación.
 
@@ -164,6 +165,7 @@ El menú **Idioma / Language** cambia toda la calculadora entre **español** e *
 | `Ctrl+R` | Resolver ecuación o inecuación |
 | `Ctrl+G` | Resolver sistema por Gauss-Jordan |
 | `Ctrl+M` | Matriz inversa por cofactores |
+| `Ctrl+K` | Determinante por cofactores |
 | `Ctrl+Retroceso` | Borrar entrada y resultados |
 | `Ctrl+Shift+C` | Copiar el resultado |
 | `Ctrl+Shift+A` | Copiar la explicación completa |
@@ -257,6 +259,8 @@ x + y = 10
 x - y = 2
 ```
 Resultado: `x = 6`, `y = 4`, con cada operación de fila explicada.
+
+**Determinante**: escriba la matriz (`2 0 1`, `1 3 2`, `1 0 4`, una fila por línea) y pulse `Ctrl+K`. Resultado: `det(A) = 21`, desarrollado por la columna 2, que tiene dos ceros.
 
 **Matriz inversa**: escriba y pulse `Ctrl+M`:
 ```

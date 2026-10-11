@@ -8,6 +8,16 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Añadido
 
+- **Determinante por cofactores** (menú **Álgebra**, `Ctrl+K`), como operación independiente de la inversa. Reutiliza sus piezas (leer la matriz, `a*d - b*c`, sumas de productos), pero el desarrollo es el que se enseña:
+  - Se desarrolla por la **fila o columna con más ceros**, no siempre por la fila 1: cada elemento 0 anula su término y su menor no hace falta, y se dice ("a12 = 0: su término vale 0 y no hace falta su menor"). Sin ceros, la fila 1. Si toda una línea es 0, el determinante es 0.
+  - Cada término en una línea: el elemento, la submatriz que queda al quitar su fila y su columna, el menor con su cuenta, el signo `(-1)^(i+j)` y el cofactor; al final, la suma de los productos.
+  - En una 4x4, **cada menor 3x3 se desarrolla en sus propios pasos** (la inversa da su valor de golpe), con otras letras (`b_ij`, `N_ij`, `D_ij`) para que, al oírlo, el elemento (2, 2) de un menor no se confunda con el `a22` de `A`.
+  - 1x1 y 2x2 con su regla. Hasta 4x4 con pasos; para matrices mayores, el valor de SymPy con una nota. El valor se compara siempre con el de SymPy.
+  - Se exporta como en un libro: `\left|{\begin{matrix}1 & 2\\3 & 4\end{matrix}}\right| = -2`.
+  - Código: `algebra/determinante.py` (`MotorDeterminante`).
+  - Pruebas: `tests/test_determinante.py` (21: 10 matrices comparadas con SymPy, la elección de la línea, la 4x4 con sus menores, letras, 5x5, errores, exportación, que la inversa no cambia, e inglés), casos en registro e historial; la suite tiene 5490. `tests/verificar_ui.py`: 94 comprobaciones.
+  - Ayuda (F1) y README: atajo, descripción y ejemplo.
+
 - **Polinomio de Taylor** (menú **Cálculo**, `Ctrl+Shift+T`). Pide el orden `n` (de 0 a 15) y el punto `x0`, y explica con el formato estándar:
   - la **fórmula** `P_n(x) = f(x0) + f'(x0)*(x - x0) + f''(x0)/2!*(x - x0)^2 + ...`, con la de este caso escrita término a término (y el nombre de polinomio de Maclaurin si `x0 = 0`);
   - **cada derivada a partir de la anterior**, con el paso a paso de **Derivar** y el mismo límite que **Derivada de orden N** (si se hace demasiado larga, desde ahí solo los resultados, con un aviso);
@@ -62,6 +72,7 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Corregido
 
+- **Determinante 2x2 con letras repetido**: en la inversa (y ahora en el determinante), `[a, b; c, d]` daba "a*d - b*c = a*d - (b*c) = a*d - b*c": la cuenta intermedia solo tiene sentido cuando los productos son números (`1*4 - 2*3 = 4 - 6 = -2`). Con letras, ahora queda "a*d - b*c".
 - **Regla de los signos con un 0**: al evaluar `0/(-1)` o `0*(-3)`, el paso a paso decía "Signos: más por menos da más", que es falso: el resultado es 0, que no tiene signo. La regla de los signos trataba el 0 como positivo. Ahora, si uno de los números es 0, no se aplica (0 por o entre cualquier número da 0). Apareció al calcular `f(0)` en el estudio de extremos de `x^2/(x - 1)`. `tests/test_pasos_aritmetica.py` lo comprueba.
 - **Salto al quitar paréntesis cuando las incógnitas se cancelan.** En `2*(x + 1) - (2*x + 2)` el resultado es un número, y `despejar()` lo trataba como una cuenta solo de números: mostraba "Operamos: 2*(x + 1) - (2*x + 2) = 0" sin la propiedad distributiva. Ahora solo se opera de una vez si no hay incógnitas; si las hay, se desarrolla y se agrupan los términos semejantes a la vista.
 - **MathML inválido en las desigualdades estrictas**: SymPy escribe `<mo><</mo>` sin escapar, y un HTML exportado o un MathML copiado con `<` o `>` no era XML válido. Se escapan al generar el MathML.

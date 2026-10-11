@@ -14,11 +14,11 @@ Una tarea terminada se tacha (`~~...~~`) y se anota el commit.
    - ~~Intervalos de crecimiento y decrecimiento con el signo de `f'(x)` en cada intervalo (criterio de la primera derivada).~~
    - ~~Máximos y mínimos locales, con el criterio de la segunda derivada cuando decide (`f''(x₀) ≠ 0`), y el valor `f(x₀)` de cada extremo.~~
    - Queda fuera: puntos críticos donde `f'(x)` no existe pero `f(x)` sí (picos). `x^(2/3)` da un mensaje claro; `abs(x)` lo resuelve SymPy sin pasos. Se pueden añadir si hace falta.
-5. ~~**Polinomio de Taylor alrededor de un punto**~~ — **completada** (menú **Cálculo**, `Ctrl+Shift+T`, `calculo/taylor.py`)
+5. ~~**Polinomio de Taylor alrededor de un punto**~~ — **completada** (menú **Cálculo**, `Ctrl+Shift+T`, `calculo/taylor.py`; commit `c632dbf`)
    - ~~Orden `n` y punto `x₀`.~~
    - ~~Cada derivada `f⁽ᵏ⁾(x)`, su valor en `x₀` y cada término `f⁽ᵏ⁾(x₀)/k! · (x - x₀)ᵏ`.~~
-6. **Determinante de una matriz por cofactores** (operación independiente en **Álgebra**)
-   - Expansión por cofactores con cada menor, su signo y sus cuentas.
+6. ~~**Determinante de una matriz por cofactores** (operación independiente en **Álgebra**)~~ — **completada** (`Ctrl+K`, `algebra/determinante.py`)
+   - ~~Expansión por cofactores con cada menor, su signo y sus cuentas.~~ Por la fila o columna con más ceros; en 4x4, cada menor 3x3 en sus propios pasos.
 7. **Derivada implícita** (con respecto a `x` de una ecuación `F(x, y) = 0`)
    - Derivar los dos lados tratando `y` como función de `x` (regla de la cadena: `dy/dx`), y despejar `dy/dx`.
 

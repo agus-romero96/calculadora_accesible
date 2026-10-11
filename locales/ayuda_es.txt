@@ -29,6 +29,7 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
    [Ctrl + R]         : RESOLVER una ecuación o inecuación.
    [Ctrl + G]         : Resolver SISTEMA por Gauss-Jordan.
    [Ctrl + M]         : MATRIZ INVERSA por cofactores.
+   [Ctrl + K]         : DETERMINANTE de una matriz por cofactores.
    [Ctrl + Retroceso] : LIMPIAR pantalla para empezar de cero.
    [Ctrl + Mayús + C] : COPIAR el resultado.
    [Ctrl + E]         : EXPORTAR el resultado a un archivo.
@@ -136,6 +137,16 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
      intervalo, por ejemplo: x < -2 o x > 2, es decir,
      (-∞, -2) ∪ (2, ∞). Siempre se comprueba sustituyendo en la
      ecuación original.
+   - Determinante: Escriba la matriz, una fila por línea:
+       2 0 1
+       1 3 2
+       1 0 4
+     Pulse Ctrl+K. Resultado: det(A) = 21. Se desarrolla por la
+     fila o columna con más ceros (aquí la columna 2): los ceros
+     no aportan nada y su menor no hace falta. Cada menor y cada
+     cofactor llevan sus cuentas. En una 4x4, cada menor 3x3 se
+     desarrolla en sus propios pasos, con otras letras (b, N, D)
+     para no confundirlo con la matriz A.
    - Sistema 2x2: Escriba dos líneas:
        x + y = 10
        x - y = 2

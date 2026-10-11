@@ -210,8 +210,11 @@ class MotorMatrices:
         """'1*4 - 2*3 = 4 - 6 = -2'."""
         a, b, c, d = m[0, 0], m[0, 1], m[1, 0], m[1, 1]
         productos = f"{entre_parentesis(a)}*{entre_parentesis(d)} - {entre_parentesis(b)}*{entre_parentesis(c)}"
-        intermedio = f"{texto(a * d)} - {entre_parentesis(b * c)}"
         valor = texto(sympy.simplify(a * d - b * c))
+        if not ((a * d).is_number and (b * c).is_number):
+            # Con letras, los productos ya están hechos: a*d - b*c, sin una cuenta intermedia que lo repita
+            return f"{productos} = {valor}" if productos != valor else productos
+        intermedio = f"{texto(a * d)} - {entre_parentesis(b * c)}"
         return f"{productos} = {intermedio} = {valor}" if intermedio != valor else f"{productos} = {valor}"
 
     @staticmethod
