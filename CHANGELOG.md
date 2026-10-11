@@ -8,6 +8,18 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Añadido
 
+- **Integración por sustitución trigonométrica** (en **Integrar** e **Integral definida**). Para integrandos con `sqrt(A + B*x^2)` (o sus potencias impares), SymPy aplicaba reglas propias de raíces de una sola pieza (un salto en la explicación), no encontraba pasos, o daba resultados con trozos y números complejos (`∫ sqrt(x^2 - 9)/x dx` salía como un `Piecewise` con `I`). Ahora se sigue el método de clase:
+  - **El caso según la raíz**: `a^2 - x^2` con `x = a*sin(θ)`, `a^2 + x^2` con `x = a*tan(θ)`, `x^2 - a^2` con `x = a*sec(θ)`, con `k = sqrt(|A|/|B|)` calculado (también con coeficientes: `sqrt(4 - 9*x^2)` da `x = 2*sin(θ)/3`).
+  - **`dx`**, derivando el cambio.
+  - **La raíz**: se sustituye dentro, se saca factor común, se aplica la **identidad pitagórica** (`1 - sin(θ)^2 = cos(θ)^2`...) y se dice en qué intervalo de `θ` la raíz se toma positiva.
+  - **La integral en `θ`**, escrita sin simplificar y simplificada, e integrada con el paso a paso de **Integrar**; las que este no sabe explicar (`∫ csc(θ)^2`, `∫ sec(θ)^3`...) salen de una tabla de integrales trigonométricas, con su comprobación derivando.
+  - **La vuelta a `x` con el triángulo rectángulo**: la razón que da el cambio, los dos lados que dice, el tercero por Pitágoras, cada razón que aparece en la primitiva (`cos(θ) = adyacente/hipotenusa = sqrt(4 - x^2)/2`), el ángulo, las fórmulas del ángulo doble si hacen falta, y la sustitución sin operar antes del resultado.
+  - Se mantienen el cambio `u = A + B*x^2` cuando es más directo (`x/sqrt(4 - x^2)`) y el arcoseno de la tabla (`1/sqrt(4 - x^2)`).
+  - Si la primitiva de SymPy tiene trozos (`Piecewise`) o números complejos y la explicada es real y su derivada es la función, se muestra la explicada, con una nota (en el caso de la secante, la comprobación es para `x >= a`, el intervalo del cambio). Si la de SymPy usa `asinh`/`acosh` y la explicada logaritmos, se reconocen como iguales y el paso de simplificación da la definición (`asinh(u) = log(u + sqrt(u^2 + 1))`).
+  - Código: `calculo/sustitucion_trig.py` (`ExplicadorTrig`); `Calculo._explicar_integral` devuelve ahora también la primitiva que se muestra.
+  - Pruebas: `tests/test_sustitucion_trig.py` (20: 9 integrales de los tres casos con su primitiva comprobada, las cuentas del caso del seno, la tangente con `asinh`, la secante real, la tabla, los casos que van por otro método, la integral definida y el inglés); la suite tiene 6037.
+  - Ayuda (F1) y README.
+
 - **Integración por fracciones parciales** (en **Integrar** e **Integral definida**). SymPy integra los cocientes de polinomios con una reescritura de golpe ("Reescribir la función: 1/(x^2 - 1) = ..."), que en la explicación era un salto sin justificar. Ahora se sigue el método de clase, paso a paso:
   - **Simplificar la fracción** si el numerador y el denominador comparten un factor (con las dos factorizaciones y el factor que se cancela).
   - **Comparar grados** y, si el del numerador es mayor o igual, **dividir los polinomios**: en cada vuelta, el término del cociente, el producto y la resta; al final, el cociente, el resto y la comprobación `divisor*cociente + resto = dividendo`.

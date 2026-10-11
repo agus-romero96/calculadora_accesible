@@ -22,20 +22,21 @@ Una tarea terminada se tacha (`~~...~~`) y se anota el commit.
 7. ~~**Derivada implícita** (con respecto a `x` de una ecuación `F(x, y) = 0`)~~ — **completada** (menú **Cálculo**, `Ctrl+J`, `calculo/implicita.py`; commit `95d14cd`)
    - ~~Derivar los dos lados tratando `y` como función de `x` (regla de la cadena: `dy/dx`), y despejar `dy/dx`.~~
    - Queda fuera: términos que mezclan `x` e `y` sin separarse (`sin(x*y)`): hoy los resuelve SymPy sin pasos.
-8. ~~**Integración por fracciones parciales** (dentro de **Integrar** e **Integral definida**)~~ — **completada** (`calculo/fracciones_parciales.py`)
+8. ~~**Integración por fracciones parciales** (dentro de **Integrar** e **Integral definida**)~~ — **completada** (`calculo/fracciones_parciales.py`; commit `807a155`)
    - ~~Comprobar grados: si el grado del numerador es mayor o igual que el del denominador, división previa de polinomios.~~
    - ~~Factorización del denominador: factores lineales distintos, repetidos y cuadráticos irreducibles.~~
    - ~~Planteamiento con coeficientes indeterminados (`A/(x - a) + B/(x - b) + ...`).~~
    - ~~Multiplicar por el denominador común y resolver el sistema para hallar los coeficientes.~~ Sustituyendo las raíces e igualando coeficientes, ecuación a ecuación.
    - ~~Integrar paso a paso cada fracción simple (logaritmos y arcotangentes).~~
    - Queda fuera: denominadores con raíces irracionales (`x^2 - 2`) y factores cuadráticos repetidos: siguen con las reglas de SymPy.
-9. **Integración por sustitución trigonométrica** (dentro de **Integrar** e **Integral definida**)
-   - Identificar el caso según el radical: `a^2 - x^2` (`x = a*sin(θ)`), `a^2 + x^2` (`x = a*tan(θ)`), `x^2 - a^2` (`x = a*sec(θ)`).
-   - Calcular `dx` y sustituir la raíz, simplificando con las identidades pitagóricas.
-   - Integrar en la variable `θ`.
-   - Volver a `x` con el triángulo rectángulo (despejando las razones trigonométricas).
+9. ~~**Integración por sustitución trigonométrica** (dentro de **Integrar** e **Integral definida**)~~ — **completada** (`calculo/sustitucion_trig.py`)
+   - ~~Identificar el caso según el radical: `a^2 - x^2` (`x = a*sin(θ)`), `a^2 + x^2` (`x = a*tan(θ)`), `x^2 - a^2` (`x = a*sec(θ)`).~~
+   - ~~Calcular `dx` y sustituir la raíz, simplificando con las identidades pitagóricas.~~
+   - ~~Integrar en la variable `θ`.~~ Con el paso a paso de Integrar, o una tabla trigonométrica con su comprobación.
+   - ~~Volver a `x` con el triángulo rectángulo (despejando las razones trigonométricas).~~
+   - Queda fuera: raíces con término lineal (`sqrt(x^2 + 2*x)`, que pide completar el cuadrado antes): siguen con las reglas de SymPy.
 
-Las tareas 1 a 8 están completas; falta la 9, y después lo de abajo para publicar.
+**Las nueve tareas de la 1.6.0 están completas.** Falta lo de abajo para publicarla.
 
 ## Antes de publicar la 1.6.0
 

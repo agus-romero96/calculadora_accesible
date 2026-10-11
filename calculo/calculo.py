@@ -19,11 +19,11 @@ from dataclasses import dataclass, field
 from typing import Any, List, Optional, Tuple
 
 import sympy
-from sympy import Symbol
+from sympy import S, Symbol
 from sympy.calculus.util import continuous_domain
 
 from calculo.derivadas import ExplicadorDerivada, texto
-from calculo import fracciones_parciales
+from calculo import fracciones_parciales, sustitucion_trig
 from calculo.integrales import ExplicadorIntegral
 from calculo.pasos import PasoCalculo, texto_paso
 from i18n import N_, tr
@@ -236,7 +236,8 @@ class Calculo:
 
         if pasos_rule:
             estrategia = self._obtener_nombre_regla(pasos_rule)
-            pasos_dto, principal = self._explicar_integral(pasos_rule, expr, var, integral, avisos, constante)
+            pasos_dto, principal, integral = self._explicar_integral(pasos_rule, expr, var, integral, avisos,
+                                                                     constante)
             if principal is not None:
                 estrategia = principal.estrategia
 
@@ -277,18 +278,23 @@ class Calculo:
 
     @staticmethod
     def _explicar_integral(regla: Any, expr: Any, var: Symbol, primitiva: Any, avisos: List[str],
-                           constante: bool) -> Tuple[List[PasoCalculo], Optional[Any]]:
+                           constante: bool) -> Tuple[List[PasoCalculo], Optional[Any], Any]:
         """
-        (pasos, regla principal) de la integral de expr hasta primitiva (la de SymPy, que es
-        la que se muestra); sin pasos ni regla si no se puede explicar.
+        (pasos, regla principal, primitiva que se muestra) de la integral de expr. La que se
+        muestra es la de SymPy, salvo que traiga trozos (Piecewise) o números complejos y la
+        explicada sea real y correcta (su derivada es expr): entonces, la explicada.
+        Sin pasos ni regla si no se puede explicar.
         """
         if primitiva.has(sympy.Integral):
-            return [], None  # SymPy no la cerró: no hay a dónde llegar (ya hay un aviso)
-        # Cociente de polinomios: fracciones parciales, como en clase (el árbol de SymPy lo hace de golpe)
+            return [], None, primitiva  # SymPy no la cerró: no hay a dónde llegar (ya hay un aviso)
+        # Métodos de clase que el árbol de SymPy hace de golpe: fracciones parciales y sustitución trigonométrica
         explicadores = []
         if fracciones_parciales.aplica(expr, var):
             explicadores.append(fracciones_parciales.ExplicadorFracciones(var))
+        if sustitucion_trig.aplica(expr, var):
+            explicadores.append(sustitucion_trig.ExplicadorTrig(var))
         explicadores += [ExplicadorIntegral(var, alternativa) for alternativa in (0, -1)]
+        sympy_compleja = primitiva.has(sympy.Piecewise) or primitiva.has(sympy.I)
         for explicador in explicadores:
             try:
                 if isinstance(explicador, ExplicadorIntegral):
@@ -298,7 +304,7 @@ class Calculo:
                 # Una primitiva es correcta si al derivarla se obtiene la función, y debe llegar
                 # a la que se muestra (o diferenciarse de ella en una constante)
                 diferencia = sympy.simplify(explicada - primitiva)
-                por_logaritmos = False
+                por_logaritmos = por_hiperbolicas = False
                 if diferencia.has(sympy.log) and diferencia.has(var):
                     # log(x) + log(x - 1) y log(x^2 - x): iguales por las propiedades de los logaritmos
                     factorizada = (explicada - primitiva).replace(
@@ -306,13 +312,31 @@ class Calculo:
                     combinada = sympy.simplify(sympy.expand_log(factorizada, force=True))
                     if not combinada.has(var):
                         diferencia, por_logaritmos = combinada, True
-                if sympy.simplify(sympy.diff(explicada, var) - expr) == 0 and not diferencia.has(var):
+                if diferencia.has(var) and diferencia.has(sympy.asinh, sympy.acosh, sympy.atanh):
+                    # asinh(x/2) es log(x/2 + sqrt(x^2/4 + 1)): la misma función escrita de otra forma
+                    en_logaritmos = sympy.simplify(sympy.expand_log((explicada - primitiva).rewrite(sympy.log),
+                                                                    force=True))
+                    if not en_logaritmos.has(var):
+                        diferencia, por_hiperbolicas = en_logaritmos, True
+                resta = sympy.diff(explicada, var) - expr
+                correcta = sympy.simplify(resta) == 0
+                if not correcta and isinstance(explicador, sustitucion_trig.ExplicadorTrig):
+                    # Con x = a*sec(θ), la primitiva vale para x >= a: se comprueba con x positiva
+                    positiva = sympy.Dummy("x", positive=True)
+                    correcta = sympy.simplify(resta.subs(var, positiva)) == 0
+                if correcta and not diferencia.has(var):
+                    break
+                if correcta and sympy_compleja and not explicada.has(sympy.I, sympy.Piecewise):
+                    # La de SymPy trae trozos o complejos; la explicada es real y su derivada es la función
+                    avisos.append(tr("NOTA: la primitiva de SymPy tiene trozos o números complejos; se muestra la "
+                                     "obtenida en los pasos, que es real y cuya derivada es la función."))
+                    primitiva, diferencia = explicada, S.Zero
                     break
             except Exception:  # SinExplicacion, o una forma que las reglas no prevén
                 pass
         else:
             avisos.append(tr("No se pudo explicar esta integral paso a paso; el resultado es el que calcula SymPy."))
-            return [], None
+            return [], None, primitiva
 
         pasos = list(explicador.pasos)
         if texto(explicada) != texto(primitiva):
@@ -323,6 +347,8 @@ class Calculo:
                              "fracciones, identidades trigonométricas) sin cambiar su valor."),
                     calculo=((tr("Propiedades de los logaritmos: log(a) + log(b) = log(a*b) y log(a) - log(b) = "
                                  "log(a/b)."),) if por_logaritmos else ())
+                            + ((tr("Por definición, asinh(u) = log(u + sqrt(u^2 + 1)) y acosh(u) = log(u + sqrt(u^2 - 1)): "
+                                   "es la misma función escrita de otra forma."),) if por_hiperbolicas else ())
                             + (f"{texto(explicada)} = {texto(primitiva)}",),
                     queda=texto(primitiva)))
             else:
@@ -341,7 +367,7 @@ class Calculo:
                 regla=tr("se suma una constante C: si F es una primitiva, F + C también lo es para cualquier "
                          "número C, porque la derivada de una constante es 0."),
                 queda=f"{texto(primitiva)} + C"))
-        return pasos, explicador.principal
+        return pasos, explicador.principal, primitiva
 
     # Nombres de las reglas de manualintegrate (clase sin "Rule") en lenguaje de clase.
     NOMBRES_REGLAS = {
