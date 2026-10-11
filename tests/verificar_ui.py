@@ -281,6 +281,7 @@ def paso11():  # cada operación del registro pide sus datos y llama a su métod
         "integral_definida": ("x^2", ["0", "oo"], None,
                               ("integral_definida", ("x^2", None, "0", "oo"), "la integral definida")),
         "limite": ("sin(x)/x", ["x", "0"], None, ("limite", ("sin(x)/x", "x", "0"), "el límite")),
+        "ecuacion": ("x^2 - 4 <= 0", [], None, ("ecuacion", ("x^2 - 4 <= 0",), "la ecuación")),
         "gauss": (sistema, [], None, ("sistema_gauss", (sistema.split("\n"),), "el sistema por Gauss-Jordan")),
         "sistema_clasico": (sistema, [], "reduccion",
                             ("sistema_clasico", (sistema.split("\n"), "reduccion"), "el sistema por reducción")),
@@ -305,6 +306,12 @@ def paso11():  # cada operación del registro pide sus datos y llama a su métod
         f._pedir_texto = lambda *a, **k: None
         f.input_text.SetValue("5"); llamadas.clear(); f.on_operacion("integrar")
         check("registro: cancelar un diálogo no calcula", llamadas == [])
+        # Ctrl+Enter con una sola línea con =, < o > resuelve la ecuación o inecuación
+        f.input_text.SetValue("2*x + 1 > 7"); llamadas.clear(); f.on_evaluar_inteligente(None)
+        check("Ctrl+Enter: una inecuación se resuelve",
+              llamadas == [("ecuacion", ("2*x + 1 > 7",), "la ecuación")])
+        f.input_text.SetValue("x + y = 10\nx - y = 2"); llamadas.clear(); f.on_evaluar_inteligente(None)
+        check("Ctrl+Enter: varias líneas siguen siendo un sistema", llamadas[0][0] == "sistema_gauss")
     finally:
         f._ejecutar, f._pedir_texto = original_ejecutar, original_pedir
     paso12()

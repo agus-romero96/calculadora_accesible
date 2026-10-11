@@ -151,6 +151,12 @@ RESULTADOS_PERSISTENCIA = {
     "integral_abs": lambda c: c.integrar("abs(x)"),
     "integral_definida_pi": lambda c: c.integral_definida("1/(1+x^2)", None, "-oo", "oo"),
     "integral_definida_parametro": lambda c: c.integral_definida("x", None, "0", "k"),
+    # Conjuntos solución y relaciones sin evaluar (Eq, Le, Gt...)
+    "ecuacion_racional": lambda c: c.ecuacion("x^2/(x-1) = 1/(x-1)"),
+    "ecuacion_irracional": lambda c: c.ecuacion("2*x^2 - 4*x - 1 = 0"),
+    "inecuacion_union": lambda c: c.ecuacion("-x^2 + 2*x + 3 < 0"),
+    "inecuacion_intervalo": lambda c: c.ecuacion("x^2 - 4 <= 0"),
+    "inecuacion_sin_solucion": lambda c: c.ecuacion("x^2 + 1 < 0"),
 }
 
 

@@ -28,6 +28,7 @@ from aritmetica import Aritmetica
 from algebra.matrix_logic import MotorMatrices
 from algebra.gauss_logic import MotorGauss
 from algebra.classic_systems import MotorSistemasClasicos
+from algebra.resolucion import MotorEcuaciones
 
 # Módulos de CÁLCULO
 from calculo.router import RouterMatematico
@@ -84,9 +85,11 @@ REGISTRO: List[Operacion] = [
     Operacion("limite", N_("Límite"), "limite", "variable_tendencia", N_("el límite"),
               menu="calculo", etiqueta=N_("Límite"), atajo="Ctrl+L"),
 
+    Operacion("ecuacion", N_("Ecuación o inecuación"), "ecuacion", "expresion", N_("la ecuación"),
+              menu="algebra", etiqueta=N_("&Resolver ecuación o inecuación"), atajo="Ctrl+R"),
     Operacion("gauss", N_("Sistema de ecuaciones (Gauss-Jordan)"), "sistema_gauss", "lineas",
               N_("el sistema por Gauss-Jordan"),
-              menu="algebra", etiqueta=N_("Sistemas (Gauss-Jordan)"), atajo="Ctrl+G"),
+              menu="algebra", etiqueta=N_("Sistemas (Gauss-Jordan)"), atajo="Ctrl+G", separador_antes=True),
     Operacion("sistema_clasico", N_("Sistema 2x2 (método clásico)"), "sistema_clasico", "lineas",
               N_("el sistema por {metodo}"),
               menu="algebra", etiqueta=N_("Sistema 2x2 por &método clásico"),
@@ -160,6 +163,7 @@ class CoreMatematico:
         self.matrices = MotorMatrices(self.parser_comun)
         self.gauss = MotorGauss(self.parser_comun)
         self.clasicos = MotorSistemasClasicos(self.parser_comun)
+        self.ecuaciones = MotorEcuaciones(self.parser_comun)
 
         # Especialistas en Cálculo
         self.calculo = Calculo(self.parser_comun)
@@ -264,6 +268,15 @@ class CoreMatematico:
             planteamiento=planteamiento,
         )
 
+    def ecuacion(self, entrada: str) -> ResultadoOperacion:
+        """Ecuación o inecuación de una variable: el valor es el conjunto solución (FiniteSet, Interval...)."""
+        res = self.ecuaciones.resolver(entrada)
+        return ResultadoOperacion(
+            operacion="ecuacion", entrada=entrada, texto=res.texto, valor=res.conjunto, es_error=res.es_error,
+            parametros={"variable": str(res.variable)} if res.variable is not None else {},
+            expresion=res.planteamiento, planteamiento=res.planteamiento,
+        )
+
     def sistema_gauss(self, lineas: List[str]) -> ResultadoOperacion:
         texto, valor, es_error = self.gauss.resolver(lineas)
         return ResultadoOperacion(operacion="gauss", entrada="\n".join(lineas), texto=texto,
@@ -298,6 +311,9 @@ class CoreMatematico:
 
     def Factorizar(self, expresion):
         return self.factorizar(expresion).texto
+
+    def ResolverEcuacion(self, entrada):
+        return self.ecuacion(entrada).texto
 
     def ResolverSistemaGauss(self, lista_ecuaciones):
         return self.sistema_gauss(lista_ecuaciones).texto

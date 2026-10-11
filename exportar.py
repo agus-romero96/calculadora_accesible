@@ -20,6 +20,7 @@ from typing import Any, List, Optional
 import sympy
 
 from _version import __version__
+from algebra.resolucion import describir_conjunto
 from calculo.calculo import humanizar_integral
 from calculo.router import humanizar_limite
 from i18n import N_, idioma_actual, tr
@@ -56,6 +57,8 @@ def resultado_corto(res: ResultadoOperacion) -> str:
         return humanizar_limite(valor)
     if res.operacion == "integral_definida":
         return humanizar_integral(valor)
+    if _es_conjunto_solucion(res):
+        return describir_conjunto(valor, _variable(res), aproximar=False)
     if valor is None:
         # Sin valor (p. ej. sistema indeterminado): primera línea del informe
         return res.texto.strip().splitlines()[0] if res.texto.strip() else ""
@@ -92,8 +95,19 @@ def resumen(res: ResultadoOperacion) -> str:
     return "\n".join(texto)
 
 
+def _es_conjunto_solucion(res: ResultadoOperacion) -> bool:
+    """Ecuación o inecuación: el valor es el conjunto solución (se escribe 'x ∈ conjunto')."""
+    return res.operacion == "ecuacion" and isinstance(res.valor, sympy.Set)
+
+
+def _variable(res: ResultadoOperacion) -> sympy.Symbol:
+    return sympy.Symbol(res.parametros.get("variable") or "x")
+
+
 def _signo_igual(res: ResultadoOperacion) -> tuple:
-    """(LaTeX, MathML) del signo entre planteamiento y resultado: = o ≈ si es decimal."""
+    """(LaTeX, MathML) del signo entre planteamiento y resultado: = o ≈ si es decimal; ⟹ si es un conjunto solución."""
+    if _es_conjunto_solucion(res):
+        return r"\quad\Longrightarrow\quad", "<mo>&#x27F9;</mo>"
     if isinstance(res.valor, sympy.Float) and res.planteamiento is not None and not res.planteamiento.is_Float:
         return r"\approx", "<mo>&#x2248;</mo>"
     return "=", "<mo>=</mo>"
@@ -111,6 +125,8 @@ def latex(res: ResultadoOperacion) -> str:
     """'planteamiento = resultado' en LaTeX (sin delimitadores $)."""
     valor = _valor_simbolico(res)
     texto_valor = sympy.latex(valor) if valor is not None and not _es_lista(valor) else None
+    if texto_valor is not None and _es_conjunto_solucion(res):
+        texto_valor = sympy.latex(_variable(res)) + r" \in " + texto_valor
     if texto_valor is not None and res.mas_constante:
         texto_valor += " + C"
     if _es_lista(valor):
@@ -176,6 +192,8 @@ def mathml(res: ResultadoOperacion) -> str:
         derecha = "<mo>,</mo>".join(_mathml_de(eq) for eq in valor)
     else:
         derecha = _mathml_de(valor)
+        if _es_conjunto_solucion(res):
+            derecha = f"<mrow>{_mathml_de(_variable(res))}<mo>&#x2208;</mo>{derecha}</mrow>"
         if res.mas_constante:
             derecha = f"<mrow>{derecha}<mo>+</mo><mi>C</mi></mrow>"
 

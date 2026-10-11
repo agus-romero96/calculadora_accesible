@@ -432,7 +432,12 @@ class CalculadoraAccesible(wx.Frame):
     def on_evaluar_inteligente(self, event):
         txt = self.obtener_texto()
         if not txt: return
-        clave = "gauss" if "\n" in txt and "=" in txt else "evaluar"
+        if "\n" in txt and "=" in txt:
+            clave = "gauss"
+        elif any(signo in txt for signo in "=<>≤≥"):
+            clave = "ecuacion"  # una sola línea con =, < o >: ecuación o inecuación
+        else:
+            clave = "evaluar"
         self._calcular(OPERACION[clave], txt)
 
     def on_operacion(self, clave, variante=None):

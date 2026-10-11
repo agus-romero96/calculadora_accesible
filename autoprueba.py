@@ -35,6 +35,8 @@ def _casos(core: CoreMatematico) -> List[Tuple[str, Callable[[], str], str]]:
         ("Gauss-Jordan", lambda: core.ResolverSistemaGauss(["x + y = 10", "x - y = 2"]), "x = 6"),
         ("Sistema clásico", lambda: core.ResolverSistemaEducativo(["x + y = 10", "x - y = 2"], "reduccion"), "y = 4"),
         ("Matriz inversa", lambda: core.MatrizInversaCofactores("1 2\n3 4"), "3/2"),
+        # Usa solveset y los conjuntos de SymPy (intervalos, uniones)
+        ("Inecuación", lambda: core.ResolverEcuacion("-x^2 + 2*x + 3 < 0"), "(-∞, -1) ∪ (3, ∞)"),
         # Traducción: comprueba que locales/en.json está junto al ejecutable
         ("Inglés", lambda: _en_ingles(lambda: core.Derivar("x^3")), "RESULT: 3*x**2"),
         # Proceso de cálculo: en el ejecutable es otra copia del .exe (freeze_support)

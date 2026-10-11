@@ -57,15 +57,16 @@ Disponible en **español e inglés** (interfaz, explicaciones y ayuda). Los resu
 5. **Comparación de grados**: cocientes de polinomios cuando `x → ±∞`: términos principales, grados y signo de la divergencia.
 6. **Modo general** (`general.py`), si ninguna aplica: sustitución directa, límites laterales (quitando el valor absoluto a cada lado), número entre cero con su signo, regla de L'Hôpital, formas `1^∞`, `0^0`, `∞^0` (`f^g = exp(g*log(f))`), `0*∞` y `∞ - ∞` reescritas como cociente, y el término de mayor grado de un polinomio. El valor siempre es el de SymPy: si la explicación no llega a él, se da el resultado con un aviso.
 
-### Álgebra lineal (menú **Álgebra**)
+### Ecuaciones y álgebra lineal (menú **Álgebra**)
 
 | Operación | Qué hace |
 |---|---|
+| **Resolver ecuación o inecuación** | Una ecuación o inecuación de una variable, escrita en una línea con `=`, `<`, `>`, `<=` o `>=` (también `≤`, `≥`). Explica con el mismo formato (**Regla**, **En este caso**, las cuentas y **Queda**): **primer grado** (quitar paréntesis, agrupar, pasar términos cambiando de signo y dividir); **segundo grado** (forma general, discriminante con sus cuentas `(-5)^2 = 25 y 4*1*6 = 24` y, según el caso, factor común, ecuación incompleta, dos números que suman `b` y multiplican `c` o fórmula general, con la propiedad del producto nulo); **racionales** (restricciones del dominio, multiplicar por el MCM de los denominadores y descartar las raíces extrañas); **inecuaciones de primer grado** (al multiplicar o dividir por un negativo, el sentido se invierte y se dice); **inecuaciones de segundo grado** (puntos críticos y tabla de signos, intervalo a intervalo y factor a factor). La solución se escribe en palabras y en intervalos (`x < -1 o x > 3, es decir, (-∞, -1) ∪ (3, ∞)`), con la aproximación decimal de las raíces irracionales, y se comprueba sustituyendo en la ecuación original (en las inecuaciones, un número de cada intervalo y los extremos). El conjunto solución es siempre el de `solveset` de SymPy; otros tipos (grado 3, funciones) se resuelven sin pasos, con una nota. |
 | **Sistemas (Gauss-Jordan)** | Resuelve sistemas lineales de cualquier tamaño, escritos como ecuaciones (una por línea) o como matriz aumentada `[[1,1,10],[1,-1,2]]`. Explica cada operación de fila (intercambio, normalización, eliminación) con la cuenta de cada elemento (`F2 → F2 - (-3)*F1: [-3 - (-3)*1, ...] = [0, ...]`) y la matriz resultante, prefiere pivotes `1` o `-1` para evitar fracciones, lee la solución fila a fila y la comprueba en las ecuaciones originales. Diagnostica con el teorema de Rouché-Frobenius: solución **única**, **infinitas** (con parametrización y grados de libertad) o **sin solución**. |
 | **Sistema 2×2 por método clásico** | Resuelve sistemas de dos ecuaciones con dos incógnitas por **sustitución**, **igualación** o **reducción** (submenú *Álgebra → Sistema 2×2 por método clásico*), explicando cada paso como en clase, sin saltos: cada ecuación de primer grado se resuelve a la vista (quitar paréntesis, agrupar términos semejantes, pasar términos al otro lado cambiando de signo, dividir), y al final se comprueba la solución; también despeje, sustitución, eliminación y comprobación final. Detecta sistemas incompatibles e indeterminados. |
 | **Matriz inversa (cofactores)** | Calcula la inversa por el método de la adjunta, para matrices de hasta 4×4: determinante por expansión de la fila 1 con sus cuentas, **todos** los cofactores (cada menor con su determinante y su signo), adjunta, división de cada elemento entre el determinante y comprobación `A·A⁻¹ = I`. Detecta matrices singulares y no cuadradas. |
 
-> Atajo inteligente: si en la entrada escribe **varias líneas que contienen `=`** y pulsa **Ctrl+Enter**, la calculadora detecta que es un sistema y lo resuelve por Gauss-Jordan automáticamente.
+> Atajo inteligente: si en la entrada escribe **varias líneas que contienen `=`** y pulsa **Ctrl+Enter**, la calculadora detecta que es un sistema y lo resuelve por Gauss-Jordan automáticamente. Con **una sola línea con `=`, `<` o `>`**, la resuelve como ecuación o inecuación.
 
 ### Copiar y exportar resultados (menú **Resultado**)
 
@@ -146,7 +147,7 @@ El menú **Idioma / Language** cambia toda la calculadora entre **español** e *
 
 | Atajo | Acción |
 |---|---|
-| `Ctrl+Enter` | Evaluar (o resolver sistema si hay varias líneas con `=`) |
+| `Ctrl+Enter` | Evaluar (o resolver la ecuación si hay una línea con `=`, `<` o `>`, o el sistema si hay varias líneas con `=`) |
 | `Ctrl+S` | Simplificar |
 | `Ctrl+F` | Factorizar |
 | `Ctrl+D` | Derivar |
@@ -154,6 +155,7 @@ El menú **Idioma / Language** cambia toda la calculadora entre **español** e *
 | `Ctrl+I` | Integrar |
 | `Ctrl+Shift+I` | Integral definida |
 | `Ctrl+L` | Límite |
+| `Ctrl+R` | Resolver ecuación o inecuación |
 | `Ctrl+G` | Resolver sistema por Gauss-Jordan |
 | `Ctrl+M` | Matriz inversa por cofactores |
 | `Ctrl+Retroceso` | Borrar entrada y resultados |
@@ -228,6 +230,14 @@ Diagnóstico: La integral impropia converge.
 ```
 
 **Límite**: escriba `(sqrt(1+x)-1)/x`, pulse `Ctrl+L`, variable `x`, tendencia `0`. Resultado: `1/2`.
+
+**Inecuación**: escriba `x^2 - 4 <= 0` y pulse `Ctrl+R`. Resultado: `-2 <= x <= 2, es decir, [-2, 2]`, con los puntos críticos y la tabla de signos:
+```
+Intervalo (-2, 2): probamos con x = 0.
+   x + 2 = 0 + 2 = 2: positivo.
+   x - 2 = 0 - 2 = -2: negativo.
+   Producto de signos: (+)*(-) = -. El polinomio es negativo: cumple x^2 - 4 <= 0.
+```
 
 **Sistema de ecuaciones**: escriba en dos líneas y pulse `Ctrl+Enter`:
 ```

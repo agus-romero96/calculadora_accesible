@@ -6,6 +6,21 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Sin publicar]
 
+### Añadido
+
+- **Resolver ecuación o inecuación** (menú **Álgebra**, `Ctrl+R`; también `Ctrl+Enter` con una sola línea que tenga `=`, `<` o `>`). Ecuaciones e inecuaciones de una variable, explicadas con el mismo formato que el resto (Regla, En este caso, las cuentas y Queda), sin saltos y con el resultado primero:
+  - **Ecuaciones de primer grado**: las transformaciones de `despejar()` (quitar paréntesis, agrupar, pasar términos cambiando de signo, dividir). Si la incógnita se anula, se dice si queda una afirmación cierta (todos los reales) o falsa (sin solución).
+  - **Ecuaciones de segundo grado**: forma general (pasar todo a un lado, desarrollar y agrupar), coeficientes `a`, `b` y `c` identificados, y el **discriminante con sus cuentas** (`(-5)^2 = 25 y 4*1*6 = 24`, `Δ = 25 - 24 = 1`) diciendo cuántas soluciones hay. El método depende del caso: factor común si `c = 0`, despejar `x^2` si `b = 0`, dividir entre `a` si todos los coeficientes son múltiplos suyos, **factorización** (dos números que suman `b` y multiplican `c`) si `Δ` es un cuadrado perfecto, y si no, **fórmula general** con la raíz simplificada (`sqrt(24) = 2*sqrt(6)`) y cada solución operada. Se aplica la propiedad del **producto nulo** factor a factor.
+  - **Ecuaciones racionales**: primero las **restricciones del dominio** (cada denominador igualado a 0, factorizado si hace falta), después multiplicar por el **MCM de los denominadores** (término a término, diciendo qué denominador se simplifica), resolver la ecuación sin fracciones y **descartar las raíces extrañas** que anulan un denominador.
+  - **Inecuaciones de primer grado**: como las ecuaciones, pero al multiplicar o dividir por un número negativo se dice que el sentido se invierte (`> pasa a <`); dividir por un positivo, que no cambia.
+  - **Inecuaciones de segundo grado**: puntos críticos (resolviendo la ecuación asociada con los pasos de arriba), factorización con las raíces y **tabla de signos** explicada línea a línea: cada intervalo con su número de prueba, el signo de cada factor con su cuenta (`x + 2 = 0 + 2 = 2: positivo`), el producto de signos y si cumple la desigualdad; al final, si los puntos críticos se incluyen. Si `Δ < 0`, el polinomio tiene siempre el signo de `a`.
+  - **Comprobación** en la ecuación original: cada solución sustituida en los dos lados; en las inecuaciones, un número de cada intervalo (dentro y fuera de la solución) y los extremos.
+  - El resultado se escribe en palabras y en intervalos (`x < -1 o x > 3, es decir, (-∞, -1) ∪ (3, ∞)`), con la aproximación decimal de las raíces irracionales. El conjunto solución es siempre el de `solveset` de SymPy: si la explicación no llegara a él, se muestra el de SymPy sin pasos y con un aviso. Otros tipos (grado 3 o más, funciones, inecuaciones racionales) se resuelven con SymPy sin pasos, con una nota; las soluciones periódicas (`sin(x) = 0`) dan un error claro.
+  - Se copia y exporta como `planteamiento ⟹ x ∈ conjunto` (LaTeX y MathML) y se guarda en el historial.
+  - Código: `algebra/resolucion.py` (`MotorEcuaciones`); `despejar()` acepta una desigualdad (`relacion`) y `invertir()` da el sentido contrario.
+  - Pruebas: `tests/test_ecuaciones.py` (64: 33 ecuaciones e inecuaciones de todos los tipos comparadas con `solveset` y con la estructura completa en cada paso, las cuentas de los casos típicos, errores, exportación e inglés), casos en registro e historial; la suite tiene 4770. La autoprueba del ejecutable tiene un caso nuevo (18), porque usa los conjuntos de SymPy. `tests/verificar_ui.py`: 90 comprobaciones (también el desvío de `Ctrl+Enter`).
+  - Ayuda (F1) y README: atajo, descripción y ejemplo.
+
 ### Corregido
 
 - **Salto al quitar paréntesis cuando las incógnitas se cancelan.** En `2*(x + 1) - (2*x + 2)` el resultado es un número, y `despejar()` lo trataba como una cuenta solo de números: mostraba "Operamos: 2*(x + 1) - (2*x + 2) = 0" sin la propiedad distributiva. Ahora solo se opera de una vez si no hay incógnitas; si las hay, se desarrolla y se agrupan los términos semejantes a la vista.

@@ -84,11 +84,13 @@ def sin_evaluar(expr: Any, valores: Dict[Symbol, Any]) -> Any:
 
 
 def despejar(izquierda: Any, derecha: Any, variable: Symbol, izquierda_escrita: str = None,
-             derecha_escrita: str = None) -> Tuple[List[str], Any]:
+             derecha_escrita: str = None, relacion: str = "=") -> Tuple[List[str], Any]:
     """
     (líneas, valor) de despejar variable en izquierda = derecha (lineal en variable).
     El valor puede contener otras incógnitas (despejar x en x - y = 1 da y + 1).
     izquierda_escrita: el lado izquierdo tal como se mostró (tras una sustitución, en su orden).
+    relacion: "=", o "<", "<=", ">", ">=" para una inecuación: al multiplicar o dividir entre
+    un número negativo el sentido se invierte (la relación final es invertir(relacion)).
     """
     lineas: List[str] = []
     izquierda = _quitar_parentesis(sympy.sympify(izquierda), lineas, izquierda_escrita)
@@ -108,17 +110,19 @@ def despejar(izquierda: Any, derecha: Any, variable: Symbol, izquierda_escrita: 
         raise ValueError(tr("La incógnita {variable} desaparece de la ecuación.", variable=variable))
     resto = sympy.expand(sin_der - sin_izq)
     if con_der != 0 or sin_izq != 0:
-        operado = ecuacion_texto(coeficiente * variable, resto)
+        operado = f"{texto(coeficiente * variable)} {relacion} {texto(resto)}"
         if len(lado_var) == len(_terminos(coeficiente * variable)) and len(lado_resto) == len(_terminos(resto)):
             lineas.append(tr("Queda {ecuacion}.", ecuacion=operado))  # solo cambia el orden: nada que operar
         else:
             izquierda_txt = suma_texto(lado_var)
             derecha_txt = suma_texto(lado_resto) if lado_resto else "0"
-            lineas.append(tr("Queda {ecuacion}.", ecuacion=f"{izquierda_txt} = {derecha_txt}"))
+            lineas.append(tr("Queda {ecuacion}.", ecuacion=f"{izquierda_txt} {relacion} {derecha_txt}"))
             lineas.append(tr("Operamos cada lado: {ecuacion}.", ecuacion=operado))
 
     valor = sympy.expand(resto / coeficiente)
-    if coeficiente == -1:
+    if relacion != "=":
+        lineas.extend(_dividir_desigualdad(coeficiente, resto, valor, variable, relacion))
+    elif coeficiente == -1:
         lineas.append(tr("Cambiamos el signo de los dos lados: {variable} = {valor}.", variable=variable, valor=texto(valor)))
     elif coeficiente != 1:
         division = f"{entre_parentesis(resto)}/{entre_parentesis(coeficiente)}"
@@ -128,6 +132,38 @@ def despejar(izquierda: Any, derecha: Any, variable: Symbol, izquierda_escrita: 
                       tr("Dividimos los dos lados entre {coeficiente}: {variable} = {valor}.",
                          coeficiente=texto(coeficiente), variable=variable, valor=texto(valor)))
     return lineas, valor
+
+
+INVERSA = {"<": ">", ">": "<", "<=": ">=", ">=": "<=", "=": "="}
+
+
+def invertir(relacion: str) -> str:
+    """El sentido contrario de una desigualdad: < pasa a >, <= pasa a >=."""
+    return INVERSA[relacion]
+
+
+def _dividir_desigualdad(coeficiente: Any, resto: Any, valor: Any, variable: Symbol, relacion: str) -> List[str]:
+    """El último paso de una inecuación de primer grado: dejar la incógnita sola, con el sentido que corresponda."""
+    if coeficiente == 1:
+        return []
+    final = invertir(relacion) if coeficiente.is_negative else relacion
+    if coeficiente == -1:
+        return [tr("Multiplicamos los dos lados por -1. Como -1 es negativo, el sentido de la desigualdad se invierte "
+                   "({antes} pasa a {despues}): {variable} {relacion} {valor}.", antes=relacion, despues=final,
+                   variable=variable, relacion=final, valor=texto(valor))]
+    division = f"{entre_parentesis(resto)}/{entre_parentesis(coeficiente)}"
+    if coeficiente.is_negative:
+        lineas = [tr("Dividimos los dos lados entre {coeficiente}. Como {coeficiente} es negativo, el sentido de la "
+                     "desigualdad se invierte ({antes} pasa a {despues}): {variable} {relacion} {division}.",
+                     coeficiente=texto(coeficiente), antes=relacion, despues=final, variable=variable, relacion=final,
+                     division=division)]
+    else:
+        lineas = [tr("Dividimos los dos lados entre {coeficiente}. Como {coeficiente} es positivo, el sentido de la "
+                     "desigualdad no cambia: {variable} {relacion} {division}.", coeficiente=texto(coeficiente),
+                     variable=variable, relacion=final, division=division)]
+    if division != texto(valor):
+        lineas.append(tr("Operamos: {antes} = {despues}.", antes=division, despues=texto(valor)))
+    return lineas
 
 
 def sustituir(expr: Any, valores: Dict[Symbol, Any]) -> str:

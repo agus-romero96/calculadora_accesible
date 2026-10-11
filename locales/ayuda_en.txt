@@ -15,7 +15,7 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
            so the result is read to you step by step.
 
 3. KEYBOARD SHORTCUTS (MEMORIZE THESE)
-   [Ctrl + Enter]     : CALCULATE (basic arithmetic, systems).
+   [Ctrl + Enter]     : CALCULATE (basic arithmetic, equations, systems).
    [Ctrl + S]         : SIMPLIFY an expression.
    [Ctrl + F]         : FACTOR a polynomial.
    [Ctrl + D]         : DIFFERENTIATE a function.
@@ -23,6 +23,7 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
    [Ctrl + I]         : INTEGRATE a function.
    [Ctrl + Shift + I] : DEFINITE INTEGRAL between two limits.
    [Ctrl + L]         : Calculate a LIMIT.
+   [Ctrl + R]         : SOLVE an equation or inequality.
    [Ctrl + G]         : Solve a SYSTEM by Gauss-Jordan.
    [Ctrl + M]         : INVERSE MATRIX by cofactors.
    [Ctrl + Backspace] : CLEAR the screen to start over.
@@ -97,6 +98,23 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
      The steps always start by substituting and saying which form
      appears (0/0, infinity over infinity...); then each
      transformation has its rule and its arithmetic.
+   - Equation or inequality: Type one line with a sign
+     =, <, >, <= or >=, for example 'x^2 - 5*x + 6 = 0' or
+     'x^2 - 4 <= 0'. Press Ctrl+R (or Ctrl+Enter).
+     Linear and quadratic equations: the unknown is isolated, or
+     the discriminant is calculated with its arithmetic and the
+     equation is factored or solved with the quadratic formula.
+     Equations with fractions (rational): first the values that
+     make a denominator 0 (excluded), then both sides are
+     multiplied by the LCM, and finally extraneous roots are
+     discarded.
+     Inequalities: when multiplying or dividing by a negative
+     number, it tells you the direction is reversed; quadratic
+     inequalities use a sign chart explained interval by
+     interval. The solution is written as inequalities and as
+     intervals, for example: x < -2 or x > 2, that is,
+     (-oo, -2) U (2, oo). It is always checked by substituting
+     into the original equation.
    - 2x2 system: Type two lines:
        x + y = 10
        x - y = 2

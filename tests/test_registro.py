@@ -22,6 +22,7 @@ EJEMPLOS = {
     "integrar": ("x", None),
     "integral_definida": ("x^2", None, "0", "1"),
     "limite": ("sin(x)/x", "x", "0"),
+    "ecuacion": ("x^2 - 4 <= 0",),
     "gauss": (["x + y = 10", "x - y = 2"],),
     "sistema_clasico": (["x + y = 10", "x - y = 2"],),
     "inversa": ("1 2\n3 4",),

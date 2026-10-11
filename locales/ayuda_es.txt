@@ -15,7 +15,7 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
            para leerle el resultado paso a paso.
 
 3. ATAJOS DE TECLADO (MEMORIZAR ESTOS)
-   [Ctrl + Enter]     : CALCULAR (Aritmética básica, Sistemas).
+   [Ctrl + Enter]     : CALCULAR (Aritmética básica, Ecuaciones, Sistemas).
    [Ctrl + S]         : SIMPLIFICAR una expresión.
    [Ctrl + F]         : FACTORIZAR un polinomio.
    [Ctrl + D]         : DERIVAR una función.
@@ -23,6 +23,7 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
    [Ctrl + I]         : INTEGRAR una función.
    [Ctrl + Mayús + I] : INTEGRAL DEFINIDA entre dos límites.
    [Ctrl + L]         : Calcular LÍMITE.
+   [Ctrl + R]         : RESOLVER una ecuación o inecuación.
    [Ctrl + G]         : Resolver SISTEMA por Gauss-Jordan.
    [Ctrl + M]         : MATRIZ INVERSA por cofactores.
    [Ctrl + Retroceso] : LIMPIAR pantalla para empezar de cero.
@@ -96,6 +97,22 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
      El paso a paso empieza siempre sustituyendo y diciendo qué
      forma sale (0/0, infinito entre infinito...); después cada
      transformación tiene su regla y sus cuentas.
+   - Ecuación o inecuación: Escriba una línea con un signo
+     =, <, >, <= o >=, por ejemplo 'x^2 - 5*x + 6 = 0' o
+     'x^2 - 4 <= 0'. Pulse Ctrl+R (o Ctrl+Enter).
+     Ecuaciones de primer y segundo grado: se despeja la incógnita
+     o se calcula el discriminante con sus cuentas y se aplica la
+     factorización o la fórmula general.
+     Ecuaciones con fracciones (racionales): primero los valores
+     que anulan un denominador (prohibidos), después se multiplica
+     por el MCM y al final se descartan las raíces extrañas.
+     Inecuaciones: al multiplicar o dividir por un número negativo
+     se avisa de que el sentido se invierte; en las de segundo
+     grado, una tabla de signos explica cada intervalo línea a
+     línea. La solución se escribe como desigualdad y como
+     intervalo, por ejemplo: x < -2 o x > 2, es decir,
+     (-∞, -2) ∪ (2, ∞). Siempre se comprueba sustituyendo en la
+     ecuación original.
    - Sistema 2x2: Escriba dos líneas:
        x + y = 10
        x - y = 2
