@@ -491,6 +491,17 @@ class CalculadoraAccesible(wx.Frame):
         if superior is None: return None
         return (txt, var, inferior, superior), {}
 
+    def _datos_variable_punto(self, txt, op):
+        # La variable como al derivar (se pregunta si hay varias); después, el punto x0
+        datos = self._datos_expresion_variable(txt, op)
+        if datos is None: return None
+        (_, var), _ = datos
+
+        punto = self._pedir_texto(tr("Punto x0 donde se traza la tangente (ej: 1, -2, pi/4):"),
+                                  tr("Recta tangente y normal"))
+        if punto is None: return None
+        return (txt, var, punto), {}
+
     def _datos_variable_orden(self, txt, op):
         # Aquí siempre preguntamos porque es avanzado
         var = self._pedir_texto(tr("Variable:"), tr("Derivada N"))
@@ -521,6 +532,7 @@ class CalculadoraAccesible(wx.Frame):
         "lineas": _datos_lineas,
         "expresion_variable": _datos_expresion_variable,
         "variable_limites": _datos_variable_limites,
+        "variable_punto": _datos_variable_punto,
         "variable_orden": _datos_variable_orden,
         "variable_tendencia": _datos_variable_tendencia,
     }

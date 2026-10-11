@@ -151,6 +151,9 @@ RESULTADOS_PERSISTENCIA = {
     "integral_abs": lambda c: c.integrar("abs(x)"),
     "integral_definida_pi": lambda c: c.integral_definida("1/(1+x^2)", None, "-oo", "oo"),
     "integral_definida_parametro": lambda c: c.integral_definida("x", None, "0", "k"),
+    # Rectas tangente y normal (lista de Eq, una vertical)
+    "tangente": lambda c: c.recta_tangente("x^3 - 2*x", None, "1"),
+    "tangente_horizontal": lambda c: c.recta_tangente("x^2", None, "0"),
     # Conjuntos solución y relaciones sin evaluar (Eq, Le, Gt...)
     "ecuacion_racional": lambda c: c.ecuacion("x^2/(x-1) = 1/(x-1)"),
     "ecuacion_irracional": lambda c: c.ecuacion("2*x^2 - 4*x - 1 = 0"),

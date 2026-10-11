@@ -21,6 +21,7 @@ import sympy
 
 from _version import __version__
 from algebra.resolucion import describir_conjunto
+from calculo.rectas import ecuacion_recta
 from calculo.calculo import humanizar_integral
 from calculo.router import humanizar_limite
 from i18n import N_, idioma_actual, tr
@@ -59,6 +60,9 @@ def resultado_corto(res: ResultadoOperacion) -> str:
         return humanizar_integral(valor)
     if _es_conjunto_solucion(res):
         return describir_conjunto(valor, _variable(res), aproximar=False)
+    if _son_rectas(res):
+        tangente, normal = (ecuacion_recta(eq, _variable(res)) for eq in valor)
+        return tr("tangente: {t}; normal: {n}", t=tangente, n=normal)
     if valor is None:
         # Sin valor (p. ej. sistema indeterminado): primera línea del informe
         return res.texto.strip().splitlines()[0] if res.texto.strip() else ""
@@ -81,7 +85,10 @@ def resumen(res: ResultadoOperacion) -> str:
     if res.es_error:
         return res.texto
     valor = res.valor
-    if _es_lista(valor):
+    if _son_rectas(res):
+        lineas = [tr("Recta tangente: {recta}", recta=ecuacion_recta(valor[0], _variable(res))),
+                  tr("Recta normal: {recta}", recta=ecuacion_recta(valor[1], _variable(res)))]
+    elif _es_lista(valor):
         lineas = [f"{eq.lhs} = {eq.rhs}" for eq in valor]
     elif isinstance(valor, sympy.MatrixBase) and valor.rows > 1:
         lineas = ["[ " + ", ".join(str(e) for e in fila) + " ]" for fila in valor.tolist()]
@@ -101,7 +108,17 @@ def _es_conjunto_solucion(res: ResultadoOperacion) -> bool:
 
 
 def _variable(res: ResultadoOperacion) -> sympy.Symbol:
-    return sympy.Symbol(res.parametros.get("variable") or "x")
+    # Real, como las del parser: si no, no coincidiría con la variable de las rectas
+    return sympy.Symbol(res.parametros.get("variable") or "x", real=True)
+
+
+def _son_rectas(res: ResultadoOperacion) -> bool:
+    """Recta tangente y normal: el valor es [tangente, normal], cada una con su nombre."""
+    return res.operacion == "tangente" and _es_lista(res.valor) and len(res.valor) == 2
+
+
+def _nombres_rectas() -> tuple:
+    return tr("Tangente"), tr("Normal")
 
 
 def _signo_igual(res: ResultadoOperacion) -> tuple:
@@ -129,7 +146,10 @@ def latex(res: ResultadoOperacion) -> str:
         texto_valor = sympy.latex(_variable(res)) + r" \in " + texto_valor
     if texto_valor is not None and res.mas_constante:
         texto_valor += " + C"
-    if _es_lista(valor):
+    if _son_rectas(res):
+        texto_valor = r",\quad ".join(r"\text{" + _escapar_latex(nombre) + r": } " + sympy.latex(eq)
+                                       for nombre, eq in zip(_nombres_rectas(), valor))
+    elif _es_lista(valor):
         texto_valor = r",\quad ".join(sympy.latex(eq) for eq in valor)
     if texto_valor is None:
         texto_valor = r"\text{" + _escapar_latex(resultado_corto(res)) + "}"
@@ -188,6 +208,9 @@ def mathml(res: ResultadoOperacion) -> str:
     valor = _valor_simbolico(res)
     if valor is None:
         derecha = f"<mtext>{html.escape(resultado_corto(res))}</mtext>"
+    elif _son_rectas(res):
+        derecha = "<mo>,</mo>".join(f"<mrow><mtext>{html.escape(nombre)}: </mtext>{_mathml_de(eq)}</mrow>"
+                                    for nombre, eq in zip(_nombres_rectas(), valor))
     elif _es_lista(valor):
         derecha = "<mo>,</mo>".join(_mathml_de(eq) for eq in valor)
     else:
@@ -218,7 +241,7 @@ def _escapar_latex(texto: str) -> str:
 
 
 def _parametros_legibles(res: ResultadoOperacion, excluir=()) -> List[str]:
-    etiquetas = {"variable": tr("Variable"), "tendencia": tr("Tendencia"),
+    etiquetas = {"variable": tr("Variable"), "tendencia": tr("Tendencia"), "punto": tr("Punto"),
                  "orden": tr("Orden"), "metodo": tr("Método"),
                  "inferior": tr("Límite inferior"), "superior": tr("Límite superior")}
     return [f"{etiquetas.get(k, k)}: {v}" for k, v in res.parametros.items()

@@ -33,6 +33,7 @@ from algebra.resolucion import MotorEcuaciones
 # Módulos de CÁLCULO
 from calculo.router import RouterMatematico
 from calculo.calculo import Calculo
+from calculo.rectas import MotorRectas
 
 @dataclass(frozen=True)
 class Operacion:
@@ -55,7 +56,7 @@ class Operacion:
     separador_antes: bool = False
     # Submenú con una opción por variante (código -> nombre N_); el código es el último argumento del método
     variantes: Dict[str, str] = field(default_factory=dict)
-    # Solo para los datos "expresion_variable" y "variable_limites": verbo de "¿Respecto a cuál desea {operacion}?" y si,
+    # Solo para los datos "expresion_variable", "variable_limites" y "variable_punto": verbo de "¿Respecto a cuál desea {operacion}?" y si,
     # sin variables en la expresión (una constante), hay que pedirla (integrar 5 necesita la variable)
     verbo: str = ""
     variable_obligatoria: bool = False
@@ -84,6 +85,10 @@ REGISTRO: List[Operacion] = [
               verbo=N_("integrar"), variable_obligatoria=True),
     Operacion("limite", N_("Límite"), "limite", "variable_tendencia", N_("el límite"),
               menu="calculo", etiqueta=N_("Límite"), atajo="Ctrl+L"),
+    Operacion("tangente", N_("Recta tangente y normal"), "recta_tangente", "variable_punto",
+              N_("la recta tangente"),
+              menu="calculo", etiqueta=N_("Recta &tangente y normal"), atajo="Ctrl+T", separador_antes=True,
+              verbo=N_("trazar la tangente")),
 
     Operacion("ecuacion", N_("Ecuación o inecuación"), "ecuacion", "expresion", N_("la ecuación"),
               menu="algebra", etiqueta=N_("&Resolver ecuación o inecuación"), atajo="Ctrl+R"),
@@ -168,6 +173,7 @@ class CoreMatematico:
         # Especialistas en Cálculo
         self.calculo = Calculo(self.parser_comun)
         self.router = RouterMatematico(self.parser_comun)
+        self.rectas = MotorRectas(self.parser_comun)
 
     def _expresion(self, texto: str) -> Optional[Any]:
         """La entrada interpretada (para exportarla en LaTeX/MathML), o None si no se puede."""
@@ -268,6 +274,16 @@ class CoreMatematico:
             planteamiento=planteamiento,
         )
 
+    def recta_tangente(self, expresion: str, variable: Optional[str], punto: str) -> ResultadoOperacion:
+        """Rectas tangente y normal a y = f(x) en x = punto: el valor es [tangente, normal] (Eq)."""
+        res = self.rectas.resolver(expresion, variable, punto)
+        parametros = {"variable": str(res.variable) if res.variable is not None else variable, "punto": punto}
+        return ResultadoOperacion(
+            operacion="tangente", entrada=expresion, texto=res.texto, es_error=res.es_error,
+            valor=None if res.es_error else [res.tangente, res.normal], parametros=parametros,
+            expresion=res.expresion,
+        )
+
     def ecuacion(self, entrada: str) -> ResultadoOperacion:
         """Ecuación o inecuación de una variable: el valor es el conjunto solución (FiniteSet, Interval...)."""
         res = self.ecuaciones.resolver(entrada)
@@ -311,6 +327,9 @@ class CoreMatematico:
 
     def Factorizar(self, expresion):
         return self.factorizar(expresion).texto
+
+    def RectaTangente(self, expresion, variable, punto):
+        return self.recta_tangente(expresion, variable, punto).texto
 
     def ResolverEcuacion(self, entrada):
         return self.ecuacion(entrada).texto

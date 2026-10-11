@@ -23,6 +23,7 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
    [Ctrl + I]         : INTEGRAR una función.
    [Ctrl + Mayús + I] : INTEGRAL DEFINIDA entre dos límites.
    [Ctrl + L]         : Calcular LÍMITE.
+   [Ctrl + T]         : RECTA TANGENTE y normal en un punto.
    [Ctrl + R]         : RESOLVER una ecuación o inecuación.
    [Ctrl + G]         : Resolver SISTEMA por Gauss-Jordan.
    [Ctrl + M]         : MATRIZ INVERSA por cofactores.
@@ -89,6 +90,13 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
      intervalo (por ejemplo 1/x^2 entre -1 y 1), es una integral
      impropia: la calculadora la divide en tramos, calcula los
      límites necesarios y le dice si converge o diverge.
+   - Recta tangente y normal: Escriba 'x^3 - 2*x'. Pulse Ctrl+T.
+     Punto x0: 1. Resultado: tangente y = x - 2, normal y = -x.
+     Primero se calcula el punto (1, f(1)) con sus cuentas, después
+     la derivada paso a paso, la pendiente m = f'(1), la ecuación
+     punto-pendiente despejada, la pendiente de la normal -1/m y,
+     al final, la comprobación. Si la tangente es horizontal, la
+     normal es vertical (x = x0), y al revés.
    - Límite: Escriba 'sin(x)/x'. Pulse Ctrl+L.
      Variable: x. Tendencia: 0.
      Para un límite lateral escriba la tendencia con + o -,

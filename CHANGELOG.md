@@ -8,6 +8,20 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Añadido
 
+- **Recta tangente y recta normal** (menú **Cálculo**, `Ctrl+T`). Pide el punto `x0` y explica, con el formato estándar (Regla, En este caso, las cuentas y Queda):
+  - el **punto de tangencia** `(x0, f(x0))`, sustituyendo y operando una operación por línea (`1^3 = 1*1*1 = 1. Queda 1 - 2*1.`);
+  - la **derivada** `f'(x)`, con el paso a paso completo de **Derivar**;
+  - la **pendiente** `m = f'(x0)`, con sus cuentas;
+  - la **ecuación punto-pendiente** `y - y0 = m*(x - x0)`, con los signos (`y - (-1) = y + 1`), la distributiva y el despeje de `y`, ordenada al final como `y = m*x + b`;
+  - la **pendiente de la normal** `m_n = -1/m` y su ecuación, del mismo modo;
+  - la **comprobación**: las dos rectas pasan por el punto y `m*m_n = -1`.
+  - Casos especiales: tangente horizontal (`m = 0`: la normal es vertical, `x = x0`); tangente vertical cuando la derivada es infinita (`sqrt(x)` o `x^(1/3)` en 0: `x = x0` y normal `y = y0`). Si la función no está definida en el punto (`log(x)` en -1) o no es derivable porque las derivadas laterales no coinciden (`abs(x)` en 0, un pico), lo dice en lugar de dar una recta. Solo cuentan los límites laterales donde la función es real: `sqrt(x)` en 0 solo existe por la derecha.
+  - Las rectas se comparan con las que da SymPy directamente; si no coincidieran, se muestran las de SymPy sin pasos y con un aviso.
+  - Se copia como `tangente: y = x - 2; normal: y = -x`, y en LaTeX/MathML cada recta lleva su nombre.
+  - Código: `calculo/rectas.py` (`MotorRectas`); en la interfaz, un tipo de datos nuevo (`variable_punto`): la variable, como al derivar, y el punto.
+  - Pruebas: `tests/test_rectas.py` (28: 12 funciones comparadas con SymPy, las cuentas de un caso completo, tangentes horizontales y verticales, errores, exportación e inglés), casos en registro e historial; la suite tiene 4979. `tests/verificar_ui.py`: 91 comprobaciones.
+  - Ayuda (F1) y README: atajo, descripción y ejemplo.
+
 - **Resolver ecuación o inecuación** (menú **Álgebra**, `Ctrl+R`; también `Ctrl+Enter` con una sola línea que tenga `=`, `<` o `>`). Ecuaciones e inecuaciones de una variable, explicadas con el mismo formato que el resto (Regla, En este caso, las cuentas y Queda), sin saltos y con el resultado primero:
   - **Ecuaciones de primer grado**: las transformaciones de `despejar()` (quitar paréntesis, agrupar, pasar términos cambiando de signo, dividir). Si la incógnita se anula, se dice si queda una afirmación cierta (todos los reales) o falsa (sin solución).
   - **Ecuaciones de segundo grado**: forma general (pasar todo a un lado, desarrollar y agrupar), coeficientes `a`, `b` y `c` identificados, y el **discriminante con sus cuentas** (`(-5)^2 = 25 y 4*1*6 = 24`, `Δ = 25 - 24 = 1`) diciendo cuántas soluciones hay. El método depende del caso: factor común si `c = 0`, despejar `x^2` si `b = 0`, dividir entre `a` si todos los coeficientes son múltiplos suyos, **factorización** (dos números que suman `b` y multiplican `c`) si `Δ` es un cuadrado perfecto, y si no, **fórmula general** con la raíz simplificada (`sqrt(24) = 2*sqrt(6)`) y cada solución operada. Se aplica la propiedad del **producto nulo** factor a factor.

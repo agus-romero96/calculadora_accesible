@@ -47,6 +47,7 @@ Disponible en **español e inglés** (interfaz, explicaciones y ayuda). Los resu
 | **Integrar** | Integral indefinida (con `+ C`). Explica cada regla con el mismo formato que las derivadas (**Regla**, **En este caso**, las cuentas y **Queda**): potencia (`2 + 1 = 3`, dividir entre `3/2` es multiplicar por `2/3`), factor constante, suma, integrales de la tabla con su comprobación derivando, cambio de variable (qué es `u`, cuánto vale `du` y qué parte del integrando se cambia por `du`, con su signo y su constante), integración por partes (`u`, `dv`, `du`, `v` y la integral que queda), partes cíclica (despejando la integral) y funciones reescritas (identidades, fracciones). Termina con la constante de integración. Avisa si no existe solución cerrada o si aparecen funciones especiales (`erf`, `Ei`, `Si`, …). |
 | **Integral definida** | Pide el límite inferior y el superior (números, expresiones como `pi/2`, o `oo`/`-oo`). Si la función es continua en un intervalo acotado, aplica la **regla de Barrow**: explica la primitiva, sustituye cada límite en `F` (`F(1) = 1^3/3 = 1/3`) y resta. Si un límite es infinito o la función no es continua en el intervalo, la trata como **integral impropia**: la divide en tramos en los puntos de discontinuidad, toma el límite de la primitiva en cada extremo impropio e indica si **converge o diverge** (por ejemplo, `1/x^2` entre -1 y 1 diverge; aplicar Barrow sin mirar daría -2). Si no hay primitiva elemental, da una aproximación decimal. |
 | **Límite** | Calcula límites en un punto, en `±∞` y **laterales** (`2+`, `2-`). Un enrutador elige la estrategia didáctica más adecuada (ver abajo) y, si ninguna aplica, el **modo general**. Todas explican con el mismo formato que derivadas e integrales: primero la sustitución directa y la forma que sale (`0/0`, `∞/∞`, `∞ - ∞`, `k/0`), y después cada transformación con su regla y sus cuentas, hasta el valor. |
+| **Recta tangente y normal** | Pide el punto `x₀` (`1`, `-2`, `pi/4`). Calcula el punto de tangencia `(x₀, f(x₀))` operación a operación, deriva `f(x)` con el paso a paso de **Derivar**, evalúa la pendiente `m = f'(x₀)`, plantea la ecuación punto-pendiente `y - y₀ = m*(x - x₀)` y la despeja hasta `y = m*x + b`; después la pendiente de la normal `m_n = -1/m` y su ecuación, y comprueba que las dos rectas pasan por el punto y que `m*m_n = -1`. Si `m = 0`, la normal es vertical (`x = x₀`); si la pendiente es infinita (`sqrt(x)` en 0), la tangente es vertical. Si la función no está definida en el punto o tiene un pico (`abs(x)` en 0), lo dice. Las rectas se comparan con las de SymPy. |
 
 **Estrategias de límites** (`calculo/lim_estrategias/`):
 
@@ -155,6 +156,7 @@ El menú **Idioma / Language** cambia toda la calculadora entre **español** e *
 | `Ctrl+I` | Integrar |
 | `Ctrl+Shift+I` | Integral definida |
 | `Ctrl+L` | Límite |
+| `Ctrl+T` | Recta tangente y normal |
 | `Ctrl+R` | Resolver ecuación o inecuación |
 | `Ctrl+G` | Resolver sistema por Gauss-Jordan |
 | `Ctrl+M` | Matriz inversa por cofactores |
@@ -230,6 +232,8 @@ Diagnóstico: La integral impropia converge.
 ```
 
 **Límite**: escriba `(sqrt(1+x)-1)/x`, pulse `Ctrl+L`, variable `x`, tendencia `0`. Resultado: `1/2`.
+
+**Recta tangente y normal**: escriba `x^3 - 2*x`, pulse `Ctrl+T`, punto `1`. Resultado: tangente `y = x - 2`, normal `y = -x`.
 
 **Inecuación**: escriba `x^2 - 4 <= 0` y pulse `Ctrl+R`. Resultado: `-2 <= x <= 2, es decir, [-2, 2]`, con los puntos críticos y la tabla de signos:
 ```
@@ -374,7 +378,7 @@ Principios de diseño:
 1. **Motor**: el cálculo y su explicación, en el módulo que corresponda (`calculo/`, `algebra/`, `aritmetica.py`) o en uno nuevo.
 2. **`puente.py`**: un método de `CoreMatematico` que devuelva un `ResultadoOperacion` con la clave de la operación y, si se puede, el `planteamiento` sin evaluar (por ejemplo `Integral(f, (x, a, b))`), para exportarlo como en un libro.
 3. **`puente.REGISTRO`**: una entrada `Operacion(...)` con la clave, el nombre, el método, los datos que se piden, la descripción ("Calculando …"), el menú, la etiqueta y el atajo. Su posición en la lista es su posición en el menú.
-   - Los **datos** son uno de los de `CalculadoraAccesible.PEDIR_DATOS` en `main.py`: `expresion`, `lineas`, `expresion_variable`, `variable_orden` o `variable_tendencia`. Si la operación necesita otros (por ejemplo, los límites de una integral definida), se añade ahí una función que los pida.
+   - Los **datos** son uno de los de `CalculadoraAccesible.PEDIR_DATOS` en `main.py`: `expresion`, `lineas`, `expresion_variable`, `variable_limites`, `variable_punto`, `variable_orden` o `variable_tendencia`. Si la operación necesita otros (por ejemplo, los límites de una integral definida), se añade ahí una función que los pida.
 4. **Traducción y ayuda**: `python -X utf8 catalogos.py` añade los textos nuevos a `locales/es.json`; su traducción va en `locales/en.json`; y una sección en `locales/ayuda_es.txt` y `locales/ayuda_en.txt`.
 5. **Pruebas**: las del motor; un ejemplo en `EJEMPLOS` de `tests/test_registro.py` (comprueba que el método existe, que el resultado lleva su clave y que los atajos no se repiten); un caso en `paso11` de `tests/verificar_ui.py`; y, si el planteamiento es un objeto SymPy nuevo, que se guarde y recupere tal cual en `tests/test_historial.py`. Si usa partes de SymPy que aún no se usaban, un caso en `autoprueba.py` comprueba que el ejecutable las incluye.
 

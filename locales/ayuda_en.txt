@@ -23,6 +23,7 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
    [Ctrl + I]         : INTEGRATE a function.
    [Ctrl + Shift + I] : DEFINITE INTEGRAL between two limits.
    [Ctrl + L]         : Calculate a LIMIT.
+   [Ctrl + T]         : TANGENT and normal LINE at a point.
    [Ctrl + R]         : SOLVE an equation or inequality.
    [Ctrl + G]         : Solve a SYSTEM by Gauss-Jordan.
    [Ctrl + M]         : INVERSE MATRIX by cofactors.
@@ -90,6 +91,13 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
      interval (for example 1/x^2 from -1 to 1), it is an improper
      integral: the calculator splits it into parts, takes the
      necessary limits and tells you whether it converges or diverges.
+   - Tangent and normal line: Type 'x^3 - 2*x'. Press Ctrl+T.
+     Point x0: 1. Result: tangent y = x - 2, normal y = -x.
+     First the point (1, f(1)) is calculated with its arithmetic,
+     then the derivative step by step, the slope m = f'(1), the
+     point-slope equation solved for y, the slope of the normal
+     -1/m and, finally, the check. If the tangent is horizontal,
+     the normal is vertical (x = x0), and vice versa.
    - Limit: Type 'sin(x)/x'. Press Ctrl+L.
      Variable: x. Approaches: 0.
      For a one-sided limit, type the value followed by + or -,
