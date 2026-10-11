@@ -48,6 +48,7 @@ Disponible en **español e inglés** (interfaz, explicaciones y ayuda). Los resu
 | **Integral definida** | Pide el límite inferior y el superior (números, expresiones como `pi/2`, o `oo`/`-oo`). Si la función es continua en un intervalo acotado, aplica la **regla de Barrow**: explica la primitiva, sustituye cada límite en `F` (`F(1) = 1^3/3 = 1/3`) y resta. Si un límite es infinito o la función no es continua en el intervalo, la trata como **integral impropia**: la divide en tramos en los puntos de discontinuidad, toma el límite de la primitiva en cada extremo impropio e indica si **converge o diverge** (por ejemplo, `1/x^2` entre -1 y 1 diverge; aplicar Barrow sin mirar daría -2). Si no hay primitiva elemental, da una aproximación decimal. |
 | **Límite** | Calcula límites en un punto, en `±∞` y **laterales** (`2+`, `2-`). Un enrutador elige la estrategia didáctica más adecuada (ver abajo) y, si ninguna aplica, el **modo general**. Todas explican con el mismo formato que derivadas e integrales: primero la sustitución directa y la forma que sale (`0/0`, `∞/∞`, `∞ - ∞`, `k/0`), y después cada transformación con su regla y sus cuentas, hasta el valor. |
 | **Recta tangente y normal** | Pide el punto `x₀` (`1`, `-2`, `pi/4`). Calcula el punto de tangencia `(x₀, f(x₀))` operación a operación, deriva `f(x)` con el paso a paso de **Derivar**, evalúa la pendiente `m = f'(x₀)`, plantea la ecuación punto-pendiente `y - y₀ = m*(x - x₀)` y la despeja hasta `y = m*x + b`; después la pendiente de la normal `m_n = -1/m` y su ecuación, y comprueba que las dos rectas pasan por el punto y que `m*m_n = -1`. Si `m = 0`, la normal es vertical (`x = x₀`); si la pendiente es infinita (`sqrt(x)` en 0), la tangente es vertical. Si la función no está definida en el punto o tiene un pico (`abs(x)` en 0), lo dice. Las rectas se comparan con las de SymPy. |
+| **Extremos y crecimiento** | Estudia `f(x)`: el **dominio** (los valores que anulan un denominador), la derivada con el paso a paso de **Derivar**, los **puntos críticos** resolviendo `f'(x) = 0` (una fracción vale 0 si su numerador vale 0; `exp(u)` nunca vale 0; el numerador se resuelve como una ecuación o, si es de grado 3 o más, se factoriza antes y se aplica el producto nulo), una **tabla de signos** de `f'` con un número de prueba por intervalo y el signo de cada factor (creciente si `f' > 0`, decreciente si `f' < 0`), el **criterio de la primera derivada** (máximo si `f'` pasa de + a -, mínimo si pasa de - a +, con `f(x₀)` operado) y el de la **segunda derivada** (`f''(x₀)` y su signo; en los cocientes se omite, porque sería larga y solo confirmaría). Un punto crítico sin cambio de signo (`x^3` en 0) no es extremo: la función sigue creciendo. Para otras funciones (`x*log(x)`), el resultado de SymPy sin pasos. |
 
 **Estrategias de límites** (`calculo/lim_estrategias/`):
 
@@ -157,6 +158,7 @@ El menú **Idioma / Language** cambia toda la calculadora entre **español** e *
 | `Ctrl+Shift+I` | Integral definida |
 | `Ctrl+L` | Límite |
 | `Ctrl+T` | Recta tangente y normal |
+| `Ctrl+Shift+X` | Extremos e intervalos de crecimiento |
 | `Ctrl+R` | Resolver ecuación o inecuación |
 | `Ctrl+G` | Resolver sistema por Gauss-Jordan |
 | `Ctrl+M` | Matriz inversa por cofactores |
@@ -234,6 +236,8 @@ Diagnóstico: La integral impropia converge.
 **Límite**: escriba `(sqrt(1+x)-1)/x`, pulse `Ctrl+L`, variable `x`, tendencia `0`. Resultado: `1/2`.
 
 **Recta tangente y normal**: escriba `x^3 - 2*x`, pulse `Ctrl+T`, punto `1`. Resultado: tangente `y = x - 2`, normal `y = -x`.
+
+**Extremos y crecimiento**: escriba `x^3 - 3*x` y pulse `Ctrl+Shift+X`. Resultado: máximo local en `x = -1` (`f(-1) = 2`), mínimo local en `x = 1` (`f(1) = -2`), creciente en `(-∞, -1) ∪ (1, ∞)` y decreciente en `(-1, 1)`.
 
 **Inecuación**: escriba `x^2 - 4 <= 0` y pulse `Ctrl+R`. Resultado: `-2 <= x <= 2, es decir, [-2, 2]`, con los puntos críticos y la tabla de signos:
 ```

@@ -33,6 +33,7 @@ from algebra.resolucion import MotorEcuaciones
 # Módulos de CÁLCULO
 from calculo.router import RouterMatematico
 from calculo.calculo import Calculo
+from calculo.extremos import MotorExtremos
 from calculo.rectas import MotorRectas
 
 @dataclass(frozen=True)
@@ -89,6 +90,9 @@ REGISTRO: List[Operacion] = [
               N_("la recta tangente"),
               menu="calculo", etiqueta=N_("Recta &tangente y normal"), atajo="Ctrl+T", separador_antes=True,
               verbo=N_("trazar la tangente")),
+    Operacion("extremos", N_("Extremos y crecimiento"), "extremos", "expresion_variable",
+              N_("el estudio de extremos"),
+              menu="calculo", etiqueta=N_("E&xtremos y crecimiento"), atajo="Ctrl+Shift+X", verbo=N_("estudiar")),
 
     Operacion("ecuacion", N_("Ecuación o inecuación"), "ecuacion", "expresion", N_("la ecuación"),
               menu="algebra", etiqueta=N_("&Resolver ecuación o inecuación"), atajo="Ctrl+R"),
@@ -174,6 +178,7 @@ class CoreMatematico:
         self.calculo = Calculo(self.parser_comun)
         self.router = RouterMatematico(self.parser_comun)
         self.rectas = MotorRectas(self.parser_comun)
+        self.extremos_motor = MotorExtremos(self.parser_comun)
 
     def _expresion(self, texto: str) -> Optional[Any]:
         """La entrada interpretada (para exportarla en LaTeX/MathML), o None si no se puede."""
@@ -284,6 +289,15 @@ class CoreMatematico:
             expresion=res.expresion,
         )
 
+    def extremos(self, expresion: str, variable: Optional[str] = None) -> ResultadoOperacion:
+        """Puntos críticos, extremos locales e intervalos de crecimiento: el valor es un dict (ver calculo/extremos.py)."""
+        res = self.extremos_motor.resolver(expresion, variable)
+        return ResultadoOperacion(
+            operacion="extremos", entrada=expresion, texto=res.texto, valor=res.valor, es_error=res.es_error,
+            parametros={"variable": str(res.variable) if res.variable is not None else variable},
+            expresion=res.expresion,
+        )
+
     def ecuacion(self, entrada: str) -> ResultadoOperacion:
         """Ecuación o inecuación de una variable: el valor es el conjunto solución (FiniteSet, Interval...)."""
         res = self.ecuaciones.resolver(entrada)
@@ -330,6 +344,9 @@ class CoreMatematico:
 
     def RectaTangente(self, expresion, variable, punto):
         return self.recta_tangente(expresion, variable, punto).texto
+
+    def Extremos(self, expresion, variable=None):
+        return self.extremos(expresion, variable).texto
 
     def ResolverEcuacion(self, entrada):
         return self.ecuacion(entrada).texto

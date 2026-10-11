@@ -23,6 +23,7 @@ EJEMPLOS = {
     "integral_definida": ("x^2", None, "0", "1"),
     "limite": ("sin(x)/x", "x", "0"),
     "tangente": ("x^2", None, "1"),
+    "extremos": ("x^3 - 3*x", None),
     "ecuacion": ("x^2 - 4 <= 0",),
     "gauss": (["x + y = 10", "x - y = 2"],),
     "sistema_clasico": (["x + y = 10", "x - y = 2"],),

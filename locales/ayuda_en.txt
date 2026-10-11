@@ -24,6 +24,7 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
    [Ctrl + Shift + I] : DEFINITE INTEGRAL between two limits.
    [Ctrl + L]         : Calculate a LIMIT.
    [Ctrl + T]         : TANGENT and normal LINE at a point.
+   [Ctrl + Shift + X] : EXTREMA and intervals of increase.
    [Ctrl + R]         : SOLVE an equation or inequality.
    [Ctrl + G]         : Solve a SYSTEM by Gauss-Jordan.
    [Ctrl + M]         : INVERSE MATRIX by cofactors.
@@ -98,6 +99,13 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
      point-slope equation solved for y, the slope of the normal
      -1/m and, finally, the check. If the tangent is horizontal,
      the normal is vertical (x = x0), and vice versa.
+   - Extrema and monotonicity: Type 'x^3 - 3*x'. Press Ctrl+Shift+X.
+     Result: local maximum at x = -1 (f(-1) = 2), local minimum at
+     x = 1 (f(1) = -2); increasing on (-oo, -1) U (1, oo) and
+     decreasing on (-1, 1). It calculates the domain, the
+     derivative step by step, the critical points (f'(x) = 0), a
+     chart with the sign of f' on each interval, factor by
+     factor, and the first and second derivative tests.
    - Limit: Type 'sin(x)/x'. Press Ctrl+L.
      Variable: x. Approaches: 0.
      For a one-sided limit, type the value followed by + or -,

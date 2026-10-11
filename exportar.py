@@ -21,6 +21,7 @@ import sympy
 
 from _version import __version__
 from algebra.resolucion import describir_conjunto
+from calculo.extremos import lineas_resultado
 from calculo.rectas import ecuacion_recta
 from calculo.calculo import humanizar_integral
 from calculo.router import humanizar_limite
@@ -60,6 +61,8 @@ def resultado_corto(res: ResultadoOperacion) -> str:
         return humanizar_integral(valor)
     if _es_conjunto_solucion(res):
         return describir_conjunto(valor, _variable(res), aproximar=False)
+    if res.operacion == "extremos" and isinstance(valor, dict):
+        return "; ".join(lineas_resultado(valor, _variable(res), aproximar=False))
     if _son_rectas(res):
         tangente, normal = (ecuacion_recta(eq, _variable(res)) for eq in valor)
         return tr("tangente: {t}; normal: {n}", t=tangente, n=normal)
@@ -85,7 +88,9 @@ def resumen(res: ResultadoOperacion) -> str:
     if res.es_error:
         return res.texto
     valor = res.valor
-    if _son_rectas(res):
+    if res.operacion == "extremos" and isinstance(valor, dict):
+        lineas = lineas_resultado(valor, _variable(res))
+    elif _son_rectas(res):
         lineas = [tr("Recta tangente: {recta}", recta=ecuacion_recta(valor[0], _variable(res))),
                   tr("Recta normal: {recta}", recta=ecuacion_recta(valor[1], _variable(res)))]
     elif _es_lista(valor):
@@ -135,11 +140,37 @@ def _valor_simbolico(res: ResultadoOperacion) -> Optional[Any]:
     v = res.valor
     if res.es_error or v is None or v is sympy.nan or v is sympy.zoo:
         return None
+    if res.operacion == "extremos":
+        return None  # varios datos (puntos, extremos, intervalos): se escriben como texto
     return v
+
+
+def _latex_extremos(res: ResultadoOperacion) -> str:
+    """El estudio de extremos en LaTeX: una línea por dato, con fórmulas (\\infty, \\cup) y no texto plano."""
+    v, x = res.valor, _variable(res)
+
+    def texto_latex(t):
+        return r"\text{" + _escapar_latex(t) + "}"
+
+    def intervalos(conjunto):
+        return texto_latex(tr("ningún intervalo")) if conjunto == sympy.S.EmptySet else sympy.latex(conjunto)
+
+    criticos = sorted(v["criticos"], key=float)
+    lineas = [texto_latex(tr("Puntos críticos") + ": ") +
+              (", ".join(f"{sympy.latex(x)} = {sympy.latex(c)}" for c in criticos) if criticos
+               else texto_latex(tr("ninguno")))]
+    for nombre, lista in ((tr("Máximo local"), v["maximos"]), (tr("Mínimo local"), v["minimos"])):
+        for c, fc in lista:
+            lineas.append(texto_latex(nombre + ": ") + f"f\\left({sympy.latex(c)}\\right) = {sympy.latex(fc)}")
+    lineas.append(texto_latex(tr("Creciente en") + " ") + intervalos(v["crece"]))
+    lineas.append(texto_latex(tr("Decreciente en") + " ") + intervalos(v["decrece"]))
+    return r" \\ ".join(lineas)
 
 
 def latex(res: ResultadoOperacion) -> str:
     """'planteamiento = resultado' en LaTeX (sin delimitadores $)."""
+    if res.operacion == "extremos" and isinstance(res.valor, dict) and not res.es_error:
+        return _latex_extremos(res)
     valor = _valor_simbolico(res)
     texto_valor = sympy.latex(valor) if valor is not None and not _es_lista(valor) else None
     if texto_valor is not None and _es_conjunto_solucion(res):

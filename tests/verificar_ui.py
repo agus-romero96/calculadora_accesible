@@ -282,6 +282,7 @@ def paso11():  # cada operación del registro pide sus datos y llama a su métod
                               ("integral_definida", ("x^2", None, "0", "oo"), "la integral definida")),
         "limite": ("sin(x)/x", ["x", "0"], None, ("limite", ("sin(x)/x", "x", "0"), "el límite")),
         "tangente": ("x^3 - 2x", ["1"], None, ("recta_tangente", ("x^3 - 2x", None, "1"), "la recta tangente")),
+        "extremos": ("x^3 - 3x", [], None, ("extremos", ("x^3 - 3x", None), "el estudio de extremos")),
         "ecuacion": ("x^2 - 4 <= 0", [], None, ("ecuacion", ("x^2 - 4 <= 0",), "la ecuación")),
         "gauss": (sistema, [], None, ("sistema_gauss", (sistema.split("\n"),), "el sistema por Gauss-Jordan")),
         "sistema_clasico": (sistema, [], "reduccion",

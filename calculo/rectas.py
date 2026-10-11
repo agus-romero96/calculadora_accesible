@@ -66,35 +66,35 @@ def ecuacion_recta(recta: Any, x: Any) -> str:
     return f"{texto(recta.lhs)} = {recta_texto(recta.rhs, x)}"
 
 
+def cuentas_sustitucion(expr: Any, x: Any, x0: Any, valor: Any) -> List[str]:
+    """
+    La expresión con x0 sustituido y cada operación hasta el valor, una por línea:
+    '1^3 = 1*1*1 = 1. Queda 1 - 2*1.' Si la cuenta no se puede explicar, solo el resultado.
+    """
+    cuenta = sustituir(expr, {x: x0})
+    lineas = [tr("Sustituimos {variable} = {valor}: {cuenta}.", variable=x, valor=texto(x0), cuenta=cuenta)]
+    try:
+        pasos = ExplicadorEvaluar().explicar(cuenta, valor)
+    except (SinExplicacion, Exception):
+        if cuenta != texto(valor):
+            lineas.append(tr("Operamos: {antes} = {despues}.", antes=cuenta, despues=texto(valor)))
+        return lineas
+    for paso in pasos:
+        if not paso.calculo:
+            continue  # el resumen de la jerarquía: las operaciones ya dicen su cuenta
+        linea = " ".join(paso.calculo)
+        if paso.queda and paso.queda != texto(valor):
+            linea += " " + tr("Queda {ecuacion}.", ecuacion=paso.queda)
+        lineas.append(linea)
+    return lineas
+
+
 class MotorRectas:
     def __init__(self, parser_compartido):
         self.parser = parser_compartido
         self.calculo = Calculo(parser_compartido)
 
-    # --- Cuentas ---
-
-    @staticmethod
-    def _cuentas(expr: Any, x: Any, x0: Any, valor: Any) -> List[str]:
-        """
-        La expresión con x0 sustituido y cada operación hasta el valor, una por línea:
-        '1^3 = 1*1*1 = 1. Queda 1 - 2*1.' Si la cuenta no se puede explicar, solo el resultado.
-        """
-        cuenta = sustituir(expr, {x: x0})
-        lineas = [tr("Sustituimos {variable} = {valor}: {cuenta}.", variable=x, valor=texto(x0), cuenta=cuenta)]
-        try:
-            pasos = ExplicadorEvaluar().explicar(cuenta, valor)
-        except (SinExplicacion, Exception):
-            if cuenta != texto(valor):
-                lineas.append(tr("Operamos: {antes} = {despues}.", antes=cuenta, despues=texto(valor)))
-            return lineas
-        for paso in pasos:
-            if not paso.calculo:
-                continue  # el resumen de la jerarquía: las operaciones ya dicen su cuenta
-            linea = " ".join(paso.calculo)
-            if paso.queda and paso.queda != texto(valor):
-                linea += " " + tr("Queda {ecuacion}.", ecuacion=paso.queda)
-            lineas.append(linea)
-        return lineas
+    _cuentas = staticmethod(cuentas_sustitucion)
 
     # --- Ecuación de una recta por un punto ---
 

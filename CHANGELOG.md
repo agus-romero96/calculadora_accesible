@@ -8,6 +8,20 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Añadido
 
+- **Extremos y crecimiento** (menú **Cálculo**, `Ctrl+Shift+X`). Puntos críticos, máximos y mínimos locales e intervalos de crecimiento y decrecimiento de `f(x)`, con el formato estándar:
+  - **Dominio**: cada factor del denominador igualado a 0 y despejado.
+  - La **derivada**, con el paso a paso de **Derivar**.
+  - **Puntos críticos**: `f'(x) = 0`. Si la derivada es una fracción, vale 0 cuando su numerador vale 0; `exp(u)` nunca vale 0. El numerador se resuelve con el motor de ecuaciones (primer y segundo grado, con el discriminante o la factorización), y si es de grado 3 o más se factoriza antes con los pasos de **Factorizar** (factor común, diferencia de cuadrados, Ruffini...) y se aplica el producto nulo. Un solo término (`4*x^3 = 0`) se resuelve directamente: una potencia vale 0 solo si su base vale 0.
+  - **Tabla de signos de `f'`**: un número de prueba en cada intervalo (entre puntos críticos y puntos fuera del dominio) y el signo de cada factor con su cuenta, en el orden de los puntos críticos; el signo del producto dice si la función crece o decrece. Es el mismo formato que la tabla de signos de las inecuaciones, ya probada con NVDA.
+  - **Criterio de la primera derivada**: máximo si `f'` pasa de + a -, mínimo si pasa de - a +, con el valor `f(x0)` operado paso a paso. Un punto crítico sin cambio de signo (`x^3` en 0) no es extremo, y la función sigue creciendo a través de él: el resultado dice "creciente en (-∞, ∞)", no "(-∞, 0) ∪ (0, ∞)".
+  - **Criterio de la segunda derivada**: `f''(x)` con su paso a paso y `f''(x0)` con sus cuentas, como confirmación (si vale 0, no decide). En los cocientes se omite y se dice por qué: sería otra regla del cociente, larga, que solo confirmaría lo que ya decide el cambio de signo.
+  - El resultado es el de SymPy (`continuous_domain`, `solveset`) para cualquier función con un número finito de puntos críticos; la explicación cubre cocientes de polinomios y productos por exponenciales. Para otras (`x*log(x)`) se da el resultado sin pasos, con una nota. Las funciones constantes, con parámetros (`a*x^2`) o con infinitos puntos críticos (`sin(x)`) dan un mensaje claro. Los valores irracionales llevan su aproximación decimal.
+  - En LaTeX, una línea por dato con fórmulas (`\infty`, `\cup`), no texto plano.
+  - Código: `calculo/extremos.py` (`MotorExtremos`). La cuenta de sustituir un valor, que ya usaba la recta tangente, pasa a ser una función compartida (`calculo/rectas.cuentas_sustitucion`).
+  - Los puntos interiores del dominio donde `f'` no existe (`x^(2/3)` en 0, un pico) dan un mensaje claro: aún no se estudian. En un extremo del dominio no importan (`sqrt(x)` en 0).
+  - Pruebas: `tests/test_extremos.py` (26: 11 funciones comparadas con SymPy, las cuentas de un caso completo, cocientes, exponenciales, grado 3, sin puntos críticos, derivada que no existe, errores, exportación e inglés), casos en registro e historial; la suite tiene 5249. `tests/verificar_ui.py`: 92 comprobaciones.
+  - Ayuda (F1) y README: atajo, descripción y ejemplo.
+
 - **Recta tangente y recta normal** (menú **Cálculo**, `Ctrl+T`). Pide el punto `x0` y explica, con el formato estándar (Regla, En este caso, las cuentas y Queda):
   - el **punto de tangencia** `(x0, f(x0))`, sustituyendo y operando una operación por línea (`1^3 = 1*1*1 = 1. Queda 1 - 2*1.`);
   - la **derivada** `f'(x)`, con el paso a paso completo de **Derivar**;
