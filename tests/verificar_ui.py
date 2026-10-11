@@ -283,6 +283,8 @@ def paso11():  # cada operación del registro pide sus datos y llama a su métod
         "limite": ("sin(x)/x", ["x", "0"], None, ("limite", ("sin(x)/x", "x", "0"), "el límite")),
         "tangente": ("x^3 - 2x", ["1"], None, ("recta_tangente", ("x^3 - 2x", None, "1"), "la recta tangente")),
         "extremos": ("x^3 - 3x", [], None, ("extremos", ("x^3 - 3x", None), "el estudio de extremos")),
+        "implicita": ("x^2 + y^2 = 25", [], None,
+                      ("derivada_implicita", ("x^2 + y^2 = 25",), "la derivada implícita")),
         "taylor": ("exp(x)", ["3", "0"], None,
                    ("taylor", ("exp(x)", None, 3, "0"), "el polinomio de Taylor de orden 3")),
         "ecuacion": ("x^2 - 4 <= 0", [], None, ("ecuacion", ("x^2 - 4 <= 0",), "la ecuación")),

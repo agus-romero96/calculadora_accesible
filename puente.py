@@ -35,6 +35,7 @@ from algebra.resolucion import MotorEcuaciones
 from calculo.router import RouterMatematico
 from calculo.calculo import Calculo
 from calculo.extremos import MotorExtremos
+from calculo.implicita import MotorImplicita
 from calculo.rectas import MotorRectas
 from calculo.taylor import MotorTaylor
 
@@ -98,6 +99,8 @@ REGISTRO: List[Operacion] = [
     Operacion("taylor", N_("Polinomio de Taylor"), "taylor", "variable_orden_punto",
               N_("el polinomio de Taylor de orden {orden}"),
               menu="calculo", etiqueta=N_("Polinomio de Ta&ylor"), atajo="Ctrl+Shift+T", verbo=N_("desarrollar")),
+    Operacion("implicita", N_("Derivada implícita"), "derivada_implicita", "expresion", N_("la derivada implícita"),
+              menu="calculo", etiqueta=N_("Derivada &implícita"), atajo="Ctrl+J"),
 
     Operacion("ecuacion", N_("Ecuación o inecuación"), "ecuacion", "expresion", N_("la ecuación"),
               menu="algebra", etiqueta=N_("&Resolver ecuación o inecuación"), atajo="Ctrl+R"),
@@ -188,6 +191,7 @@ class CoreMatematico:
         self.rectas = MotorRectas(self.parser_comun)
         self.extremos_motor = MotorExtremos(self.parser_comun)
         self.taylor_motor = MotorTaylor(self.parser_comun)
+        self.implicita_motor = MotorImplicita(self.parser_comun)
 
     def _expresion(self, texto: str) -> Optional[Any]:
         """La entrada interpretada (para exportarla en LaTeX/MathML), o None si no se puede."""
@@ -317,6 +321,15 @@ class CoreMatematico:
             expresion=res.expresion,
         )
 
+    def derivada_implicita(self, entrada: str) -> ResultadoOperacion:
+        """dy/dx de una curva F(x, y) = G(x, y): el valor es la expresión de y'; la ecuación, el planteamiento."""
+        res = self.implicita_motor.resolver(entrada)
+        parametros = {} if res.es_error else {"variable": str(res.x), "dependiente": str(res.y)}
+        return ResultadoOperacion(
+            operacion="implicita", entrada=entrada, texto=res.texto, valor=res.derivada, es_error=res.es_error,
+            parametros=parametros, expresion=res.ecuacion,
+        )
+
     def ecuacion(self, entrada: str) -> ResultadoOperacion:
         """Ecuación o inecuación de una variable: el valor es el conjunto solución (FiniteSet, Interval...)."""
         res = self.ecuaciones.resolver(entrada)
@@ -378,6 +391,9 @@ class CoreMatematico:
 
     def Taylor(self, expresion, variable, orden, punto):
         return self.taylor(expresion, variable, orden, punto).texto
+
+    def DerivadaImplicita(self, entrada):
+        return self.derivada_implicita(entrada).texto
 
     def ResolverEcuacion(self, entrada):
         return self.ecuacion(entrada).texto

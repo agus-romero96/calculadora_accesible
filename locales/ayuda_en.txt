@@ -26,6 +26,7 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
    [Ctrl + T]         : TANGENT and normal LINE at a point.
    [Ctrl + Shift + X] : EXTREMA and intervals of increase.
    [Ctrl + Shift + T] : TAYLOR POLYNOMIAL of order n at a point.
+   [Ctrl + J]         : IMPLICIT DERIVATIVE dy/dx of a curve F(x, y).
    [Ctrl + R]         : SOLVE an equation or inequality.
    [Ctrl + G]         : Solve a SYSTEM by Gauss-Jordan.
    [Ctrl + M]         : INVERSE MATRIX by cofactors.
@@ -114,6 +115,12 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
      each term its value at x0, the factorial (3! = 1*2*3 = 6) and
      the coefficient. With x0 other than 0 the polynomial is written
      in powers of (x - x0), for example (x - 4)/4.
+   - Implicit derivative: Type 'x^2 + y^2 = 25'. Press Ctrl+J.
+     Result: dy/dx = -x/y. Both sides are differentiated with
+     respect to x; whenever something with y is differentiated,
+     the chain rule adds the factor y' (for x*y, the product
+     rule). Finally y' is isolated: moving terms, factoring out
+     y', dividing and simplifying.
    - Limit: Type 'sin(x)/x'. Press Ctrl+L.
      Variable: x. Approaches: 0.
      For a one-sided limit, type the value followed by + or -,

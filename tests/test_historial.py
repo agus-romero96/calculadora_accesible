@@ -157,6 +157,8 @@ RESULTADOS_PERSISTENCIA = {
     # Estudio de extremos (un dict con puntos, extremos e intervalos)
     "extremos": lambda c: c.extremos("x^3 - 3*x"),
     "extremos_cociente": lambda c: c.extremos("x^2/(x-1)"),
+    # Derivada implícita: la ecuación (Eq sin evaluar) y la expresión de y'
+    "implicita": lambda c: c.derivada_implicita("x^3 + y^3 = 6*x*y"),
     # Determinante: el planteamiento es Determinant(A), que debe seguir sin evaluar
     "determinante": lambda c: c.determinante("2 0 1\n1 3 2\n1 0 4"),
     # Polinomio de Taylor (el valor es el polinomio; el punto, un parámetro)

@@ -66,6 +66,8 @@ def resultado_corto(res: ResultadoOperacion) -> str:
         return "; ".join(lineas_resultado(valor, _variable(res), aproximar=False))
     if res.operacion == "taylor" and valor is not None:
         return _taylor_corto(res)
+    if res.operacion == "implicita" and valor is not None:
+        return f"{_derivada_implicita(res)} = {valor}"
     if _son_rectas(res):
         tangente, normal = (ecuacion_recta(eq, _variable(res)) for eq in valor)
         return tr("tangente: {t}; normal: {n}", t=tangente, n=normal)
@@ -118,6 +120,11 @@ def _es_conjunto_solucion(res: ResultadoOperacion) -> bool:
 def _variable(res: ResultadoOperacion) -> sympy.Symbol:
     # Real, como las del parser: si no, no coincidiría con la variable de las rectas
     return sympy.Symbol(res.parametros.get("variable") or "x", real=True)
+
+
+def _derivada_implicita(res: ResultadoOperacion) -> str:
+    """'dy/dx' con los nombres de las variables de la operación."""
+    return f"d{res.parametros.get('dependiente', 'y')}/d{res.parametros.get('variable', 'x')}"
 
 
 def _punto_taylor(res: ResultadoOperacion) -> Any:
@@ -188,6 +195,9 @@ def latex(res: ResultadoOperacion) -> str:
     """'planteamiento = resultado' en LaTeX (sin delimitadores $)."""
     if res.operacion == "extremos" and isinstance(res.valor, dict) and not res.es_error:
         return _latex_extremos(res)
+    if res.operacion == "implicita" and res.valor is not None and not res.es_error:
+        y, x = res.parametros.get("dependiente", "y"), res.parametros.get("variable", "x")
+        return rf"\frac{{d{y}}}{{d{x}}} = " + sympy.latex(res.valor)
     if res.operacion == "taylor" and res.valor is not None and not res.es_error:
         try:
             return taylor_latex(res.valor, _variable(res), _punto_taylor(res), int(res.parametros.get("orden")))
@@ -294,7 +304,7 @@ def _escapar_latex(texto: str) -> str:
 
 
 def _parametros_legibles(res: ResultadoOperacion, excluir=()) -> List[str]:
-    etiquetas = {"variable": tr("Variable"), "tendencia": tr("Tendencia"), "punto": tr("Punto"),
+    etiquetas = {"variable": tr("Variable"), "dependiente": tr("Variable dependiente"), "tendencia": tr("Tendencia"), "punto": tr("Punto"),
                  "orden": tr("Orden"), "metodo": tr("Método"),
                  "inferior": tr("Límite inferior"), "superior": tr("Límite superior")}
     return [f"{etiquetas.get(k, k)}: {v}" for k, v in res.parametros.items()

@@ -8,6 +8,16 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Añadido
 
+- **Derivada implícita** (menú **Cálculo**, `Ctrl+J`). `dy/dx` de una curva `F(x, y) = G(x, y)`, con el formato estándar:
+  - **Planteamiento**: `y` es una función de `x` aunque no esté despejada; se derivan los dos lados respecto a `x`, y cada vez que se deriva algo con `y`, la regla de la cadena añade el factor `y'`.
+  - **Cada término**, con el paso a paso de **Derivar**: los que solo tienen `x`, como siempre; los que tienen `y`, `h(y)`, se derivan respecto a `y` y se multiplican por `y'` (**regla de la cadena**, con la cuenta: `d/dx(y^2) = (2*y)*y' = 2*y*y'`); los productos de una parte con `x` y otra con `y` (`6*x*y`, `x^2*y^3`, `x*exp(y)`), con la **regla del producto** (`u` con `x`, `v` con `y`). Las constantes, derivada 0.
+  - La **derivada de cada lado** (la suma de las de sus términos) y el **despeje de `y'`**: pasar los términos con `y'` a un lado (cambiando de signo), **sacar `y'` factor común**, dividir entre lo que lo multiplica (suponiendo que no vale 0) y simplificar el factor común del numerador y el denominador. Si hay fracciones (`x/y = 3`), dividir es multiplicar por el inverso, y se dice. Los términos se escriben como a mano (`(2*y - x^2)/(y^2 - 2*x)`, `-(2*x*y^3 + 1)/(3*x^2*y^2)`), sin cambios de signo que no se expliquen.
+  - Con otras letras (`t^2 + s^2 = 4`), `y` es la variable dependiente si aparece; si no, se dice cuál se toma (`dt/ds`).
+  - Se compara con `idiff` de SymPy. Los términos que mezclan `x` e `y` sin separarse (`sin(x*y)`, `exp(x + y)`) se resuelven con SymPy, sin pasos y con una nota. Se exporta como `\frac{dy}{dx} = ...`.
+  - Código: `calculo/implicita.py` (`MotorImplicita`).
+  - Pruebas: `tests/test_implicita.py` (22: 10 curvas comparadas con `idiff`, las cuentas de la circunferencia y del folium de Descartes, fracciones, otras letras, errores, exportación e inglés), casos en registro e historial; la suite tiene 5644. `tests/verificar_ui.py`: 95 comprobaciones.
+  - Ayuda (F1) y README: atajo, descripción y ejemplo.
+
 - **Determinante por cofactores** (menú **Álgebra**, `Ctrl+K`), como operación independiente de la inversa. Reutiliza sus piezas (leer la matriz, `a*d - b*c`, sumas de productos), pero el desarrollo es el que se enseña:
   - Se desarrolla por la **fila o columna con más ceros**, no siempre por la fila 1: cada elemento 0 anula su término y su menor no hace falta, y se dice ("a12 = 0: su término vale 0 y no hace falta su menor"). Sin ceros, la fila 1. Si toda una línea es 0, el determinante es 0.
   - Cada término en una línea: el elemento, la submatriz que queda al quitar su fila y su columna, el menor con su cuenta, el signo `(-1)^(i+j)` y el cofactor; al final, la suma de los productos.

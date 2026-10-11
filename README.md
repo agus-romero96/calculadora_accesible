@@ -50,6 +50,7 @@ Disponible en **español e inglés** (interfaz, explicaciones y ayuda). Los resu
 | **Recta tangente y normal** | Pide el punto `x₀` (`1`, `-2`, `pi/4`). Calcula el punto de tangencia `(x₀, f(x₀))` operación a operación, deriva `f(x)` con el paso a paso de **Derivar**, evalúa la pendiente `m = f'(x₀)`, plantea la ecuación punto-pendiente `y - y₀ = m*(x - x₀)` y la despeja hasta `y = m*x + b`; después la pendiente de la normal `m_n = -1/m` y su ecuación, y comprueba que las dos rectas pasan por el punto y que `m*m_n = -1`. Si `m = 0`, la normal es vertical (`x = x₀`); si la pendiente es infinita (`sqrt(x)` en 0), la tangente es vertical. Si la función no está definida en el punto o tiene un pico (`abs(x)` en 0), lo dice. Las rectas se comparan con las de SymPy. |
 | **Extremos y crecimiento** | Estudia `f(x)`: el **dominio** (los valores que anulan un denominador), la derivada con el paso a paso de **Derivar**, los **puntos críticos** resolviendo `f'(x) = 0` (una fracción vale 0 si su numerador vale 0; `exp(u)` nunca vale 0; el numerador se resuelve como una ecuación o, si es de grado 3 o más, se factoriza antes y se aplica el producto nulo), una **tabla de signos** de `f'` con un número de prueba por intervalo y el signo de cada factor (creciente si `f' > 0`, decreciente si `f' < 0`), el **criterio de la primera derivada** (máximo si `f'` pasa de + a -, mínimo si pasa de - a +, con `f(x₀)` operado) y el de la **segunda derivada** (`f''(x₀)` y su signo; en los cocientes se omite, porque sería larga y solo confirmaría). Un punto crítico sin cambio de signo (`x^3` en 0) no es extremo: la función sigue creciendo. Para otras funciones (`x*log(x)`), el resultado de SymPy sin pasos. |
 | **Polinomio de Taylor** | Pide el orden `n` (de 0 a 15) y el punto `x₀`. Enuncia la fórmula `P_n(x) = Σ f⁽ᵏ⁾(x₀)/k!·(x - x₀)ᵏ` (de Maclaurin si `x₀ = 0`), calcula cada derivada a partir de la anterior con el paso a paso de **Derivar** (como **Derivada de orden N**: si se hace demasiado larga, solo los resultados) y explica cada término en su paso: `f⁽ᵏ⁾(x₀)` con sus cuentas, el factorial desarrollado (`3! = 1*2*3 = 6`), el coeficiente y el término; si `f⁽ᵏ⁾(x₀) = 0`, el término no aparece. El polinomio se escribe en potencias de `(x - x₀)` sin desarrollar (`2 + (x - 4)/4 - (x - 4)^2/64`), también en LaTeX, y se compara con `series` de SymPy. |
+| **Derivada implícita** | `dy/dx` de una curva escrita como ecuación, `F(x, y) = G(x, y)` (`x^2 + y^2 = 25`). Se derivan los dos lados respecto a `x`, término a término con el paso a paso de **Derivar**: lo que solo tiene `x`, como siempre; lo que tiene `y`, con la **regla de la cadena**, que añade el factor `y'`; y un producto de una parte con `x` y otra con `y` (`6*x*y`), con la **regla del producto**. Después se **despeja `y'`**: pasar términos, sacar `y'` factor común, dividir (suponiendo que el divisor no es 0) y simplificar el factor común, sin cambiar signos sin decirlo. Con otras letras (`t^2 + s^2 = 4`), `y` es la dependiente si aparece; si no, se dice cuál se toma. Se compara con `idiff` de SymPy; los términos que mezclan `x` e `y` (`sin(x*y)`) se resuelven sin pasos, con una nota. |
 
 **Estrategias de límites** (`calculo/lim_estrategias/`):
 
@@ -162,6 +163,7 @@ El menú **Idioma / Language** cambia toda la calculadora entre **español** e *
 | `Ctrl+T` | Recta tangente y normal |
 | `Ctrl+Shift+X` | Extremos e intervalos de crecimiento |
 | `Ctrl+Shift+T` | Polinomio de Taylor |
+| `Ctrl+J` | Derivada implícita |
 | `Ctrl+R` | Resolver ecuación o inecuación |
 | `Ctrl+G` | Resolver sistema por Gauss-Jordan |
 | `Ctrl+M` | Matriz inversa por cofactores |
@@ -244,6 +246,8 @@ Diagnóstico: La integral impropia converge.
 **Extremos y crecimiento**: escriba `x^3 - 3*x` y pulse `Ctrl+Shift+X`. Resultado: máximo local en `x = -1` (`f(-1) = 2`), mínimo local en `x = 1` (`f(1) = -2`), creciente en `(-∞, -1) ∪ (1, ∞)` y decreciente en `(-1, 1)`.
 
 **Polinomio de Taylor**: escriba `exp(x)`, pulse `Ctrl+Shift+T`, orden `3`, punto `0`. Resultado: `P_3(x) = 1 + x + x^2/2 + x^3/6`.
+
+**Derivada implícita**: escriba `x^3 + y^3 = 6*x*y` y pulse `Ctrl+J`. Resultado: `dy/dx = (2*y - x^2)/(y^2 - 2*x)`.
 
 **Inecuación**: escriba `x^2 - 4 <= 0` y pulse `Ctrl+R`. Resultado: `-2 <= x <= 2, es decir, [-2, 2]`, con los puntos críticos y la tabla de signos:
 ```

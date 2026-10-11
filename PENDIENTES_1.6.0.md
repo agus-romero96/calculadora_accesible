@@ -17,10 +17,13 @@ Una tarea terminada se tacha (`~~...~~`) y se anota el commit.
 5. ~~**Polinomio de Taylor alrededor de un punto**~~ — **completada** (menú **Cálculo**, `Ctrl+Shift+T`, `calculo/taylor.py`; commit `c632dbf`)
    - ~~Orden `n` y punto `x₀`.~~
    - ~~Cada derivada `f⁽ᵏ⁾(x)`, su valor en `x₀` y cada término `f⁽ᵏ⁾(x₀)/k! · (x - x₀)ᵏ`.~~
-6. ~~**Determinante de una matriz por cofactores** (operación independiente en **Álgebra**)~~ — **completada** (`Ctrl+K`, `algebra/determinante.py`)
+6. ~~**Determinante de una matriz por cofactores** (operación independiente en **Álgebra**)~~ — **completada** (`Ctrl+K`, `algebra/determinante.py`; commit `4003aaf`)
    - ~~Expansión por cofactores con cada menor, su signo y sus cuentas.~~ Por la fila o columna con más ceros; en 4x4, cada menor 3x3 en sus propios pasos.
-7. **Derivada implícita** (con respecto a `x` de una ecuación `F(x, y) = 0`)
-   - Derivar los dos lados tratando `y` como función de `x` (regla de la cadena: `dy/dx`), y despejar `dy/dx`.
+7. ~~**Derivada implícita** (con respecto a `x` de una ecuación `F(x, y) = 0`)~~ — **completada** (menú **Cálculo**, `Ctrl+J`, `calculo/implicita.py`)
+   - ~~Derivar los dos lados tratando `y` como función de `x` (regla de la cadena: `dy/dx`), y despejar `dy/dx`.~~
+   - Queda fuera: términos que mezclan `x` e `y` sin separarse (`sin(x*y)`): hoy los resuelve SymPy sin pasos.
+
+**Las siete tareas de la 1.6.0 están completas.** Falta lo de abajo para publicarla.
 
 ## Antes de publicar la 1.6.0
 
