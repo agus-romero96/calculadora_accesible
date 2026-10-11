@@ -25,6 +25,7 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
    [Ctrl + L]         : Calculate a LIMIT.
    [Ctrl + T]         : TANGENT and normal LINE at a point.
    [Ctrl + Shift + X] : EXTREMA and intervals of increase.
+   [Ctrl + Shift + T] : TAYLOR POLYNOMIAL of order n at a point.
    [Ctrl + R]         : SOLVE an equation or inequality.
    [Ctrl + G]         : Solve a SYSTEM by Gauss-Jordan.
    [Ctrl + M]         : INVERSE MATRIX by cofactors.
@@ -106,6 +107,12 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
      derivative step by step, the critical points (f'(x) = 0), a
      chart with the sign of f' on each interval, factor by
      factor, and the first and second derivative tests.
+   - Taylor polynomial: Type 'exp(x)'. Press Ctrl+Shift+T.
+     Order: 3. Point x0: 0. Result: P_3(x) = 1 + x + x^2/2 + x^3/6.
+     Each derivative is calculated from the previous one, and for
+     each term its value at x0, the factorial (3! = 1*2*3 = 6) and
+     the coefficient. With x0 other than 0 the polynomial is written
+     in powers of (x - x0), for example (x - 4)/4.
    - Limit: Type 'sin(x)/x'. Press Ctrl+L.
      Variable: x. Approaches: 0.
      For a one-sided limit, type the value followed by + or -,

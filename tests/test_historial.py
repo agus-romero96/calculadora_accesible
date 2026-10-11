@@ -157,6 +157,8 @@ RESULTADOS_PERSISTENCIA = {
     # Estudio de extremos (un dict con puntos, extremos e intervalos)
     "extremos": lambda c: c.extremos("x^3 - 3*x"),
     "extremos_cociente": lambda c: c.extremos("x^2/(x-1)"),
+    # Polinomio de Taylor (el valor es el polinomio; el punto, un parámetro)
+    "taylor": lambda c: c.taylor("sqrt(x)", None, 2, "4"),
     # Conjuntos solución y relaciones sin evaluar (Eq, Le, Gt...)
     "ecuacion_racional": lambda c: c.ecuacion("x^2/(x-1) = 1/(x-1)"),
     "ecuacion_irracional": lambda c: c.ecuacion("2*x^2 - 4*x - 1 = 0"),

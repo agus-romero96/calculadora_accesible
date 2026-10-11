@@ -35,6 +35,7 @@ from calculo.router import RouterMatematico
 from calculo.calculo import Calculo
 from calculo.extremos import MotorExtremos
 from calculo.rectas import MotorRectas
+from calculo.taylor import MotorTaylor
 
 @dataclass(frozen=True)
 class Operacion:
@@ -57,7 +58,7 @@ class Operacion:
     separador_antes: bool = False
     # Submenú con una opción por variante (código -> nombre N_); el código es el último argumento del método
     variantes: Dict[str, str] = field(default_factory=dict)
-    # Solo para los datos "expresion_variable", "variable_limites" y "variable_punto": verbo de "¿Respecto a cuál desea {operacion}?" y si,
+    # Solo para los datos "expresion_variable", "variable_limites", "variable_punto" y "variable_orden_punto": verbo de "¿Respecto a cuál desea {operacion}?" y si,
     # sin variables en la expresión (una constante), hay que pedirla (integrar 5 necesita la variable)
     verbo: str = ""
     variable_obligatoria: bool = False
@@ -93,6 +94,9 @@ REGISTRO: List[Operacion] = [
     Operacion("extremos", N_("Extremos y crecimiento"), "extremos", "expresion_variable",
               N_("el estudio de extremos"),
               menu="calculo", etiqueta=N_("E&xtremos y crecimiento"), atajo="Ctrl+Shift+X", verbo=N_("estudiar")),
+    Operacion("taylor", N_("Polinomio de Taylor"), "taylor", "variable_orden_punto",
+              N_("el polinomio de Taylor de orden {orden}"),
+              menu="calculo", etiqueta=N_("Polinomio de Ta&ylor"), atajo="Ctrl+Shift+T", verbo=N_("desarrollar")),
 
     Operacion("ecuacion", N_("Ecuación o inecuación"), "ecuacion", "expresion", N_("la ecuación"),
               menu="algebra", etiqueta=N_("&Resolver ecuación o inecuación"), atajo="Ctrl+R"),
@@ -179,6 +183,7 @@ class CoreMatematico:
         self.router = RouterMatematico(self.parser_comun)
         self.rectas = MotorRectas(self.parser_comun)
         self.extremos_motor = MotorExtremos(self.parser_comun)
+        self.taylor_motor = MotorTaylor(self.parser_comun)
 
     def _expresion(self, texto: str) -> Optional[Any]:
         """La entrada interpretada (para exportarla en LaTeX/MathML), o None si no se puede."""
@@ -298,6 +303,16 @@ class CoreMatematico:
             expresion=res.expresion,
         )
 
+    def taylor(self, expresion: str, variable: Optional[str], orden: int, punto: str) -> ResultadoOperacion:
+        """Polinomio de Taylor de orden n alrededor de x0: el valor es el polinomio (SymPy)."""
+        res = self.taylor_motor.resolver(expresion, variable, orden, punto)
+        return ResultadoOperacion(
+            operacion="taylor", entrada=expresion, texto=res.texto, valor=res.polinomio, es_error=res.es_error,
+            parametros={"variable": str(res.variable) if res.variable is not None else variable, "orden": orden,
+                        "punto": punto},
+            expresion=res.expresion,
+        )
+
     def ecuacion(self, entrada: str) -> ResultadoOperacion:
         """Ecuación o inecuación de una variable: el valor es el conjunto solución (FiniteSet, Interval...)."""
         res = self.ecuaciones.resolver(entrada)
@@ -347,6 +362,9 @@ class CoreMatematico:
 
     def Extremos(self, expresion, variable=None):
         return self.extremos(expresion, variable).texto
+
+    def Taylor(self, expresion, variable, orden, punto):
+        return self.taylor(expresion, variable, orden, punto).texto
 
     def ResolverEcuacion(self, entrada):
         return self.ecuacion(entrada).texto

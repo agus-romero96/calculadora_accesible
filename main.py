@@ -502,6 +502,24 @@ class CalculadoraAccesible(wx.Frame):
         if punto is None: return None
         return (txt, var, punto), {}
 
+    def _datos_variable_orden_punto(self, txt, op):
+        # La variable como al derivar (se pregunta si hay varias); después, el orden y el punto x0
+        datos = self._datos_expresion_variable(txt, op)
+        if datos is None: return None
+        (_, var), _ = datos
+
+        orden_txt = self._pedir_texto(tr("Orden del polinomio (número entero, ej: 3):"), tr("Polinomio de Taylor"))
+        if orden_txt is None: return None
+        try:
+            orden = int(orden_txt)
+        except ValueError:
+            wx.MessageBox(tr("El orden debe ser un número entero."), tr("Error"), wx.OK | wx.ICON_ERROR)
+            return None
+        punto = self._pedir_texto(tr("Punto x0 alrededor del que se desarrolla (ej: 0, 1, pi):"),
+                                  tr("Polinomio de Taylor"), "0")
+        if punto is None: return None
+        return (txt, var, orden, punto), {"orden": orden}
+
     def _datos_variable_orden(self, txt, op):
         # Aquí siempre preguntamos porque es avanzado
         var = self._pedir_texto(tr("Variable:"), tr("Derivada N"))
@@ -533,6 +551,7 @@ class CalculadoraAccesible(wx.Frame):
         "expresion_variable": _datos_expresion_variable,
         "variable_limites": _datos_variable_limites,
         "variable_punto": _datos_variable_punto,
+        "variable_orden_punto": _datos_variable_orden_punto,
         "variable_orden": _datos_variable_orden,
         "variable_tendencia": _datos_variable_tendencia,
     }

@@ -23,6 +23,7 @@ from _version import __version__
 from algebra.resolucion import describir_conjunto
 from calculo.extremos import lineas_resultado
 from calculo.rectas import ecuacion_recta
+from calculo.taylor import nombre_polinomio, taylor_latex, taylor_texto
 from calculo.calculo import humanizar_integral
 from calculo.router import humanizar_limite
 from i18n import N_, idioma_actual, tr
@@ -63,6 +64,8 @@ def resultado_corto(res: ResultadoOperacion) -> str:
         return describir_conjunto(valor, _variable(res), aproximar=False)
     if res.operacion == "extremos" and isinstance(valor, dict):
         return "; ".join(lineas_resultado(valor, _variable(res), aproximar=False))
+    if res.operacion == "taylor" and valor is not None:
+        return _taylor_corto(res)
     if _son_rectas(res):
         tangente, normal = (ecuacion_recta(eq, _variable(res)) for eq in valor)
         return tr("tangente: {t}; normal: {n}", t=tangente, n=normal)
@@ -115,6 +118,20 @@ def _es_conjunto_solucion(res: ResultadoOperacion) -> bool:
 def _variable(res: ResultadoOperacion) -> sympy.Symbol:
     # Real, como las del parser: si no, no coincidiría con la variable de las rectas
     return sympy.Symbol(res.parametros.get("variable") or "x", real=True)
+
+
+def _punto_taylor(res: ResultadoOperacion) -> Any:
+    from parser_matematico import ParserMatematico
+    return ParserMatematico().parsear(str(res.parametros.get("punto") or "0")).doit()
+
+
+def _taylor_corto(res: ResultadoOperacion) -> str:
+    """'P_3(x) = 1 + x + x^2/2 + x^3/6', en potencias de (x - x0) como en el paso a paso."""
+    x = _variable(res)
+    try:
+        return f"{nombre_polinomio(int(res.parametros.get('orden')), x)} = {taylor_texto(res.valor, x, _punto_taylor(res))}"
+    except Exception:
+        return str(res.valor)
 
 
 def _son_rectas(res: ResultadoOperacion) -> bool:
@@ -171,6 +188,11 @@ def latex(res: ResultadoOperacion) -> str:
     """'planteamiento = resultado' en LaTeX (sin delimitadores $)."""
     if res.operacion == "extremos" and isinstance(res.valor, dict) and not res.es_error:
         return _latex_extremos(res)
+    if res.operacion == "taylor" and res.valor is not None and not res.es_error:
+        try:
+            return taylor_latex(res.valor, _variable(res), _punto_taylor(res), int(res.parametros.get("orden")))
+        except Exception:
+            pass
     valor = _valor_simbolico(res)
     texto_valor = sympy.latex(valor) if valor is not None and not _es_lista(valor) else None
     if texto_valor is not None and _es_conjunto_solucion(res):

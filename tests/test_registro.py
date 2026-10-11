@@ -24,6 +24,7 @@ EJEMPLOS = {
     "limite": ("sin(x)/x", "x", "0"),
     "tangente": ("x^2", None, "1"),
     "extremos": ("x^3 - 3*x", None),
+    "taylor": ("exp(x)", None, 3, "0"),
     "ecuacion": ("x^2 - 4 <= 0",),
     "gauss": (["x + y = 10", "x - y = 2"],),
     "sistema_clasico": (["x + y = 10", "x - y = 2"],),
@@ -31,7 +32,7 @@ EJEMPLOS = {
 }
 
 # Marcadores que rellena cada tipo de datos en la descripción ("Calculando ...")
-MARCADORES_DE_DATOS = {"variable_orden": {"orden"}}
+MARCADORES_DE_DATOS = {"variable_orden": {"orden"}, "variable_orden_punto": {"orden"}}
 
 
 def marcadores(texto):
@@ -66,7 +67,7 @@ def test_metodo_devuelve_resultado_con_su_clave(core, op):
 def test_menu_y_descripcion(op):
     if op.menu is not None:
         assert op.etiqueta, "una operación con menú necesita etiqueta"
-    if op.datos in ("expresion_variable", "variable_limites", "variable_punto"):
+    if op.datos in ("expresion_variable", "variable_limites", "variable_punto", "variable_orden_punto"):
         assert op.verbo, "hace falta el verbo para preguntar la variable"
     disponibles = MARCADORES_DE_DATOS.get(op.datos, set()) | ({"metodo"} if op.variantes else set())
     assert marcadores(op.descripcion) <= disponibles

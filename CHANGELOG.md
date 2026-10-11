@@ -8,6 +8,17 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Añadido
 
+- **Polinomio de Taylor** (menú **Cálculo**, `Ctrl+Shift+T`). Pide el orden `n` (de 0 a 15) y el punto `x0`, y explica con el formato estándar:
+  - la **fórmula** `P_n(x) = f(x0) + f'(x0)*(x - x0) + f''(x0)/2!*(x - x0)^2 + ...`, con la de este caso escrita término a término (y el nombre de polinomio de Maclaurin si `x0 = 0`);
+  - **cada derivada a partir de la anterior**, con el paso a paso de **Derivar** y el mismo límite que **Derivada de orden N** (si se hace demasiado larga, desde ahí solo los resultados, con un aviso);
+  - **cada término en su paso**: `f^(k)(x0)` sustituyendo y operando, el factorial desarrollado (`3! = 1*2*3 = 6`; `0! = 1` por definición), el coeficiente `f^(k)(x0)/k!` y el término. Si `f^(k)(x0) = 0`, se dice que el término no aparece;
+  - la **suma** de los términos, de menor a mayor orden.
+  - El polinomio se escribe en potencias de `(x - x0)` sin desarrollar, como en clase: `2 + (x - 4)/4 - (x - 4)^2/64` (SymPy escribiría `x/4 - (x - 4)^2/64 + 1`). También en LaTeX: `P_{2}\left(x\right) = 2 + \frac{\left(x - 4\right)}{4} - ...`.
+  - Se compara con `series` de SymPy; si no coincidiera, se da el de SymPy sin pasos y con un aviso. Si una derivada no está definida en `x0` (`log(x)` en 0), lo dice.
+  - Código: `calculo/taylor.py` (`MotorTaylor`); en la interfaz, un tipo de datos nuevo (`variable_orden_punto`): la variable, el orden y el punto (por defecto 0).
+  - Pruebas: `tests/test_taylor.py` (24: 13 desarrollos comparados con SymPy, las cuentas de un caso completo, términos nulos, `x0` distinto de 0, errores, exportación e inglés), casos en registro e historial; la suite tiene 5370. `tests/verificar_ui.py`: 93 comprobaciones.
+  - Ayuda (F1) y README: atajo, descripción y ejemplo.
+
 - **Extremos y crecimiento** (menú **Cálculo**, `Ctrl+Shift+X`). Puntos críticos, máximos y mínimos locales e intervalos de crecimiento y decrecimiento de `f(x)`, con el formato estándar:
   - **Dominio**: cada factor del denominador igualado a 0 y despejado.
   - La **derivada**, con el paso a paso de **Derivar**.
