@@ -161,7 +161,10 @@ def _entidades_numericas(marcado: str) -> str:
 
 
 def _mathml_de(expr: Any) -> str:
-    return _entidades_numericas(_sin_mfenced(sympy.mathml(expr, printer="presentation")))
+    marcado = sympy.mathml(expr, printer="presentation")
+    # SymPy escribe < y > de las desigualdades estrictas sin escapar: no sería XML válido
+    marcado = marcado.replace("<mo><</mo>", "<mo>&lt;</mo>").replace("<mo>></mo>", "<mo>&gt;</mo>")
+    return _entidades_numericas(_sin_mfenced(marcado))
 
 
 def mathml(res: ResultadoOperacion) -> str:

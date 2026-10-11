@@ -9,6 +9,8 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 ### Corregido
 
 - **Salto al quitar paréntesis cuando las incógnitas se cancelan.** En `2*(x + 1) - (2*x + 2)` el resultado es un número, y `despejar()` lo trataba como una cuenta solo de números: mostraba "Operamos: 2*(x + 1) - (2*x + 2) = 0" sin la propiedad distributiva. Ahora solo se opera de una vez si no hay incógnitas; si las hay, se desarrolla y se agrupan los términos semejantes a la vista.
+- **MathML inválido en las desigualdades estrictas**: SymPy escribe `<mo><</mo>` sin escapar, y un HTML exportado o un MathML copiado con `<` o `>` no era XML válido. Se escapan al generar el MathML.
+- **Historial: los conjuntos con varios intervalos no se recuperaban.** El historial reconstruye cada objeto SymPy sin evaluarlo, y `Union` no se puede construir así (necesita comparar los extremos); la entrada se guardaba sin su valor. Los conjuntos se reconstruyen con su constructor normal: ya están en forma canónica, así que no cambian. (Este fallo y el anterior no afectaban a ninguna operación previa: aparecieron con las inecuaciones.)
 
 ## [1.5.0] - 2026-10-10
 
