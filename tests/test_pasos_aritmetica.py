@@ -73,6 +73,13 @@ def test_fracciones_y_signos(core):
     assert "2^(-2) = 1/2^2 = 1/4." in core.Evaluar("2^(-2)")
 
 
+@pytest.mark.parametrize("cuenta", ["0/(-1)", "0*(-3)", "(-3)*0"])
+def test_con_un_cero_no_hay_regla_de_los_signos(core, cuenta):
+    """0 por o entre cualquier número da 0, que no tiene signo: antes decía 'más por menos da más'."""
+    salida = core.Evaluar(cuenta)
+    assert salida.startswith("RESULTADO: 0") and "Signos" not in salida
+
+
 def test_raices_y_decimales(core):
     assert "sqrt(16) = 4, porque 4^2 = 16." in core.Evaluar("sqrt(16)+1")
     salida = core.Evaluar("sqrt(8)+1")

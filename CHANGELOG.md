@@ -37,6 +37,7 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Corregido
 
+- **Regla de los signos con un 0**: al evaluar `0/(-1)` o `0*(-3)`, el paso a paso decía "Signos: más por menos da más", que es falso: el resultado es 0, que no tiene signo. La regla de los signos trataba el 0 como positivo. Ahora, si uno de los números es 0, no se aplica (0 por o entre cualquier número da 0). Apareció al calcular `f(0)` en el estudio de extremos de `x^2/(x - 1)`. `tests/test_pasos_aritmetica.py` lo comprueba.
 - **Salto al quitar paréntesis cuando las incógnitas se cancelan.** En `2*(x + 1) - (2*x + 2)` el resultado es un número, y `despejar()` lo trataba como una cuenta solo de números: mostraba "Operamos: 2*(x + 1) - (2*x + 2) = 0" sin la propiedad distributiva. Ahora solo se opera de una vez si no hay incógnitas; si las hay, se desarrolla y se agrupan los términos semejantes a la vista.
 - **MathML inválido en las desigualdades estrictas**: SymPy escribe `<mo><</mo>` sin escapar, y un HTML exportado o un MathML copiado con `<` o `>` no era XML válido. Se escapan al generar el MathML.
 - **Historial: los conjuntos con varios intervalos no se recuperaban.** El historial reconstruye cada objeto SymPy sin evaluarlo, y `Union` no se puede construir así (necesita comparar los extremos); la entrada se guardaba sin su valor. Los conjuntos se reconstruyen con su constructor normal: ya están en forma canónica, así que no cambian. (Este fallo y el anterior no afectaban a ninguna operación previa: aparecieron con las inecuaciones.)

@@ -224,6 +224,9 @@ def _signo(a: Any, b: Any, resultado: Any) -> Optional[str]:
     """La regla de los signos, si hay algún negativo: 'menos por más da menos'."""
     if not (a.is_negative or b.is_negative) or not (a.is_real and b.is_real):
         return None
+    if a.is_zero or b.is_zero:
+        return None  # 0 por (o entre) cualquier número da 0: el 0 no tiene signo
+
     nombre = {True: tr("menos"), False: tr("más")}
     return tr("Signos: {a} por {b} da {c}.", a=nombre[bool(a.is_negative)], b=nombre[bool(b.is_negative)],
               c=nombre[bool(resultado.is_negative)])
