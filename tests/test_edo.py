@@ -372,6 +372,99 @@ def test_bernoulli_con_raiz(core):
             in res.texto)
 
 
+HOMOGENEAS_CONSTANTES = [
+    ("y'' - 3*y' + 2*y = 0", "y = C1*exp(x) + C2*exp(2*x)"),
+    ("y'' + 4*y = 0", "y = C1*cos(2*x) + C2*sin(2*x)"),
+    ("y'' + 2*y' + y = 0", "y = C1*exp(-x) + C2*x*exp(-x)"),
+    ("y'' + 2*y' + 5*y = 0", "y = C1*exp(-x)*cos(2*x) + C2*exp(-x)*sin(2*x)"),
+    ("y''' - y = 0", "y = C1*exp(x) + C2*exp(-x/2)*cos(sqrt(3)*x/2) + C3*exp(-x/2)*sin(sqrt(3)*x/2)"),
+    ("y'''' - y = 0", None),
+    ("y''' - 3*y'' + 3*y' - y = 0", "y = C1*exp(x) + C2*x*exp(x) + C3*x^2*exp(x)"),
+    ("2*y'' - 5*y' - 3*y = 0", "y = C1*exp(-x/2) + C2*exp(3*x)"),
+]
+
+
+@pytest.mark.parametrize("entrada, resultado", HOMOGENEAS_CONSTANTES, ids=[c[0] for c in HOMOGENEAS_CONSTANTES])
+def test_coeficientes_constantes_homogeneas(core, entrada, resultado):
+    res = core.ecuacion_diferencial(entrada)
+    if resultado:
+        assert res.texto.splitlines()[0] == f"RESULTADO: {resultado}", res.texto
+    assert "Método: lineal con coeficientes constantes (ecuación característica)" in res.texto, res.texto
+    assert "AVISO" not in res.texto and "NOTA" not in res.texto
+    cumple(res)
+    nombres = titulos(res.texto)
+    for paso in ("Tipo de ecuación: lineal con coeficientes constantes.", "Ecuación característica.",
+                 "Raíces de la ecuación característica.", "Solución general.", "Comprobación."):
+        assert paso in nombres
+
+
+def test_caracteristica_paso_a_paso(core):
+    texto = core.ecuacion_diferencial("y'' + 2*y' + 5*y = 0").texto
+    assert "Probamos y = exp(r*x): y' = r*exp(r*x); y'' = r^2*exp(r*x)." in texto
+    assert "Queda: r^2 + 2*r + 5 = 0" in texto
+    assert "r^2 + 2*r + 5 = 0: a = 1, b = 2, c = 5; D = b^2 - 4*a*c = 2^2 - 4*1*5 = -16." in texto
+    assert "D < 0: no hay raíces reales; sqrt(-16) = sqrt(16)*i = 4*i, y r = (-2 ± 4*i)/2 = -1 ± 2*i." in texto
+    assert "r = -1 ± 2*i (simple): aporta exp(-x)*cos(2*x), exp(-x)*sin(2*x)." in texto
+    doble = core.ecuacion_diferencial("y'' + 2*y' + y = 0").texto
+    assert "D = 0: una raíz doble, r = -b/(2*a) = -2/2 = -1." in doble
+    assert "r = -1 (doble): aporta exp(-x), x*exp(-x)." in doble
+    cubica = core.ecuacion_diferencial("y''' - 3*y'' + 3*y' - y = 0").texto
+    assert "Cada factor igualado a 0 (producto nulo):" in cubica  # factorizada con los pasos de Factorizar
+
+
+def test_condiciones_iniciales_de_orden_2(core):
+    res = core.ecuacion_diferencial("y'' + 4*y = 0, y(0) = 1, y'(0) = 2")
+    assert res.texto.splitlines()[0] == "RESULTADO: y = sin(2*x) + cos(2*x)"
+    assert "Derivamos: y' = -2*C1*sin(2*x) + 2*C2*cos(2*x)." in res.texto
+    assert "y'(0) = 2: -2*C1*sin(2*0) + 2*C2*cos(2*0) = 2, es decir 2*C2 = 2." in res.texto
+    assert "Con C1 = 1, C2 = 1: y = sin(2*x) + cos(2*x)." in res.texto
+    res = core.ecuacion_diferencial("y'' - 3*y' + 2*y = 0, y(0) = 0, y'(0) = 1")
+    assert res.texto.splitlines()[0] == "RESULTADO: y = exp(2*x) - exp(x)"
+    assert "Volvemos atrás: C1 = -C2 = -1." in res.texto
+
+
+NO_HOMOGENEAS = [
+    ("y'' - y = x^2", "y = -x^2 - 2 + C1*exp(-x) + C2*exp(x)"),
+    ("y'' + y = sin(x)", "y = -x*cos(x)/2 + C1*cos(x) + C2*sin(x)"),
+    ("y'' - 3*y' + 2*y = exp(x)", "y = -x*exp(x) + C1*exp(x) + C2*exp(2*x)"),
+    ("y'' - 2*y' + y = x*exp(x)", "y = x^3*exp(x)/6 + C1*exp(x) + C2*x*exp(x)"),
+    ("y'' + y' = 3", "y = 3*x + C1*exp(-x) + C2"),
+    ("y'' + 3*y' + 2*y = 4*x + exp(2*x) + cos(x)", None),
+    ("y'' + 4*y = 8*x*sin(2*x)", None),
+    ("y'' + y = x, y(0) = 1, y'(0) = 0", "y = x - sin(x) + cos(x)"),
+]
+
+
+@pytest.mark.parametrize("entrada, resultado", NO_HOMOGENEAS, ids=[c[0] for c in NO_HOMOGENEAS])
+def test_coeficientes_indeterminados(core, entrada, resultado):
+    res = core.ecuacion_diferencial(entrada)
+    if resultado:
+        assert res.texto.splitlines()[0] == f"RESULTADO: {resultado}", res.texto
+    assert "coeficientes indeterminados" in res.texto, res.texto
+    assert "AVISO" not in res.texto and "NOTA" not in res.texto
+    if "," not in entrada:
+        cumple(res)
+    nombres = titulos(res.texto)
+    for paso in ("Solución de la homogénea.", "Forma de la solución particular.", "Sustituir y_p en la ecuación.",
+                 "Igualar coeficientes.", "Solución general.", "Comprobación."):
+        assert paso in nombres
+
+
+def test_coeficientes_indeterminados_paso_a_paso(core):
+    texto = core.ecuacion_diferencial("y'' - y = x^2").texto
+    assert "x^2: es un polinomio de grado 2; se prueba A*x^2 + B*x + F." in texto
+    assert "Sustituimos en el lado izquierdo, y'' - y, y agrupamos: (2*A - F) - A*x^2 - B*x = x^2." in texto
+    assert "De los términos constantes: 2*A - F = 0." in texto
+    assert "Sustituimos A = -1 en las demás: -F - 2 = 0; -B = 0." in texto
+    assert "y = C1*exp(-x) + C2*exp(x) - x^2 - 2" in texto  # el signo de y_p, bien
+    resonancia = core.ecuacion_diferencial("y'' + y = sin(x)").texto
+    assert ("Pero ±i es raíz (simple) de la ecuación característica: esas funciones ya están en y_h, y se multiplica "
+            "por x.") in resonancia
+    assert "Queda: y_p = x*(A*cos(x) + B*sin(x))" in resonancia
+    varios = core.ecuacion_diferencial("y'' + 3*y' + 2*y = 4*x + exp(2*x) + cos(x)").texto
+    assert "Volvemos atrás: F = 1 - 3*G = 1 - 3*(3/10) = 1/10." in varios
+
+
 def test_implicita_y_familia_de_constantes(core):
     res = core.ecuacion_diferencial("y' = sin(x)*cos(y)")
     assert not res.es_error
@@ -387,11 +480,18 @@ def test_otras_letras(core):
 
 
 def test_sin_pasos_lo_resuelve_sympy(core):
-    res = core.ecuacion_diferencial("y'' + y = 0")
+    res = core.ecuacion_diferencial("y'' + x^2*y' = 0")
     assert not res.es_error
-    assert res.texto.splitlines()[0] == "RESULTADO: y = C1*sin(x) + C2*cos(x)"
+    assert res.texto.splitlines()[0] == "RESULTADO: y = C1 + C2*lowergamma(1/3, x^3/3)"
     assert "NOTA: por ahora hay explicación paso a paso" in res.texto
     assert "PASO A PASO" not in res.texto
+
+
+def test_si_un_metodo_de_sympy_falla_prueba_otro(core):
+    # dsolve se rompía por dentro con el método de Riccati ("bad operand type for unary -")
+    res = core.ecuacion_diferencial("y' = y^2 + x^2")
+    assert not res.es_error, res.texto
+    assert "NOTA: SymPy da la solución como una serie de potencias" in res.texto
 
 
 @pytest.mark.parametrize("entrada, mensaje", [

@@ -29,6 +29,8 @@ from algebra.ecuaciones import _pasar, despejar
 from calculo.calculo import Calculo
 from calculo.pasos import PasoCalculo, texto_paso
 from i18n import tr
+from pasos_aritmetica import ExplicadorFactorizar
+from pasos_aritmetica import SinExplicacion as SinFactorizacion
 from sympy.printing.str import StrPrinter
 
 
@@ -82,7 +84,9 @@ C = sympy.Symbol("C", real=True)
 class _Impresora(StrPrinter):
     def _as_ordered_terms(self, expr, order=None):
         terminos = super()._as_ordered_terms(expr, order=order)
-        return [t for t in terminos if not t.has(C)] + [t for t in terminos if t.has(C)]
+        con_c = [t for t in terminos if any(re.fullmatch(r"C\d*", s.name) for s in t.free_symbols
+                                            if isinstance(s, sympy.Symbol))]
+        return [t for t in terminos if t not in con_c] + con_c
 
     def _print_Pow(self, expr, rational=False):
         # x^(-2) se escribe 1/x^2, como 1/x
@@ -158,6 +162,8 @@ def _mas(coeficiente: Any, variable: Any) -> str:
     if coeficiente == 0:
         return ""
     signo, valor = (" - ", -coeficiente) if coeficiente.could_extract_minus_sign() else (" + ", coeficiente)
+    if variable == 1:
+        return signo + (f"({texto(valor)})" if valor.is_Add else texto(valor))
     if sympy.fraction(valor)[1] != 1 and not valor.is_Add:
         return signo + texto(valor * variable)  # y/x, no (1/x)*y
     return signo + producto(valor, variable)
@@ -677,6 +683,8 @@ class MotorEdo:
             metodo = ""
             try:
                 soluciones = self._con_sympy(ode, edo, Y, avisos)
+            except NotImplementedError:
+                soluciones = None
             except Exception as e:
                 return ResultadoEdo(tr("Error del Sistema: {error}", error=str(e)), es_error=True)
             if soluciones is None:
@@ -742,7 +750,23 @@ class MotorEdo:
         for cond in edo.condiciones:
             izq = Y.diff(edo.x, cond.orden).subs(edo.x, cond.punto) if cond.orden else Y.subs(edo.x, cond.punto)
             ics[izq] = cond.valor
-        resultado = sympy.dsolve(ode, Y, ics=ics or None)
+        try:
+            resultado = sympy.dsolve(ode, Y, ics=ics or None)
+        except NotImplementedError:
+            raise
+        except Exception:
+            # Algún método de SymPy falla por dentro (el de Riccati, con y' = y^2 + x^2): se prueban los demás
+            resultado = None
+            for metodo in sympy.classify_ode(ode, Y):
+                if metodo.endswith("_Integral") or metodo == "default" or metodo == "order":
+                    continue
+                try:
+                    resultado = sympy.dsolve(ode, Y, ics=ics or None, hint=metodo)
+                    break
+                except Exception:
+                    continue
+            if resultado is None:
+                raise NotImplementedError()
         resultado = resultado if isinstance(resultado, list) else [resultado]
         constantes = sorted({s for r in resultado for s in r.free_symbols if re.fullmatch(r"C\d+", s.name)},
                             key=lambda s: s.name)
@@ -750,12 +774,14 @@ class MotorEdo:
         if len(constantes) == 1:
             cambio[constantes[0]] = C
         soluciones = [sympy.Eq(r.lhs.xreplace(cambio), r.rhs.xreplace(cambio)) for r in resultado]
+        if any(s.has(sympy.Order) for s in soluciones):
+            avisos.append(tr("NOTA: SymPy da la solución como una serie de potencias: es aproximada, y O(...) indica el "
+                             "orden de los términos que se dejan fuera."))
         avisos.append(tr("NOTA: por ahora hay explicación paso a paso para las ecuaciones de primer orden "
-                         "separables, lineales, de Bernoulli, homogéneas, exactas (o con factor integrante) y reducibles a "
-                         "separables, "
-                         "y' = F(a*x + b*y + c). Esta "
-                         "ecuación la "
-                         "resuelve SymPy, sin pasos."))
+                         "separables, lineales, de Bernoulli, homogéneas, exactas (o con factor integrante) y "
+                         "reducibles a separables, y' = F(a*x + b*y + c); y para las lineales de orden superior con "
+                         "coeficientes constantes (homogéneas, o con g(x) hecha de polinomios, exponenciales, senos y "
+                         "cosenos). Esta ecuación la resuelve SymPy, sin pasos."))
         return soluciones
 
     # --- Textos ---
@@ -784,8 +810,16 @@ class MotorEdo:
                       "así que es de orden {orden}.", ecuacion=edo.enunciado,
                       x=x, y=y, d=edo.derivadas[-1], orden=edo.orden),
             queda=tr("ecuación de orden {orden}", orden=edo.orden)))
-        if edo.orden != 1:
-            raise SinExplicacion()
+        if edo.orden > 1:
+            orden_superior = _OrdenSuperior(self, edo, pasos, avisos)
+            resultado = orden_superior.resolver()
+            if resultado is None:
+                raise SinExplicacion()
+            soluciones, metodo = resultado
+            if edo.condiciones:
+                soluciones = [sympy.Eq(y, orden_superior.condiciones(soluciones[0].rhs, edo.condiciones))]
+            self._comprobacion(edo, soluciones, pasos)
+            return soluciones, metodo
         yp = edo.derivadas[0]
         despeje: List[PasoCalculo] = []
         f = self._despejar_derivada(edo, yp, despeje)
@@ -1692,3 +1726,448 @@ class MotorEdo:
             calculo=tuple(lineas),
             queda="; ".join(self._solucion_texto(s) for s in particulares)))
         return particulares
+
+
+# ---------------------------------------------------------
+# Orden superior: lineales con coeficientes constantes
+# ---------------------------------------------------------
+
+# Los coeficientes de y_p (sin C, que es la constante; ni D, el discriminante; ni E ni I)
+LETRAS = ["A", "B", "F", "G", "H", "K", "L", "M", "N", "P", "Q", "R", "S", "T", "U", "V", "W"]
+
+
+def es_constante(s: Any) -> bool:
+    """Las constantes de la solución general: C, C1, C2..."""
+    return isinstance(s, sympy.Symbol) and re.fullmatch(r"C\d*", s.name) is not None
+
+
+def constantes_de(n: int) -> List[Any]:
+    return [sympy.Symbol(f"C{i}", real=True) for i in range(1, n + 1)]
+
+
+def _veces(m: int) -> str:
+    return {1: tr("simple"), 2: tr("doble"), 3: tr("triple")}.get(m, tr("de multiplicidad {m}", m=m))
+
+
+def _compleja(alfa: Any, beta: Any) -> str:
+    """'1 ± 2*i', '±3*i', '-1/2 ± i'."""
+    b = "i" if beta == 1 else f"{factor(beta)}*i"
+    return f"±{b}" if alfa == 0 else f"{texto(alfa)} ± {b}"
+
+
+def _mas_corta(*formas: Any) -> Any:
+    return min(formas, key=lambda e: len(texto(e)))
+
+
+def resolver_sistema(ecuaciones: List[Tuple[Any, Any]], incognitas: List[Any], lineas: List[str]) -> Dict[Any, Any]:
+    """
+    Sistema lineal por sustitución, con cada paso: se despeja una incógnita de la ecuación con
+    menos incógnitas, se sustituye en las demás y al final se vuelve atrás. Lanza SinExplicacion
+    si no tiene solución única.
+    """
+    pendientes = [(sympy.expand(i), sympy.expand(d)) for i, d in ecuaciones]
+    despejadas: List[Tuple[Any, Any]] = []
+    while pendientes:
+        con = [(sum(1 for v in incognitas if (i - d).has(v)), k) for k, (i, d) in enumerate(pendientes)]
+        utiles = [c for c in con if c[0] > 0]
+        if not utiles:
+            if any(sympy.simplify(i - d) != 0 for i, d in pendientes):
+                raise SinExplicacion()
+            break
+        _, k = min(utiles)
+        izq, der = pendientes.pop(k)
+        variable = next(v for v in incognitas if (izq - der).has(v))
+        # Las incógnitas a la izquierda y los números a la derecha
+        todo = sympy.expand(izq - der)
+        numero = todo.as_independent(*incognitas, as_Add=True)[0]
+        izq, der = todo - numero, -numero
+        pasos_despeje, valor = despejar(izq, der, variable)
+        if pasos_despeje:
+            lineas.append(tr("De {ecuacion}:", ecuacion=f"{texto(izq)} = {texto(der)}") + " " + " ".join(pasos_despeje))
+        elif izq != variable:
+            lineas.append(tr("De {ecuacion}: {v} = {valor}.", ecuacion=f"{texto(izq)} = {texto(der)}", v=variable,
+                             valor=texto(valor)))
+        despejadas.append((variable, valor))
+        if pendientes:
+            afectadas = any((i - d).has(variable) for i, d in pendientes)
+            pendientes = [(sympy.expand(i.subs(variable, valor)), sympy.expand(d.subs(variable, valor)))
+                          for i, d in pendientes]
+            if afectadas:
+                lineas.append(tr("Sustituimos {v} = {valor} en las demás: {ecuaciones}.", v=variable, valor=texto(valor),
+                                 ecuaciones="; ".join(f"{texto(i)} = {texto(d)}" for i, d in pendientes)))
+    solucion: Dict[Any, Any] = {}
+    for variable, valor in reversed(despejadas):
+        final = sympy.simplify(valor.subs(solucion))
+        if valor.free_symbols & set(incognitas):
+            conocidas = {v: s for v, s in solucion.items() if valor.has(v)}
+            cadena = list(dict.fromkeys([texto(valor), sustituir(valor, conocidas), texto(final)]))
+            lineas.append(tr("Volvemos atrás: {v} = {cuenta}.", v=variable, cuenta=" = ".join(cadena)))
+        solucion[variable] = final
+    if set(solucion) != set(incognitas):
+        raise SinExplicacion()
+    return solucion
+
+
+class _OrdenSuperior:
+    """a_n*y^(n) + ... + a_1*y' + a_0*y = g(x), con los a_k números."""
+
+    def __init__(self, motor: "MotorEdo", edo: Edo, pasos: List[PasoCalculo], avisos: List[str]):
+        self.motor, self.edo, self.pasos, self.avisos = motor, edo, pasos, avisos
+        self.x, self.y = edo.x, edo.y
+        self.r = sympy.Symbol("r")
+        self.funciones = [self.y] + list(edo.derivadas)  # y, y', y''...
+
+    # --- Reconocer la ecuación ---
+
+    def coeficientes(self) -> Optional[Tuple[List[Any], Any]]:
+        todo = sympy.expand(self.edo.izquierda - self.edo.derecha)
+        a = [todo.coeff(f) for f in self.funciones]
+        resto = sympy.expand(todo - sum(c * f for c, f in zip(a, self.funciones)))
+        if any(not c.is_number for c in a) or a[-1] == 0 or any(resto.has(f) for f in self.funciones):
+            return None
+        return a, sympy.simplify(-resto)
+
+    def resolver(self) -> Optional[Tuple[List[Any], str]]:
+        datos = self.coeficientes()
+        if datos is None:
+            return None
+        a, g = datos
+        n, x, y = len(a) - 1, self.x, self.y
+        lado = suma_lineal(a, self.funciones)
+        homogenea = g == 0
+        self.pasos.append(PasoCalculo(
+            tr("Tipo de ecuación: lineal con coeficientes constantes"),
+            regla=tr("es lineal de orden {n} con coeficientes constantes si se puede escribir a_{n}*{yn} + ... + "
+                     "a_1*{yp} + a_0*{y} = g({x}), con los a_k números. Si g = 0 es homogénea; si no, la solución "
+                     "es {y} = {y}_h + {y}_p: la de la homogénea más una particular.", n=n, yn=self.funciones[-1],
+                     yp=self.funciones[1], y=y, x=x),
+            partes=tr("{ecuacion}; g({x}) = {g}.", ecuacion=f"{lado} = {texto(g)}", x=x, g=texto(g)),
+            queda=tr("homogénea") if homogenea else tr("no homogénea: {y} = {y}_h + {y}_p", y=y)))
+
+        raices = self.caracteristica(a)
+        base = self.base(raices)
+        constantes = constantes_de(n)
+        y_h = sum(c * f for c, f in zip(constantes, base))
+        lineas = [self._aporta(raiz, beta, m) for raiz, beta, m in raices]
+        nombre_h = y if homogenea else sympy.Symbol(f"{y}_h")
+        lineas.append(tr("Cada función se multiplica por su constante y se suman: {y} = {solucion}.", y=nombre_h,
+                         solucion=texto(y_h)))
+        self.pasos.append(PasoCalculo(
+            tr("Solución de la homogénea") if not homogenea else tr("Solución general"),
+            regla=tr("cada raíz r aporta funciones: una raíz real simple, exp(r*{x}); una raíz que se repite m veces, "
+                     "exp(r*{x}), {x}*exp(r*{x}), ..., {x}^(m-1)*exp(r*{x}); un par complejo a ± b*i, "
+                     "exp(a*{x})*cos(b*{x}) y exp(a*{x})*sin(b*{x}). La solución es una combinación de todas, con {n} "
+                     "constantes.", x=x, n=n),
+            partes=tr("las raíces son {raices}.", raices="; ".join(
+                (_compleja(r_, b_) if b_ else texto(r_)) + (f" ({_veces(m)})" if m > 1 else "") for r_, b_, m in raices)),
+            calculo=tuple(lineas),
+            queda=f"{nombre_h} = {texto(y_h)}"))
+        if homogenea:
+            return [sympy.Eq(y, y_h)], tr("lineal con coeficientes constantes (ecuación característica)")
+
+        y_p = self.particular(a, g, raices)
+        if y_p is None:
+            return None
+        solucion = y_h + y_p
+        self.pasos.append(PasoCalculo(
+            tr("Solución general"),
+            regla=tr("la solución general de la no homogénea es la de la homogénea más la particular: {y} = {y}_h + "
+                     "{y}_p.", y=y),
+            calculo=((f"{y} = {texto(y_h)} + {texto(y_p)}").replace("+ -", "- "),),
+            queda=f"{y} = {texto(solucion)}"))
+        return [sympy.Eq(y, solucion)], tr("lineal con coeficientes constantes, no homogénea (coeficientes "
+                                           "indeterminados)")
+
+    # --- Ecuación característica y sus raíces ---
+
+    def caracteristica(self, a: List[Any]) -> List[Tuple[Any, Any, int]]:
+        """[(raíz real o parte real, parte imaginaria (0 si es real), multiplicidad)]."""
+        r, x, y = self.r, self.x, self.y
+        p = sum(c * r ** k for k, c in enumerate(a))
+        derivadas = [f"{nombre_derivada(y, k)} = {texto(r ** k * sympy.exp(r * x))}" for k in range(1, len(a))]
+        lineas = [tr("Probamos {y} = exp(r*{x}): {derivadas}.", y=y, x=x, derivadas="; ".join(derivadas)),
+                  tr("Sustituimos y dividimos entre exp(r*{x}), que nunca vale 0: cada {yk} se cambia por r^k.",
+                     x=x, yk=f"{y}^(k)"),
+                  f"{texto(p)} = 0."]
+        self.pasos.append(PasoCalculo(
+            tr("Ecuación característica"),
+            regla=tr("las soluciones de la homogénea son de la forma exp(r*{x}): cada derivada multiplica por r, así "
+                     "que r tiene que cumplir un polinomio, el de la ecuación característica.", x=x),
+            partes=tr("la parte homogénea es {ecuacion}.", ecuacion=f"{suma_lineal(a, self.funciones)} = 0"),
+            calculo=tuple(lineas),
+            queda=f"{texto(p)} = 0"))
+
+        lineas: List[str] = []
+        raices: List[Tuple[Any, Any, int]] = []
+        grado = len(a) - 1
+        if grado <= 2:
+            raices = self._grado_menor(sympy.Poly(p, r), 1, lineas)
+            raices.sort(key=lambda t: (t[1] != 0, t[0]))  # las reales, de menor a mayor
+        else:
+            lc, factores = sympy.factor_list(p, r)
+            if any(sympy.degree(f, r) > 2 for f, _ in factores):
+                raise SinExplicacion()
+            explicador = ExplicadorFactorizar()
+            try:
+                explicador.explicar(p)
+                self.pasos.extend(explicador.pasos)
+            except SinFactorizacion:
+                lineas.append(tr("Factorizamos: {p} = {f}.", p=texto(p), f=texto(sympy.factor(p))))
+            lineas.append(tr("Cada factor igualado a 0 (producto nulo):"))
+            for f, m in factores:
+                raices += self._grado_menor(sympy.Poly(f, r), m, lineas)
+        self.pasos.append(PasoCalculo(
+            tr("Raíces de la ecuación característica"),
+            regla=tr("de primer grado, se despeja r; de segundo grado, la fórmula r = (-b ± sqrt(D))/(2*a) con el "
+                     "discriminante D = b^2 - 4*a*c: si D > 0, dos raíces reales; si D = 0, una doble; si D < 0, dos "
+                     "complejas conjugadas (sqrt(D) = sqrt(-D)*i). De grado mayor, se factoriza antes."),
+            partes=tr("la ecuación es {p} = 0.", p=texto(p)),
+            calculo=tuple(lineas),
+            queda="; ".join(f"r = {_compleja(r_, b_) if b_ else texto(r_)}" + (f" ({_veces(m)})" if m > 1 else "")
+                            for r_, b_, m in raices)))
+        return raices
+
+    def _grado_menor(self, poli: Any, veces: int, lineas: List[str]) -> List[Tuple[Any, Any, int]]:
+        r = self.r
+        coef = poli.all_coeffs()
+        if len(coef) == 2:
+            a1, a0 = coef
+            raiz = -a0 / a1
+            lineas.append(tr("{p} = 0: r = {raiz}.", p=texto(poli.as_expr()), raiz=texto(raiz)))
+            return [(raiz, 0, veces)]
+        a, b, c = coef
+        D = b ** 2 - 4 * a * c
+        lineas.append(tr("{p} = 0: a = {a}, b = {b}, c = {c}; D = b^2 - 4*a*c = {cuenta} = {D}.", p=texto(poli.as_expr()),
+                         a=texto(a), b=texto(b), c=texto(c), D=texto(D),
+                         cuenta=f"{entre_parentesis(b)}^2 - 4*{entre_parentesis(a)}*{entre_parentesis(c)}"))
+        if D == 0:
+            raiz = -b / (2 * a)
+            lineas.append(tr("D = 0: una raíz doble, r = -b/(2*a) = {cuenta} = {raiz}.",
+                             cuenta=f"{texto(-b)}/{entre_parentesis(2 * a)}", raiz=texto(raiz)))
+            return [(raiz, 0, 2 * veces)]
+        raiz_d = sympy.sqrt(abs(D))
+        if D > 0:
+            r1, r2 = (-b + raiz_d) / (2 * a), (-b - raiz_d) / (2 * a)
+            lineas.append(tr("D > 0: dos raíces reales, r = ({menos_b} ± sqrt({D}))/{dos_a} = ({menos_b} ± {raiz})/{dos_a}: "
+                             "r = {r1} y r = {r2}.", menos_b=texto(-b), D=texto(D), dos_a=entre_parentesis(2 * a),
+                             raiz=texto(raiz_d), r1=texto(sympy.simplify(r1)), r2=texto(sympy.simplify(r2))))
+            return [(sympy.simplify(r1), 0, veces), (sympy.simplify(r2), 0, veces)]
+        alfa, beta = sympy.simplify(-b / (2 * a)), sympy.simplify(raiz_d / (2 * a))
+        lineas.append(tr("D < 0: no hay raíces reales; sqrt({D}) = sqrt({menos_D})*i = {raiz}*i, y r = ({menos_b} ± "
+                         "{raiz}*i)/{dos_a} = {raices}.", D=texto(D), menos_D=texto(-D), raiz=factor(raiz_d),
+                         menos_b=texto(-b), dos_a=entre_parentesis(2 * a), raices=_compleja(alfa, beta)))
+        return [(alfa, beta, veces)]
+
+    def base(self, raices: List[Tuple[Any, Any, int]]) -> List[Any]:
+        x = self.x
+        funciones = []
+        for raiz, beta, m in raices:
+            for k in range(m):
+                potencia = x ** k
+                if beta:
+                    funciones += [potencia * sympy.exp(raiz * x) * sympy.cos(beta * x),
+                                  potencia * sympy.exp(raiz * x) * sympy.sin(beta * x)]
+                else:
+                    funciones.append(potencia * sympy.exp(raiz * x))
+        return funciones
+
+    def _aporta(self, raiz: Any, beta: Any, m: int) -> str:
+        x = self.x
+        if beta:
+            fs = [x ** k * sympy.exp(raiz * x) * trig(beta * x) for k in range(m) for trig in (sympy.cos, sympy.sin)]
+            return tr("r = {r} ({veces}): aporta {funciones}.", r=_compleja(raiz, beta), veces=_veces(m),
+                      funciones=", ".join(texto(f) for f in fs))
+        fs = [x ** k * sympy.exp(raiz * x) for k in range(m)]
+        return tr("r = {r} ({veces}): aporta {funciones}.", r=texto(raiz), veces=_veces(m),
+                  funciones=", ".join(texto(f) for f in fs))
+
+    # --- Coeficientes indeterminados ---
+
+    def particular(self, a: List[Any], g: Any, raices: List[Tuple[Any, Any, int]]) -> Optional[Any]:
+        x, y = self.x, self.y
+        grupos: Dict[Tuple[Any, Any], int] = {}
+        terminos: Dict[Tuple[Any, Any], List[Any]] = {}
+        for t in sympy.Add.make_args(sympy.expand(g)):
+            forma = self._forma(t)
+            if forma is None:
+                return None
+            k, alfa, beta = forma
+            grupos[(alfa, beta)] = max(grupos.get((alfa, beta), 0), k)
+            terminos.setdefault((alfa, beta), []).append(t)
+        letras = iter(LETRAS)
+        incognitas: List[Any] = []
+        prueba = sympy.S.Zero
+        lineas = []
+        for (alfa, beta), grado in grupos.items():
+            s = next((m for r_, b_, m in raices if sympy.simplify(r_ - alfa) == 0 and sympy.simplify(b_ - beta) == 0),
+                     0)
+            polinomios = []
+            for _ in range(2 if beta else 1):
+                coefs = [sympy.Symbol(next(letras)) for _ in range(grado + 1)]
+                incognitas += coefs
+                polinomios.append(sum(c * x ** j for j, c in enumerate(reversed(coefs))))
+            exponencial = sympy.exp(alfa * x) if alfa != 0 else sympy.S.One
+            if beta:
+                forma = exponencial * (polinomios[0] * sympy.cos(beta * x) + polinomios[1] * sympy.sin(beta * x))
+            else:
+                forma = exponencial * polinomios[0]
+            descripcion = self._describe(grado, alfa, beta)
+            linea = tr("{terminos}: {descripcion}; se prueba {forma}.",
+                       terminos=" + ".join(texto(t) for t in terminos[(alfa, beta)]).replace("+ -", "- "),
+                       descripcion=descripcion, forma=texto(forma))
+            if s:
+                raiz = _compleja(alfa, beta) if beta else texto(alfa)
+                linea += " " + tr("Pero {raiz} es raíz ({veces}) de la ecuación característica: esas funciones ya están "
+                                  "en {y}_h, y se multiplica por {xs}.", raiz=raiz, veces=_veces(s), y=y,
+                                  xs=texto(x ** s))
+                forma = x ** s * forma
+            lineas.append(linea)
+            prueba += forma
+        self.pasos.append(PasoCalculo(
+            tr("Forma de la solución particular"),
+            regla=tr("{y}_p se prueba con la forma de g: un polinomio de grado d, un polinomio general de grado d; "
+                     "exp(a*{x}), A*exp(a*{x}); cos(b*{x}) o sin(b*{x}), A*cos(b*{x}) + B*sin(b*{x}) (siempre los "
+                     "dos); un producto, el producto de las formas. Si a + b*i es raíz de la ecuación característica "
+                     "(m veces), la forma se multiplica por {x}^m. Las letras mayúsculas son los coeficientes por "
+                     "hallar.", y=y, x=x),
+            partes=tr("g({x}) = {g}.", x=x, g=texto(g)),
+            calculo=tuple(lineas),
+            queda=f"{y}_p = {texto(prueba)}"))
+
+        # Derivar y sustituir
+        lineas = []
+        derivadas = [prueba]
+        for k in range(1, len(a)):
+            d = sympy.diff(derivadas[-1], x)
+            d = _mas_corta(sympy.expand(d), sympy.factor_terms(sympy.expand(d)), sympy.simplify(d))
+            derivadas.append(d)
+            lineas.append(f"{nombre_derivada(sympy.Symbol(f'{y}_p'), k)} = {texto(d)}.")
+        lado = sympy.expand(sum(c * d for c, d in zip(a, derivadas)))
+        agrupado, bases = self._agrupar(lado, incognitas)
+        lineas.append(tr("Sustituimos en el lado izquierdo, {lado}, y agrupamos: {agrupado} = {g}.",
+                         lado=suma_lineal(a, self.funciones), agrupado=agrupado, g=texto(g)))
+        self.pasos.append(PasoCalculo(
+            tr("Sustituir {y}_p en la ecuación", y=y),
+            regla=tr("se deriva {y}_p las veces que haga falta y se sustituye en el lado izquierdo; después se juntan "
+                     "los términos de cada función.", y=y),
+            partes=f"{y}_p = {texto(prueba)}.",
+            calculo=tuple(lineas),
+            queda=f"{agrupado} = {texto(g)}"))
+
+        # Igualar coeficientes
+        _, bases_g = self._agrupar(sympy.expand(g), incognitas)
+        claves = list(dict.fromkeys(list(bases) + list(bases_g)))
+        ecuaciones = [(bases.get(b, sympy.S.Zero), bases_g.get(b, sympy.S.Zero)) for b in claves]
+        lineas = [tr("De {funcion}: {ecuacion}.", funcion=texto(b), ecuacion=f"{texto(i)} = {texto(d)}") if b != 1
+                  else tr("De los términos constantes: {ecuacion}.", ecuacion=f"{texto(i)} = {texto(d)}")
+                  for b, (i, d) in zip(claves, ecuaciones)]
+        solucion = resolver_sistema(ecuaciones, incognitas, lineas)
+        y_p = prueba.subs(solucion)
+        y_p = _mas_corta(sympy.expand(y_p), sympy.factor_terms(y_p), sympy.simplify(y_p), y_p)
+        self.pasos.append(PasoCalculo(
+            tr("Igualar coeficientes"),
+            regla=tr("los dos lados son iguales para todo {x} solo si coinciden los coeficientes de cada función: "
+                     "sale un sistema de ecuaciones para los coeficientes.", x=x),
+            partes=tr("las incógnitas son {letras}.", letras=", ".join(str(v) for v in incognitas)),
+            calculo=tuple(lineas) + (tr("Sustituimos en {y}_p: {y}_p = {valor}.", y=y, valor=texto(y_p)),),
+            queda=f"{y}_p = {texto(y_p)}"))
+        return y_p
+
+    def _forma(self, t: Any) -> Optional[Tuple[int, Any, Any]]:
+        """c*x^k*exp(a*x)*cos(b*x) (o sin): (k, a, b); None si el término no es de esa forma."""
+        x = self.x
+        k, alfa, beta = 0, sympy.S.Zero, sympy.S.Zero
+        for f in sympy.Mul.make_args(t):
+            if not f.has(x):
+                continue
+            if f == x:
+                k += 1
+            elif f.is_Pow and f.base == x and f.exp.is_Integer and f.exp > 0:
+                k += int(f.exp)
+            elif isinstance(f, sympy.exp) and sympy.Poly(f.args[0], x).degree() == 1 and \
+                    sympy.Poly(f.args[0], x).coeffs()[-1:] and f.args[0].subs(x, 0) == 0:
+                alfa += f.args[0].coeff(x)
+            elif isinstance(f, (sympy.sin, sympy.cos)) and f.args[0].is_polynomial(x) and \
+                    sympy.degree(f.args[0], x) == 1 and f.args[0].subs(x, 0) == 0 and beta == 0:
+                beta = abs(f.args[0].coeff(x))
+            else:
+                return None
+        return k, alfa, beta
+
+    def _describe(self, grado: int, alfa: Any, beta: Any) -> str:
+        x = self.x
+        partes = [tr("un polinomio de grado {d}", d=grado)] if grado or (not alfa and not beta) else []
+        if alfa:
+            partes.append(texto(sympy.exp(alfa * x)))
+        if beta:
+            partes.append(tr("cos o sin de {b}", b=texto(beta * x)))
+        return tr("es {partes}", partes=tr(" por ").join(partes))
+
+    def _agrupar(self, expr: Any, incognitas: List[Any]) -> Tuple[str, Dict[Any, Any]]:
+        """expr como suma de coeficiente*función (x^k*exp(a*x)*cos(b*x)...): (texto, {función: coeficiente})."""
+        x = self.x
+        bases: Dict[Any, Any] = {}
+        for t in sympy.Add.make_args(sympy.expand(sympy.powsimp(expr))):
+            coef, funcion = t.as_independent(x, as_Add=False)
+            bases[funcion] = bases.get(funcion, 0) + coef
+        bases = {f: sympy.expand(c) for f, c in bases.items() if sympy.expand(c) != 0}
+        partes = []
+        for f, c in bases.items():
+            if c.is_Add:
+                termino = f"({texto(c)})*{texto(f)}" if f != 1 else f"({texto(c)})"
+                partes.append((" + ", termino))
+            else:
+                signo, c = (" - ", -c) if c.could_extract_minus_sign() else (" + ", c)
+                partes.append((signo, texto(c * f)))
+        if not partes:
+            return "0", bases
+        suma = ("-" if partes[0][0] == " - " else "") + partes[0][1] + "".join(s + t for s, t in partes[1:])
+        return suma, bases
+
+    # --- Condiciones iniciales ---
+
+    def condiciones(self, solucion: Any, condiciones: List[Condicion]) -> Any:
+        x, y = self.x, self.y
+        constantes = sorted({s for s in solucion.free_symbols if es_constante(s)}, key=lambda s: s.name)
+        lineas, ecuaciones = [], []
+        derivada = solucion
+        derivadas = {0: solucion}
+        for k in range(1, max(c.orden for c in condiciones) + 1):
+            derivada = _mas_corta(sympy.diff(derivada, x), sympy.expand(sympy.diff(derivada, x)),
+                                  sympy.simplify(sympy.diff(derivada, x)))
+            derivadas[k] = derivada
+            lineas.append(tr("Derivamos: {d} = {valor}.", d=nombre_derivada(y, k), valor=texto(derivada)))
+        for cond in condiciones:
+            expr = derivadas[cond.orden]
+            valor = sympy.expand(sympy.simplify(expr.subs(x, cond.punto)))
+            lineas.append(tr("{condicion}: {sustituida} = {valor}, es decir {ecuacion}.",
+                             condicion=MotorEdo._condicion_texto(cond, y), sustituida=sustituir(expr, {x: cond.punto}),
+                             valor=texto(cond.valor), ecuacion=f"{texto(valor)} = {texto(cond.valor)}"))
+            ecuaciones.append((valor, cond.valor))
+        valores = resolver_sistema(ecuaciones, constantes, lineas)
+        particular = solucion.subs(valores)
+        particular = _mas_corta(particular, sympy.expand(particular), sympy.simplify(particular))
+        self.pasos.append(PasoCalculo(
+            tr("Condiciones iniciales"),
+            regla=tr("cada condición da una ecuación para las constantes: se deriva la solución general las veces que "
+                     "haga falta, se sustituye el punto y se resuelve el sistema."),
+            partes=tr("las condiciones son {condiciones}.", condiciones="; ".join(
+                MotorEdo._condicion_texto(c, y) for c in condiciones)),
+            calculo=tuple(lineas) + (tr("Con {valores}: {y} = {solucion}.", valores=", ".join(
+                f"{c} = {texto(v)}" for c, v in sorted(valores.items(), key=lambda cv: cv[0].name)), y=y,
+                solucion=texto(particular)),),
+            queda=f"{y} = {texto(particular)}"))
+        return particular
+
+
+def suma_lineal(a: List[Any], funciones: List[Any]) -> str:
+    """'y'' - 3*y' + 2*y', desde la derivada más alta."""
+    texto_suma = ""
+    for c, f in reversed(list(zip(a, funciones))):
+        if c == 0:
+            continue
+        if not texto_suma:
+            texto_suma = producto(c, f) if c != -1 else f"-{f}"
+        else:
+            texto_suma += _mas(c, f)
+    return texto_suma or "0"

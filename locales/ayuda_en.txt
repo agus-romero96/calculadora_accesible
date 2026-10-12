@@ -159,7 +159,18 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
      depending only on x or on y is sought), M is integrated
      with respect to x, g(y) is found with F_y = N and the
      solution is F(x, y) = C. Finally the solution is checked by
-     differentiating it. Other types are solved by SymPy,
+     differentiating it. Higher-order linear equations with
+     constant coefficients: "y'' - 3*y' + 2*y = 0" or
+     "y'' + y = sin(x)". Conditions go after them: "y'' + 4*y = 0,
+     y(0) = 1, y'(0) = 2". Trying y = exp(r*x) gives the
+     characteristic equation; its roots (with the formula and the
+     discriminant D, or by factoring) give the solution: real
+     roots, exp(r*x); repeated, times x; complex a ± b*i,
+     exp(a*x)*cos(b*x) and exp(a*x)*sin(b*x). If there is a g(x)
+     (polynomials, exponentials, sines and cosines), a y_p with
+     its form is tried (times x if it is already in the
+     homogeneous solution), substituted, the coefficients are
+     matched and the system is solved step by step. Other types are solved by SymPy,
      without steps, with a note.
    - Limit: Type 'sin(x)/x'. Press Ctrl+L.
      Variable: x. Approaches: 0.

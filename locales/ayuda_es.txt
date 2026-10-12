@@ -157,6 +157,17 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
      integrante que solo dependa de x o de y), se integra M
      respecto a x, se halla g(y) con F_y = N y la solución es
      F(x, y) = C. Al final se comprueba la solución derivándola.
+     Lineales de orden superior con coeficientes constantes:
+     "y'' - 3*y' + 2*y = 0" o "y'' + y = sin(x)". Las condiciones
+     van detrás: "y'' + 4*y = 0, y(0) = 1, y'(0) = 2". Se prueba
+     y = exp(r*x) y sale la ecuación característica; sus raíces
+     (con la fórmula y el discriminante D, o factorizando) dan la
+     solución: raíces reales, exp(r*x); repetidas, por x; complejas
+     a ± b*i, exp(a*x)*cos(b*x) y exp(a*x)*sin(b*x). Si hay g(x)
+     (polinomios, exponenciales, senos y cosenos), se prueba una
+     y_p con su forma (por x si ya está en la homogénea), se
+     sustituye, se igualan los coeficientes y se resuelve el
+     sistema paso a paso.
      Los demás tipos los resuelve SymPy, sin pasos, con una nota.
    - Límite: Escriba 'sin(x)/x'. Pulse Ctrl+L.
      Variable: x. Tendencia: 0.

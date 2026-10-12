@@ -40,7 +40,7 @@ def _casos(core: CoreMatematico) -> List[Tuple[str, Callable[[], str], str]]:
         # Usa checkodesol (comprueba la solución explicada) y dsolve (las ecuaciones sin pasos)
         ("Ecuación diferencial", lambda: core.EcuacionDiferencial("y' = y*(1 - y)"),
          "RESULTADO: y = C*exp(x)/(1 + C*exp(x))"),
-        ("Ecuación diferencial (SymPy)", lambda: core.EcuacionDiferencial("y'' + y = 0"), "C1*sin(x)"),
+        ("Ecuación diferencial (SymPy)", lambda: core.EcuacionDiferencial("y'' + x^2*y' = 0"), "lowergamma"),
         # Traducción: comprueba que locales/en.json está junto al ejecutable
         ("Inglés", lambda: _en_ingles(lambda: core.Derivar("x^3")), "RESULT: 3*x**2"),
         # Proceso de cálculo: en el ejecutable es otra copia del .exe (freeze_support)

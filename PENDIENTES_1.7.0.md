@@ -22,13 +22,13 @@ Una tarea terminada se tacha (`~~...~~`) y se anota el commit.
 2. ~~**Lineales de primer orden** — forma `y' + P(x)*y = Q(x)`, factor integrante `e^(∫P dx)`, multiplicar e integrar.~~ — **completada** (`MotorEdo._lineal`; el factor integrante se llama `m(x)`, sin letra griega; commit `68c3e88`)
 3. ~~**Homogéneas** — `y' = f(y/x)`, cambio `y = u*x`, y la separable que resulta.~~ — **completada** (`MotorEdo._homogenea`; commit `9ce5c9e`)
 4. ~~**Exactas** — comprobar `∂M/∂y = ∂N/∂x`, hallar la función potencial. Si no es exacta, **factor integrante** que dependa solo de `x` o solo de `y`.~~ — **completada** (`MotorEdo._exacta`; entrada también en forma diferencial, `M dx + N dy = 0`; commit `a4f8e27`)
-5. ~~**Bernoulli** — `y' + P(x)*y = Q(x)*y^n`, cambio `v = y^(1-n)` y la lineal que resulta.~~ — **completada** (`MotorEdo._bernoulli`)
+5. ~~**Bernoulli** — `y' + P(x)*y = Q(x)*y^n`, cambio `v = y^(1-n)` y la lineal que resulta.~~ — **completada** (`MotorEdo._bernoulli`; commit `904248d`)
 6. **Riccati** (si se da una solución particular) y **Clairaut** / **reducibles de orden** (`F(x, y', y'') = 0` sin `y`, o sin `x`).
 
 ### Orden superior, lineales
 
-7. **Coeficientes constantes, homogéneas** (orden `n`) — ecuación característica, sus raíces (con los pasos de **Resolver ecuación**) y la solución según sean reales distintas, repetidas o complejas conjugadas.
-8. **No homogéneas: coeficientes indeterminados** — la forma de la solución particular según `g(x)` (polinomios, exponenciales, senos y cosenos, sus productos), la corrección por `x^k` si coincide con la homogénea, y el sistema de coeficientes.
+7. ~~**Coeficientes constantes, homogéneas** (orden `n`) — ecuación característica, sus raíces (con los pasos de **Resolver ecuación**) y la solución según sean reales distintas, repetidas o complejas conjugadas.~~ — **completada** (`_OrdenSuperior` en `calculo/edo.py`; con las condiciones iniciales de orden `n`)
+8. ~~**No homogéneas: coeficientes indeterminados** — la forma de la solución particular según `g(x)` (polinomios, exponenciales, senos y cosenos, sus productos), la corrección por `x^k` si coincide con la homogénea, y el sistema de coeficientes.~~ — **completada** (`_OrdenSuperior.particular`; el sistema, por sustitución con sus pasos)
 9. **No homogéneas: variación de parámetros** — el wronskiano (con los pasos del **Determinante**), `u1'`, `u2'` y sus integrales.
 10. **Cauchy-Euler** — `a*x^2*y'' + b*x*y' + c*y = 0` (y no homogéneas), con `y = x^m` y la ecuación indicial.
 11. **Reducción de orden** — con una solución `y1` conocida, `y2 = u*y1`.

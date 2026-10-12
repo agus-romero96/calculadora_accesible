@@ -8,6 +8,15 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Añadido
 
+- **Ecuaciones diferenciales lineales de orden superior con coeficientes constantes** (tareas 7 y 8 de la 1.7.0), `a_n*y^(n) + ... + a_1*y' + a_0*y = g(x)` con los `a_k` números:
+  - **Ecuación característica**: se prueba `y = exp(r*x)` (cada derivada multiplica por `r`), se divide entre `exp(r*x)` y queda el polinomio en `r`.
+  - **Sus raíces**: de segundo grado, con `a`, `b`, `c`, el discriminante `D = b^2 - 4*a*c` con su cuenta y la fórmula: dos reales, una doble o un par complejo (`sqrt(-16) = sqrt(16)*i = 4*i`, `r = -1 ± 2*i`); de grado 3 o más, factorizando con los pasos de **Factorizar** y cada factor igualado a 0. Se llama `D` al discriminante, sin letra griega.
+  - **Solución de la homogénea**: lo que aporta cada raíz (real simple, `exp(r*x)`; repetida, también `x*exp(r*x)`...; compleja `a ± b*i`, `exp(a*x)*cos(b*x)` y `exp(a*x)*sin(b*x)`), y la combinación con las constantes `C1`, `C2`... Las raíces reales van de menor a mayor.
+  - **Coeficientes indeterminados** (tarea 8), si `g(x)` está hecha de polinomios, exponenciales, senos y cosenos y sus productos: la **forma de `y_p`** de cada grupo de términos (un polinomio general del mismo grado, `A*exp(a*x)`, `A*cos(b*x) + B*sin(b*x)`...), la **corrección por `x^m`** si `a + b*i` es raíz de la característica (`y'' + y = sin(x)`: `x*(A*cos(x) + B*sin(x))`), las derivadas de `y_p`, la sustitución con los términos agrupados por función, **igualar coeficientes** (también los términos constantes) y el sistema resuelto por sustitución, con cada despeje, cada sustitución y la vuelta atrás. Los coeficientes se llaman `A`, `B`, `F`, `G`...: ni `C` (la constante), ni `D` (el discriminante), ni `E` ni `I`.
+  - **Condiciones iniciales** de orden superior (`y(0) = 1, y'(0) = 2`): se deriva la solución general, cada condición da una ecuación para `C1`, `C2`... y el sistema se resuelve con los mismos pasos.
+  - Si `g(x)` es de otro tipo (`tan(x)`, `1/x`), la resuelve SymPy, sin pasos: es la tarea 9, variación de parámetros.
+  - Pruebas: 21 más en `tests/test_edo.py`; la autoprueba usa ahora `y'' + x^2*y' = 0` para el caso sin pasos.
+
 - **Ecuaciones diferenciales de Bernoulli**, `y' + P(x)*y = Q(x)*y^n`, con el cambio `v = y^(1 - n)` (tarea 5 de la 1.7.0):
   - **Tipo de ecuación**, desde la ecuación escrita: se reconocen los términos en `y` y en `y^n` (`n` distinto de 0 y de 1, también fraccionario o negativo), se dicen `P`, `Q` y `n`, y si hace falta se reordena y se divide entre lo que multiplica a `y'` (`x*y' + y = x^2*y^2` da `y' + y/x = x*y^2`).
   - **Cambio de variable**: se divide entre `y^n` (`y'/y^2 + 1/(x*y) = x`), `v = y^(1 - n)` se deriva con la regla de la cadena (`v' = -y'/y^2`, así `y'/y^2 = -v'`), se sustituye y se multiplica por `1 - n`: queda una **lineal en `v`**, que se resuelve con todos los pasos del factor integrante.
@@ -62,6 +71,8 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
   - Ayuda (F1) y README.
 
 ### Corregido
+
+- **Ecuaciones diferenciales que `dsolve` no podía resolver por un fallo interno.** Con `y' = y^2 + x^2`, el método de Riccati de SymPy se rompía por dentro ("bad operand type for unary -: 'list'") y la calculadora mostraba ese texto como "Error del Sistema". Ahora, si un método de SymPy falla, se prueban los demás que reconoce para la ecuación; si ninguno sirve, se dice que no se encontró una solución en forma cerrada. Si la solución que llega es una serie de potencias (con `O(...)`), una nota avisa de que es aproximada.
 
 - **Signos en la comprobación de una ecuación diferencial** (de la tarea 1, sin publicar): al sustituir `y = -x - 1 + C*exp(x)` en `x + y`, el texto decía `x - (x - 1 + C*exp(x))` (el cálculo era correcto, la escritura no): la sustitución sin operar de SymPy imprimía mal el signo de una suma que empieza por menos. Se sustituye sobre el texto, con cada valor entre paréntesis, como en los sistemas. Las condiciones iniciales usan lo mismo.
 
