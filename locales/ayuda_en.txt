@@ -177,7 +177,17 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
      Cauchy-Euler: "x^2*y'' - 2*x*y' + 2*y = 0". Trying y = x^r
      (for x > 0) gives the indicial equation; its roots give x^r,
      x^r*log(x) or x^a*cos(b*log(x)) and x^a*sin(b*log(x)). If
-     there is a g(x), variation of parameters is used. Other types are solved by SymPy,
+     there is a g(x), variation of parameters is used.
+     Reduction of order: if you know a solution, write it after
+     the equation: "x^2*y'' - 3*x*y' + 4*y = 0, y1 = x^2". We look
+     for y2 = u*y1 and get u' = exp(-∫ P dx)/y1^2.
+     Laplace transform: add the word laplace, with the conditions
+     at 0: "y'' + y = 0, y(0) = 1, y'(0) = 0, laplace". With steps
+     or deltas it is always used: "y'' + 4*y = heaviside(t - 3),
+     y(0) = 1, y'(0) = 0" or "y'' + y = dirac(t - 2), y(0) = 0,
+     y'(0) = 0". Each term is transformed, Y(s) is isolated,
+     split into partial fractions and inverted with the table and
+     the shift theorem. Other types are solved by SymPy,
      without steps, with a note.
    - Limit: Type 'sin(x)/x'. Press Ctrl+L.
      Variable: x. Approaches: 0.

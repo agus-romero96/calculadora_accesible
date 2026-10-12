@@ -540,6 +540,75 @@ def test_cauchy_euler_paso_a_paso(core):
     assert "r = ±2*i (simple): aporta cos(2*log(x)), sin(2*log(x))." in compleja
 
 
+REDUCCION = [
+    ("x^2*y'' - 3*x*y' + 4*y = 0, y1 = x^2", "y = C1*x^2 + C2*x^2*log(Abs(x))"),
+    ("(1 - x^2)*y'' - 2*x*y' + 2*y = 0, y1 = x", "y = C1*x + C2*(x*(log(Abs(x - 1)) - log(Abs(x + 1)))/2 + 1)"),
+    ("y'' - 2*y' + y = 0, y1 = exp(x)", "y = C1*exp(x) + C2*x*exp(x)"),
+    ("x^2*y'' - 3*x*y' + 4*y = x^2, y1 = x^2", "y = x^2*log(Abs(x))^2/2 + C1*x^2 + C2*x^2*log(Abs(x))"),
+]
+
+
+@pytest.mark.parametrize("entrada, resultado", REDUCCION, ids=[c[0] for c in REDUCCION])
+def test_reduccion_de_orden(core, entrada, resultado):
+    res = core.ecuacion_diferencial(entrada)
+    assert res.texto.splitlines()[0] == f"RESULTADO: {resultado}", res.texto
+    assert "Método: reducción de orden" in res.texto
+    assert "AVISO" not in res.texto and "NOTA" not in res.texto
+    cumple(res)
+    nombres = titulos(res.texto)
+    for paso in ("Tipo de ecuación: reducción de orden.", "Cambio y2 = u*y1.", "Hallar y2.", "Comprobación."):
+        assert paso in nombres
+
+
+def test_reduccion_paso_a_paso(core):
+    texto = core.ecuacion_diferencial("x^2*y'' - 3*x*y' + 4*y = 0, y1 = x^2").texto
+    assert "Comprobamos y1 en la homogénea: x^2*2 - 3*x*(2*x) + 4*x^2 = 0." in texto
+    assert "Dividimos entre x^2, lo que multiplica a y'': P(x) = -3/x." in texto
+    assert "u' = x^3/x^4 = 1/x." in texto
+    res = core.ecuacion_diferencial("y'' + y = 0, y1 = x")
+    assert "NOTA: x no es solución de la parte homogénea" in res.texto
+
+
+LAPLACE = [
+    ("y'' + y = 0, y(0) = 1, y'(0) = 0, laplace", "y = cos(x)"),
+    ("y'' - 3*y' + 2*y = exp(3*t), y(0) = 0, y'(0) = 0, laplace", "y = exp(3*t)/2 - exp(2*t) + exp(t)/2"),
+    ("y'' + 2*y' + 5*y = 0, y(0) = 1, y'(0) = 0, laplace", "y = (sin(2*x)/2 + cos(2*x))*exp(-x)"),
+    ("y' + 2*y = heaviside(t - 1), y(0) = 0", "y = (1/2 - exp(2 - 2*t)/2)*Heaviside(t - 1)"),
+    ("y'' + y = dirac(t - 2), y(0) = 0, y'(0) = 0", "y = sin(t - 2)*Heaviside(t - 2)"),
+    ("y'' + 4*y = heaviside(t - 3), y(0) = 1, y'(0) = 0", "y = (1/4 - cos(2*t - 6)/4)*Heaviside(t - 3) + cos(2*t)"),
+]
+
+
+@pytest.mark.parametrize("entrada, resultado", LAPLACE, ids=[c[0] for c in LAPLACE])
+def test_laplace(core, entrada, resultado):
+    res = core.ecuacion_diferencial(entrada)
+    assert res.texto.splitlines()[0] == f"RESULTADO: {resultado}", res.texto
+    assert "Método: transformada de Laplace" in res.texto
+    assert "AVISO" not in res.texto and "NOTA" not in res.texto
+    nombres = titulos(res.texto)
+    for paso in ("Transformada de Laplace.", "Despejar Y(s).", "Transformada inversa."):
+        assert paso in nombres
+    assert ("Comprobación por tramos." if "heaviside" in entrada or "dirac" in entrada else "Comprobación.") in nombres
+
+
+def test_laplace_paso_a_paso(core):
+    texto = core.ecuacion_diferencial("y'' + 4*y = heaviside(t - 3), y(0) = 1, y'(0) = 0").texto
+    assert "L{y''} = s^2*Y - s*y(0) - y'(0) = s^2*Y - s." in texto
+    assert "L{Heaviside(t - 3)} = exp(-3*s)/s" in texto
+    assert "Dividimos entre s^2 + 4: Y = s/(s^2 + 4) + exp(-3*s)/(s*(s^2 + 4))." in texto
+    assert "Sustituir las raíces." in titulos(texto)  # las fracciones simples, con sus pasos
+    assert "Traslación por exp(-3*s)." in titulos(texto)
+    assert "Para t > 3: y = cos(2*t) - cos(2*t - 6)/4 + 1/4 y g = 1" in texto
+    assert "L{{" not in texto and "{{" not in texto
+    cuadrado = core.ecuacion_diferencial("y'' + 2*y' + 5*y = 0, y(0) = 1, y'(0) = 0, laplace").texto
+    assert "s^2 + 2*s + 5 = (s + 1)^2 + 2^2; el numerador, s + 2 = 1*(s + 1) + 1" in cuadrado
+
+
+def test_laplace_sin_condiciones_en_0(core):
+    res = core.ecuacion_diferencial("y'' + y = 0, y(1) = 0, y'(1) = 1, laplace")
+    assert "NOTA: la transformada de Laplace necesita las condiciones en 0: y(0), y'(0)." in res.texto
+
+
 def test_implicita_y_familia_de_constantes(core):
     res = core.ecuacion_diferencial("y' = sin(x)*cos(y)")
     assert not res.es_error

@@ -29,13 +29,13 @@ Una tarea terminada se tacha (`~~...~~`) y se anota el commit.
 
 7. ~~**Coeficientes constantes, homogéneas** (orden `n`) — ecuación característica, sus raíces (con los pasos de **Resolver ecuación**) y la solución según sean reales distintas, repetidas o complejas conjugadas.~~ — **completada** (`_OrdenSuperior` en `calculo/edo.py`; con las condiciones iniciales de orden `n`; commit `a73240e`)
 8. ~~**No homogéneas: coeficientes indeterminados** — la forma de la solución particular según `g(x)` (polinomios, exponenciales, senos y cosenos, sus productos), la corrección por `x^k` si coincide con la homogénea, y el sistema de coeficientes.~~ — **completada** (`_OrdenSuperior.particular`; el sistema, por sustitución con sus pasos; commit `a73240e`)
-9. ~~**No homogéneas: variación de parámetros** — el wronskiano (con los pasos del **Determinante**), `u1'`, `u2'` y sus integrales.~~ — **completada** (`_OrdenSuperior.variacion`, orden 2; el wronskiano 2x2 con su cuenta)
-10. ~~**Cauchy-Euler** — `a*x^2*y'' + b*x*y' + c*y = 0` (y no homogéneas), con `y = x^m` y la ecuación indicial.~~ — **completada** (`_OrdenSuperior.indicial`; se usa `x^r`; las no homogéneas, por variación de parámetros)
-11. **Reducción de orden** — con una solución `y1` conocida, `y2 = u*y1`.
+9. ~~**No homogéneas: variación de parámetros** — el wronskiano (con los pasos del **Determinante**), `u1'`, `u2'` y sus integrales.~~ — **completada** (`_OrdenSuperior.variacion`, orden 2; el wronskiano 2x2 con su cuenta; commit `970f3f2`)
+10. ~~**Cauchy-Euler** — `a*x^2*y'' + b*x*y' + c*y = 0` (y no homogéneas), con `y = x^m` y la ecuación indicial.~~ — **completada** (`_OrdenSuperior.indicial`; se usa `x^r`; las no homogéneas, por variación de parámetros; commit `970f3f2`)
+11. ~~**Reducción de orden** — con una solución `y1` conocida, `y2 = u*y1`.~~ — **completada** (`_OrdenSuperior.reduccion`; `y1` se escribe detrás: `..., y1 = x^2`)
 
 ### Otros métodos
 
-12. **Transformada de Laplace** para problemas de valor inicial — transformar cada término (tabla con su regla), despejar `Y(s)`, fracciones parciales y transformada inversa. Incluye escalón unitario y delta.
+12. ~~**Transformada de Laplace** para problemas de valor inicial — transformar cada término (tabla con su regla), despejar `Y(s)`, fracciones parciales y transformada inversa. Incluye escalón unitario y delta.~~ — **completada** (`_Laplace`; con la palabra `laplace`, o siempre con `heaviside`/`dirac`; comprobación por tramos)
 13. **Sistemas lineales de primer orden** con coeficientes constantes `X' = A*X` — valores y vectores propios; casos de raíces distintas, repetidas y complejas.
 14. **Series de potencias** alrededor de un punto ordinario — la recurrencia de los coeficientes y los primeros términos. (Frobenius en un punto singular regular, si da tiempo.)
 

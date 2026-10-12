@@ -8,6 +8,12 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Añadido
 
+- **Reducción de orden y transformada de Laplace** (tareas 11 y 12 de la 1.7.0):
+  - **Reducción de orden**: con una solución conocida de la homogénea, escrita detrás (`x^2*y'' - 3*x*y' + 4*y = 0, y1 = x^2`), para lineales de orden 2 con cualquier coeficiente. Se comprueba `y1` sustituyéndola, se divide entre lo que multiplica a `y''` para tener `P(x)`, se deriva `y = u*y1` con la regla del producto y queda `y1*u'' + (2*y1' + P*y1)*u' = 0`, separable en `w = u'`: `u' = exp(-∫ P dx)/y1^2`. La integral de `P` y la de `u'` llevan el paso a paso de **Integrar**, y `y2 = u*y1`. Con `g(x)`, después variación de parámetros. Si `y1` no es solución, se dice (con lo que queda al sustituirla) y se sigue con los demás métodos.
+  - **Transformada de Laplace**, si se pide con la palabra `laplace` (con las condiciones en 0) y siempre que haya escalones o deltas: `L{y''} = s^2*Y - s*y(0) - y'(0)` con los valores; la transformada de cada término de `g` con su regla de la tabla; el despeje de `Y(s)` (en partes, con y sin `exp(-c*s)`); las **fracciones simples** con los pasos de las fracciones parciales de **Integrar**; la **transformada inversa** de cada una con su regla (`1/(s - a)`, potencias, y el seno y el coseno **completando el cuadrado** y partiendo el numerador: `s + 2 = 1*(s + 1) + 1`); y el **segundo teorema de traslación** (`exp(-c*s)*F(s)` da `u(t - c)*f(t - c)`). Con escalones o deltas, la **comprobación se hace por tramos** entre los saltos. Si faltan las condiciones en 0, se dice y se usa otro método.
+  - Las notas que explican por qué no se usó el método pedido se conservan aunque al final la ecuación la resuelva SymPy.
+  - Pruebas: 17 más en `tests/test_edo.py` y una en `tests/test_parser.py`.
+
 - **Variación de parámetros y ecuaciones de Cauchy-Euler** (tareas 9 y 10 de la 1.7.0):
   - **Variación de parámetros** (orden 2), cuando `g(x)` no tiene la forma de los coeficientes indeterminados (`tan(x)`, `1/cos(x)`, `exp(x)/x`, `1/sin(2*x)`): `y1`, `y2` y sus derivadas; `f`, que es `g` dividida entre lo que multiplica a `y''`; el **wronskiano** `W = y1*y2' - y2*y1'` con su cuenta (y la identidad `sin(u)^2 + cos(u)^2 = 1` si aparece); `u1' = -y2*f/W` y `u2' = y1*f/W` con sus cuentas; sus integrales con el paso a paso de **Integrar** (los logaritmos con valor absoluto); y `y_p = u1*y1 + u2*y2`, sin constantes porque darían términos de `y_h`.
   - **Cauchy-Euler**, `a_n*x^n*y^(n) + ... + a_1*x*y' + a_0*y = g(x)`: se prueba `y = x^r` (para `x > 0`), con cada derivada como `r*(r - 1)*x^(r - 2)`; la **ecuación indicial** sin operar (`r*(r - 1) - 2 = 0`) y operada; sus raíces con los mismos pasos que la característica; y lo que aporta cada una: `x^r`, `x^r*log(x)` si se repite, `x^a*cos(b*log(x))` y `x^a*sin(b*log(x))` si es compleja. Si hay `g(x)`, variación de parámetros (dividiendo entre `a_2*x^2`).
@@ -79,6 +85,8 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
   - Ayuda (F1) y README.
 
 ### Corregido
+
+- **`heaviside(...)` y `dirac(...)` se partían en letras.** El parser no las conocía y, como parte los nombres de varias letras en productos (`xy` es `x*y`), `heaviside(x - 2)` se leía en silencio como `E*E*a*d*h*i*i*s*v*(x - 2)`, en cualquier operación. Ahora son el escalón y la delta (`Heaviside` y `DiracDelta` de SymPy), y están entre las funciones conocidas, así que tampoco se parten los nombres que las contienen.
 
 - **Ecuaciones diferenciales que `dsolve` no podía resolver por un fallo interno.** Con `y' = y^2 + x^2`, el método de Riccati de SymPy se rompía por dentro ("bad operand type for unary -: 'list'") y la calculadora mostraba ese texto como "Error del Sistema". Ahora, si un método de SymPy falla, se prueban los demás que reconoce para la ecuación; si ninguno sirve, se dice que no se encontró una solución en forma cerrada. Si la solución que llega es una serie de potencias (con `O(...)`), una nota avisa de que es aproximada.
 

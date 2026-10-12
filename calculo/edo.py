@@ -29,6 +29,7 @@ from algebra.ecuaciones import _pasar, despejar
 from calculo.calculo import Calculo
 from calculo.pasos import PasoCalculo, texto_paso
 from i18n import tr
+from calculo.fracciones_parciales import ExplicadorFracciones
 from pasos_aritmetica import ExplicadorFactorizar
 from pasos_aritmetica import SinExplicacion as SinFactorizacion
 from sympy.printing.str import StrPrinter
@@ -56,6 +57,8 @@ class Edo:
     condiciones: List[Condicion] = field(default_factory=list)
     escrita: str = ""         # la ecuación tal como se escribió (para mostrarla en ese orden)
     diferencial: bool = False  # escrita como M dx + N dy = 0 (se lee como M + N*y' = 0)
+    laplace: bool = False      # se pidió la transformada de Laplace
+    y1: Any = None             # una solución conocida de la homogénea (reducción de orden)
 
     @property
     def enunciado(self) -> str:
@@ -626,7 +629,15 @@ class MotorEdo:
             raise ValueError(tr("La función y la variable no pueden ser la misma letra."))
 
         condiciones = []
+        laplace, y1 = False, None
         for c in condiciones_txt:
+            if c.strip() == "laplace":
+                laplace = True
+                continue
+            m_y1 = re.match(r"^\s*y1\s*=\s*(.+)$", c)
+            if m_y1:
+                y1 = self.parser.parsear(m_y1.group(1)).doit()
+                continue
             m = _CONDICION.match(c.strip())
             if not m or m.group(1) != dependiente:
                 raise ValueError(tr("No se entiende la condición '{condicion}': escríbala como {y}(0) = 1 o "
@@ -644,7 +655,7 @@ class MotorEdo:
         if "=" not in escrita:
             escrita += " = 0"
         return Edo(izquierda, derecha, x, y, derivadas, orden, sorted(condiciones, key=lambda c: c.orden), escrita,
-                   diferencial=bool(diferencial))
+                   diferencial=bool(diferencial), laplace=laplace, y1=y1)
 
     # --- Fachada ---
 
@@ -675,7 +686,7 @@ class MotorEdo:
                              "de SymPy sin pasos.")]
                 pasos, soluciones = [], None
         except SinExplicacion:
-            pasos, soluciones, avisos = [], None, []
+            pasos, soluciones, avisos = [], None, list(getattr(self, "_notas_metodo", []))
         except Exception:
             pasos, soluciones = [], None
             avisos = [tr("AVISO: no se pudo explicar paso a paso; el resultado es el que calcula SymPy.")]
@@ -724,7 +735,7 @@ class MotorEdo:
 
     def _comprobadas(self, ode: Any, soluciones: List[Any], edo: Edo, Y: Any) -> bool:
         for s in soluciones:
-            if s in getattr(self, "_condiciones", {}):
+            if s in getattr(self, "_condiciones", {}) or s in getattr(self, "_por_tramos", set()):
                 continue
             if s.lhs != edo.y and edo.orden == 1:
                 # Implícita, F(x, y) = 0: y' = -F_x/F_y (derivación implícita) cumple la ecuación
@@ -801,8 +812,8 @@ class MotorEdo:
                          "separables, lineales, de Bernoulli, homogéneas, exactas (o con factor integrante) y "
                          "reducibles a separables, y' = F(a*x + b*y + c); para las lineales de orden superior con "
                          "coeficientes constantes y las de Cauchy-Euler (y las no homogéneas de orden 2, por "
-                         "coeficientes indeterminados o variación de parámetros). Esta ecuación la resuelve SymPy, sin "
-                         "pasos."))
+                         "coeficientes indeterminados o variación de parámetros), con una solución conocida (y1 = ...) "
+                         "o por la transformada de Laplace. Esta ecuación la resuelve SymPy, sin pasos."))
         return soluciones
 
     # --- Textos ---
@@ -823,6 +834,7 @@ class MotorEdo:
         # por su cuenta y la comprobación dice dónde valen
         self._condiciones: Dict[Any, str] = {}
         self._avisos = avisos
+        self._notas_metodo: List[str] = []  # por qué no se usó un método pedido: se conservan siempre
         pasos.append(PasoCalculo(
             tr("Planteamiento"),
             regla=tr("una ecuación diferencial relaciona una función {y}({x}) con sus derivadas. Resolverla es hallar "
@@ -832,6 +844,18 @@ class MotorEdo:
                       "así que es de orden {orden}.", ecuacion=edo.enunciado,
                       x=x, y=y, d=edo.derivadas[-1], orden=edo.orden),
             queda=tr("ecuación de orden {orden}", orden=edo.orden)))
+        self._por_tramos: set = set()
+        saltos = _con_saltos(edo.izquierda - edo.derecha)
+        if edo.laplace or saltos:
+            pasos_laplace: List[PasoCalculo] = []
+            resultado = _Laplace(self, edo, pasos_laplace, avisos).resolver()
+            if resultado is not None:
+                pasos.extend(pasos_laplace)
+                soluciones, metodo = resultado
+                self._comprobacion(edo, [s for s in soluciones if s not in self._por_tramos], pasos)
+                return soluciones, metodo
+            if saltos:
+                raise SinExplicacion()  # con escalones o deltas no hay otro método con pasos
         if edo.orden > 1:
             orden_superior = _OrdenSuperior(self, edo, pasos, avisos)
             resultado = orden_superior.resolver()
@@ -1866,6 +1890,12 @@ class _OrdenSuperior:
         return a, sympy.simplify(-resto)
 
     def resolver(self) -> Optional[Tuple[List[Any], str]]:
+        if self.edo.y1 is not None:
+            antes = len(self.pasos)
+            resultado = self.reduccion()
+            if resultado is not None:
+                return resultado
+            del self.pasos[antes:]  # y1 no sirve: se sigue con los demás métodos
         euler = False
         datos = self.coeficientes()
         if datos is None:
@@ -2080,6 +2110,96 @@ class _OrdenSuperior:
     def _aporta(self, raiz: Any, beta: Any, m: int, euler: bool = False) -> str:
         return tr("r = {r} ({veces}): aporta {funciones}.", r=_compleja(raiz, beta) if beta else texto(raiz),
                   veces=_veces(m), funciones=", ".join(texto(f) for f in self._funciones(raiz, beta, m, euler)))
+
+    # --- Reducción de orden ---
+
+    def reduccion(self) -> Optional[Tuple[List[Any], str]]:
+        """y'' + P*y' + Q*y = g con una solución conocida y1 de la homogénea: y2 = u*y1, u' = exp(-∫P dx)/y1^2."""
+        x, y, y1 = self.x, self.y, self.edo.y1
+        todo = sympy.expand(self.edo.izquierda - self.edo.derecha)
+        a = [sympy.factor_terms(todo.coeff(f)) for f in self.funciones]
+        resto = sympy.expand(todo - sum(c * f for c, f in zip(a, self.funciones)))
+        if len(a) != 3 or any(c.has(y) or any(c.has(f) for f in self.funciones) for c in a) or a[2] == 0 \
+                or any(resto.has(f) for f in self.funciones):
+            return None
+        g = sympy.simplify(-resto)
+        d1 = sympy.simplify(sympy.diff(y1, x))
+        d2 = sympy.simplify(sympy.diff(d1, x))
+        homogenea = sympy.simplify(a[2] * d2 + a[1] * d1 + a[0] * y1)
+        if homogenea != 0:
+            nota = tr("NOTA: {y1} no es solución de la parte homogénea (al sustituirla queda {resto}, no 0): no sirve "
+                      "para reducir el orden.", y1=texto(y1), resto=texto(homogenea))
+            self.avisos.append(nota)
+            self.motor._notas_metodo.append(nota)
+            return None
+        P = sympy.simplify(a[1] / a[2])
+        lado = suma_lineal(a, self.funciones)
+        self.pasos.append(PasoCalculo(
+            tr("Tipo de ecuación: reducción de orden"),
+            regla=tr("si se conoce una solución y1 de la homogénea {ypp} + P({x})*{yp} + Q({x})*{y} = 0, otra "
+                     "independiente es y2 = u*y1: al sustituir, u' cumple una ecuación de primer orden, y "
+                     "u' = exp(-∫ P d{x})/y1^2.", ypp=self.funciones[2], yp=self.funciones[1], y=y, x=x),
+            partes=tr("{ecuacion}; y1 = {y1}.", ecuacion=f"{lado} = {texto(g)}", y1=texto(y1)),
+            calculo=(tr("y1' = {d1}; y1'' = {d2}.", d1=texto(d1), d2=texto(d2)),
+                     tr("Comprobamos y1 en la homogénea: {sustituida} = 0.", sustituida=sustituir(
+                         sympy.Add(*[c * f for c, f in zip(a, self.funciones)]),
+                         {y: y1, self.funciones[1]: d1, self.funciones[2]: d2})),
+                     tr("Dividimos entre {a2}, lo que multiplica a {ypp}: P({x}) = {P}.", a2=texto(a[2]),
+                        ypp=self.funciones[2], x=x, P=texto(P)) if a[2] != 1 else f"P({x}) = {texto(P)}."),
+            queda=f"y1 = {texto(y1)}; P({x}) = {texto(P)}"))
+
+        coef_u = sympy.simplify(2 * d1 + P * y1)
+        lineas = [tr("{y} = u*y1: {yp} = u'*y1 + u*y1'; {ypp} = u''*y1 + 2*u'*y1' + u*y1''.", y=y,
+                     yp=self.funciones[1], ypp=self.funciones[2]),
+                  tr("Al sustituir, los términos con u se anulan (y1 es solución) y queda y1*u'' + (2*y1' + P*y1)*u' "
+                     "= 0: {ecuacion}.", ecuacion=f"{factor(y1)}*u'' + {factor(coef_u)}*u' = 0"),
+                  tr("Con w = u' es de primer orden y separable: w'/w = -(2*y1'/y1 + P); integrando, "
+                     "log(w) = -2*log(y1) - ∫ P d{x}, y w = exp(-∫ P d{x})/y1^2.", x=x)]
+        self.pasos.append(PasoCalculo(
+            tr("Cambio y2 = u*y1"),
+            regla=tr("se deriva y = u*y1 con la regla del producto y se sustituye: como y1 ya es solución, solo "
+                     "quedan u'' y u', y la ecuación baja de orden."),
+            partes=f"y1 = {texto(y1)}.",
+            calculo=tuple(lineas),
+            queda="u' = exp(-∫ P dx)/y1^2"))
+        primitiva = self.motor._integrar(P, x, self.pasos) if P != 0 else sympy.S.Zero
+        exponencial = sympy.exp(-_con_abs(primitiva)).replace(lambda e: isinstance(e, sympy.Abs), lambda e: e.args[0])
+        w = sympy.simplify(exponencial / y1 ** 2)
+        u = _con_abs(self.motor._integrar(w, x, self.pasos))
+        y2 = _mas_corta(sympy.simplify(u * y1), sympy.expand(u * y1))
+        lineas = [f"∫ {factor(P)} d{x} = {texto(primitiva)}; exp(-({texto(primitiva)})) = {texto(exponencial)}.",
+                  tr("u' = {e}/{y1c} = {w}.", e=factor(exponencial), y1c=factor(y1 ** 2), w=texto(w)),
+                  f"u = ∫ {factor(w)} d{x} = {texto(u)}.",
+                  tr("y2 = u*y1 = {cuenta} = {y2} (sin constantes: basta una solución más).",
+                     cuenta=f"{factor(u)}*{factor(y1)}", y2=texto(y2))]
+        self.pasos.append(PasoCalculo(
+            tr("Hallar y2"),
+            regla=tr("se integra P, se calcula u' = exp(-∫ P d{x})/y1^2, se integra u' (los pasos están arriba) y "
+                     "y2 = u*y1.", x=x),
+            calculo=tuple(lineas),
+            queda=f"y2 = {texto(y2)}"))
+        base = [y1, y2]
+        C1, C2 = constantes_de(2)
+        y_h = C1 * y1 + C2 * y2
+        homogenea = g == 0
+        nombre_h = y if homogenea else sympy.Symbol(f"{y}_h")
+        self.pasos.append(PasoCalculo(
+            tr("Solución general") if homogenea else tr("Solución de la homogénea"),
+            regla=tr("con dos soluciones independientes, la general es su combinación: C1*y1 + C2*y2."),
+            queda=f"{nombre_h} = {texto(y_h)}"))
+        if homogenea:
+            return [sympy.Eq(y, y_h)], tr("reducción de orden (y2 = u*y1)")
+        y_p = self.variacion(a, g, base, False)
+        if y_p is None:
+            return None
+        solucion = y_h + y_p
+        self.pasos.append(PasoCalculo(
+            tr("Solución general"),
+            regla=tr("la solución general de la no homogénea es la de la homogénea más la particular: {y} = {y}_h + "
+                     "{y}_p.", y=y),
+            calculo=((f"{y} = {texto(y_h)} + {texto(y_p)}").replace("+ -", "- "),),
+            queda=f"{y} = {texto(solucion)}"))
+        return [sympy.Eq(y, solucion)], tr("reducción de orden y variación de parámetros")
 
     # --- Variación de parámetros ---
 
@@ -2339,3 +2459,254 @@ def suma_lineal(a: List[Any], funciones: List[Any]) -> str:
         else:
             texto_suma += _mas(c, f)
     return texto_suma or "0"
+
+
+# ---------------------------------------------------------
+# Transformada de Laplace (problemas de valor inicial)
+# ---------------------------------------------------------
+
+def _con_saltos(expr: Any) -> bool:
+    return expr.has(sympy.Heaviside) or expr.has(sympy.DiracDelta)
+
+
+class _Laplace:
+    """a_n*y^(n) + ... + a_0*y = g(t), con y(0), y'(0)...: se transforma, se despeja Y(s) y se invierte."""
+
+    def __init__(self, motor: "MotorEdo", edo: Edo, pasos: List[PasoCalculo], avisos: List[str]):
+        self.motor, self.edo, self.pasos, self.avisos = motor, edo, pasos, avisos
+        self.t, self.y = edo.x, edo.y
+        self.s = sympy.Symbol("s")
+        self.Y = sympy.Symbol("Y")
+
+    def resolver(self) -> Optional[Tuple[List[Any], str]]:
+        datos = _OrdenSuperior(self.motor, self.edo, [], []).coeficientes()
+        if datos is None:
+            return None
+        a, g = datos
+        n, t, s, y, Y = len(a) - 1, self.t, self.s, self.y, self.Y
+        valores = {c.orden: c.valor for c in self.edo.condiciones if c.punto == 0}
+        if any(k not in valores for k in range(n)):
+            nota = tr("NOTA: la transformada de Laplace necesita las condiciones en 0: {lista}.",
+                      lista=", ".join(f"{nombre_derivada(y, k)}(0)" for k in range(n)))
+            self.avisos.append(nota)
+            self.motor._notas_metodo.append(nota)
+            return None
+        funciones = [y] + list(self.edo.derivadas)
+
+        # 1. Transformar el lado izquierdo
+        lineas, transformadas = [], []
+        for k in range(n + 1):
+            if k == 0:
+                transformadas.append(Y)
+                continue
+            simbolica = " - ".join([f"{texto(s ** k)}*Y"] + [
+                f"{texto(s ** (k - 1 - j)) + '*' if k - 1 - j else ''}{nombre_derivada(y, j)}(0)" for j in range(k)])
+            iniciales_k = sympy.expand(sum(s ** (k - 1 - j) * valores[j] for j in range(k)))
+            valor = s ** k * Y - iniciales_k
+            con_valores = f"{texto(s ** k)}*Y{_mas(-iniciales_k, 1)}"
+            lineas.append(f"L{{{nombre_derivada(y, k)}}} = {simbolica} = {con_valores}.")
+            transformadas.append(valor)
+        lineas.insert(0, tr("L{{{y}}} = Y (la transformada de la incógnita).", y=y))
+        self.pasos.append(PasoCalculo(
+            tr("Transformada de Laplace"),
+            regla=tr("la transformada convierte las derivadas en productos por s: L{{{yp}}} = s*Y - {y}(0), "
+                     "L{{{ypp}}} = s^2*Y - s*{y}(0) - {yp}(0), y así sucesivamente. Las condiciones iniciales entran "
+                     "en la cuenta, y la ecuación diferencial pasa a ser una ecuación algebraica en Y.", y=y,
+                     yp=funciones[1], ypp=nombre_derivada(y, 2)),
+            partes=tr("las condiciones son {condiciones}.", condiciones="; ".join(
+                f"{nombre_derivada(y, k)}(0) = {texto(valores[k])}" for k in range(n))),
+            calculo=tuple(lineas),
+            queda=tr("cada derivada transformada")))
+
+        # 2. Transformar g
+        G = sympy.S.Zero
+        lineas = []
+        for termino in sympy.Add.make_args(sympy.expand(g)) if g != 0 else ():
+            Tg = sympy.simplify(sympy.laplace_transform(termino, t, s, noconds=True))
+            if Tg.has(sympy.LaplaceTransform):
+                return None
+            lineas.append(f"L{{{texto(termino)}}} = {texto(Tg)}: {self._regla(termino)}.")
+            G += Tg
+        if g != 0:
+            self.pasos.append(PasoCalculo(
+                tr("Transformada de g({t})", t=t),
+                regla=tr("la transformada de una suma es la suma de las transformadas; cada término sale de la "
+                         "tabla: L{exp(a*t)} = 1/(s - a), L{t^n} = n!/s^(n+1), L{sin(b*t)} = b/(s^2 + b^2), "
+                         "L{cos(b*t)} = s/(s^2 + b^2), L{u(t - c)} = exp(-c*s)/s (u es el escalón, Heaviside), "
+                         "L{delta(t - c)} = exp(-c*s) (la delta, DiracDelta)."),
+                partes=tr("g({t}) = {g}.", t=t, g=texto(g)),
+                calculo=tuple(lineas),
+                queda=f"G(s) = {texto(G)}"))
+
+        # 3. La ecuación en Y y su despeje
+        izquierda = sympy.expand(sum(c * T for c, T in zip(a, transformadas)))
+        p = izquierda.coeff(Y)
+        iniciales = sympy.expand(izquierda - p * Y)
+        p_factor = sympy.factor(p)
+        # Y por partes, con y sin exp(-c*s): se separa desde G (al juntarlo todo, SymPy pasa exp(-c*s) al
+        # denominador y ya no se reconoce la traslación)
+        partes: Dict[Any, Any] = {sympy.S.One: -iniciales / p}
+        for termino in sympy.Add.make_args(G):
+            exponencial = sympy.Mul(*[f for f in sympy.Mul.make_args(termino) if isinstance(f, sympy.exp)])
+            partes[exponencial] = partes.get(exponencial, 0) + termino / exponencial / p
+        partes = {e: sympy.factor(r) for e, r in partes.items() if r != 0}
+        Y_texto = " + ".join(texto(e * r) for e, r in partes.items()).replace("+ -", "- ") or "0"
+        lineas = [tr("Sustituimos en la ecuación: {ecuacion}.",
+                     ecuacion=f"{factor(p_factor)}*Y{_mas(iniciales, 1)} = {texto(G)}")]
+        if iniciales != 0:
+            lineas.append(tr("Pasamos a la derecha lo que no tiene Y: {ecuacion}.",
+                             ecuacion=f"{factor(p_factor)}*Y = {texto(G - iniciales)}"))
+        lineas.append(tr("Dividimos entre {p}: Y = {valor}.", p=texto(p_factor), valor=Y_texto))
+        self.pasos.append(PasoCalculo(
+            tr("Despejar Y(s)"),
+            regla=tr("la ecuación transformada es de primer grado en Y: se agrupan los términos con Y y se divide."),
+            calculo=tuple(lineas),
+            queda=f"Y = {Y_texto}"))
+        solucion = sympy.S.Zero
+        for exponencial, racional in partes.items():
+            racional = sympy.together(racional)
+            if not racional.is_rational_function(s):
+                return None
+            f_t = self._inversa(racional)
+            if f_t is None:
+                return None
+            if exponencial == 1:
+                solucion += f_t
+                continue
+            c = -exponencial.args[0].coeff(s)
+            trasladada = sympy.Heaviside(t - c) * f_t.subs(t, t - c)
+            self.pasos.append(PasoCalculo(
+                tr("Traslación por {e}", e=texto(exponencial)),
+                regla=tr("segundo teorema de traslación: si L^-1{F(s)} = f(t), L^-1{exp(-c*s)*F(s)} = "
+                         "u(t - c)*f(t - c): la misma función, retrasada c y encendida en t = c (u es el escalón, "
+                         "Heaviside)."),
+                partes=tr("c = {c} y f({t}) = {f}.", c=texto(c), t=t, f=texto(f_t)),
+                queda=texto(trasladada)))
+            solucion += trasladada
+        solucion = _mas_corta(solucion, sympy.expand(solucion))
+        self.pasos.append(PasoCalculo(
+            tr("Solución"),
+            regla=tr("{y}({t}) es la transformada inversa de Y(s): la suma de las inversas de cada parte.", y=y, t=t),
+            queda=f"{y} = {texto(solucion)}"))
+        if _con_saltos(solucion) or _con_saltos(g):
+            self._por_tramos(a, g, solucion)
+        return [sympy.Eq(y, solucion)], tr("transformada de Laplace")
+
+    def _regla(self, termino: Any) -> str:
+        t = self.t
+        if termino.has(sympy.DiracDelta):
+            return tr("la delta en t = c da exp(-c*s)")
+        if termino.has(sympy.Heaviside):
+            return tr("el escalón u(t - c) da exp(-c*s)/s; si multiplica a f(t - c), exp(-c*s)*F(s)")
+        if termino.has(sympy.exp) and (termino.has(sympy.sin) or termino.has(sympy.cos) or termino.has(t ** 2)
+                                       or termino / sympy.exp(t) != termino and termino.has(t)):
+            return tr("primer teorema de traslación: exp(a*t)*f(t) da F(s - a)")
+        if termino.has(sympy.exp):
+            return "L{exp(a*t)} = 1/(s - a)"
+        if termino.has(sympy.sin):
+            return "L{sin(b*t)} = b/(s^2 + b^2)"
+        if termino.has(sympy.cos):
+            return "L{cos(b*t)} = s/(s^2 + b^2)"
+        return "L{t^n} = n!/s^(n+1)"
+
+    def _inversa(self, R: Any) -> Optional[Any]:
+        """L^-1 de una función racional de s: fracciones simples (con sus pasos) y la tabla, término a término."""
+        s, t = self.s, self.t
+        simples = sympy.apart(R, s)
+        if simples != R and len(sympy.Add.make_args(simples)) > 1:
+            explicador = ExplicadorFracciones(s)
+            try:
+                explicador.explicar(R)
+                for paso in explicador.pasos:
+                    if paso.titulo == tr("Descomposición en fracciones simples"):
+                        break
+                    self.pasos.append(paso)
+            except Exception:
+                pass
+            self.pasos.append(PasoCalculo(
+                tr("Fracciones simples"),
+                regla=tr("para invertir, Y(s) se escribe como suma de fracciones simples, cada una de la tabla."),
+                calculo=(f"{texto(R)} = {texto(simples)}.",),
+                queda=texto(simples)))
+        lineas, total = [], sympy.S.Zero
+        for termino in sympy.Add.make_args(simples):
+            f_t = sympy.inverse_laplace_transform(termino, s, t).subs(sympy.Heaviside(t), 1)
+            if f_t.has(sympy.InverseLaplaceTransform):
+                return None
+            f_t = _mas_corta(f_t, sympy.simplify(f_t))
+            lineas.append(f"L^-1{{{texto(termino)}}} = {texto(f_t)}: {self._regla_inversa(termino)}.")
+            total += f_t
+        self.pasos.append(PasoCalculo(
+            tr("Transformada inversa"),
+            regla=tr("cada fracción simple es la transformada de una función de la tabla: 1/(s - a) viene de "
+                     "exp(a*t); 1/(s - a)^k, de t^(k-1)*exp(a*t)/(k-1)!; (s - a)/((s - a)^2 + b^2), de "
+                     "exp(a*t)*cos(b*t); b/((s - a)^2 + b^2), de exp(a*t)*sin(b*t)."),
+            partes=tr("la función es {F}.", F=texto(simples)),
+            calculo=tuple(lineas),
+            queda=texto(total)))
+        return total
+
+    def _regla_inversa(self, termino: Any) -> str:
+        s = self.s
+        _, den = sympy.fraction(sympy.together(termino))
+        lc, factores = sympy.factor_list(den, s)
+        if len(factores) == 1 and sympy.degree(factores[0][0], s) == 1:
+            raiz = sympy.solve(factores[0][0], s)[0]
+            k = factores[0][1]
+            if k == 1:
+                return tr("1/(s - a) viene de exp(a*t), con a = {a}", a=texto(raiz))
+            return tr("1/(s - a)^k viene de t^(k-1)*exp(a*t)/(k-1)!, con a = {a} y k = {k}", a=texto(raiz), k=k)
+        if len(factores) == 1 and sympy.degree(factores[0][0], s) == 2:
+            q = sympy.Poly(factores[0][0], s).monic().all_coeffs()
+            a_ = -q[1] / 2
+            b2 = q[2] - a_ ** 2
+            b = sympy.sqrt(b2)
+            if a_ == 0:
+                return tr("{d} = s^2 + {b}^2: s/(s^2 + b^2) viene de cos(b*t) y b/(s^2 + b^2) de sin(b*t), con b = {b}",
+                          d=texto(factores[0][0]), b=texto(b))
+            # (A*s + B)/((s - a)^2 + b^2): A*(s - a) + (B + A*a), coseno y seno por exp(a*t)
+            numerador = sympy.expand(termino * factores[0][0] ** factores[0][1])
+            A, B = numerador.coeff(s), numerador.subs(s, 0)
+            resto = sympy.simplify(B + A * a_)
+            t = self.t
+            funcion = A * sympy.exp(a_ * t) * sympy.cos(b * t) + resto / b * sympy.exp(a_ * t) * sympy.sin(b * t)
+            return tr("completando el cuadrado, {d} = ({sa})^2 + {b}^2; el numerador, {num} = {A}*({sa}) + {resto}; "
+                      "(s - a)/((s - a)^2 + b^2) viene de exp(a*t)*cos(b*t) y b/((s - a)^2 + b^2) de exp(a*t)*sin(b*t), "
+                      "con a = {a} y b = {b}: queda {f}", d=texto(factores[0][0]), sa=texto(s - a_), b=texto(b),
+                      num=texto(numerador), A=texto(A), resto=texto(resto), a=texto(a_), f=texto(funcion))
+        return tr("por la tabla")
+
+    def _por_tramos(self, a: List[Any], g: Any, solucion: Any) -> None:
+        """Con escalones o deltas, la solución se comprueba en cada tramo entre los saltos."""
+        t, y = self.t, self.y
+        cortes = sorted({sympy.solve(f.args[0], t)[0] for f in (g + solucion).atoms(sympy.Heaviside, sympy.DiracDelta)})
+        puntos = [cortes[0] - 1] + [(c1 + c2) / 2 for c1, c2 in zip(cortes, cortes[1:])] + [cortes[-1] + 1]
+        lineas = []
+        for i, punto in enumerate(puntos):
+            def en_tramo(e):
+                return e.replace(lambda f: isinstance(f, sympy.Heaviside),
+                                 lambda f: sympy.S.One if f.args[0].subs(t, punto) > 0 else sympy.S.Zero) \
+                    .replace(lambda f: isinstance(f, sympy.DiracDelta), lambda f: sympy.S.Zero)
+            tramo_y, tramo_g = sympy.simplify(en_tramo(solucion)), sympy.simplify(en_tramo(g))
+            derivadas = [tramo_y]
+            for _ in range(len(a) - 1):
+                derivadas.append(sympy.diff(derivadas[-1], t))
+            resto = sympy.simplify(sum(c * d for c, d in zip(a, derivadas)) - tramo_g)
+            if resto != 0:
+                raise SinExplicacion()
+            if i == 0:
+                tramo = f"{t} < {texto(cortes[0])}"
+            elif i == len(puntos) - 1:
+                tramo = f"{t} > {texto(cortes[-1])}"
+            else:
+                tramo = f"{texto(cortes[i - 1])} < {t} < {texto(cortes[i])}"
+            lineas.append(tr("Para {tramo}: {y} = {valor} y g = {g}; al sustituir, los dos lados valen lo mismo.",
+                             tramo=tramo, y=y, valor=texto(tramo_y), g=texto(tramo_g)))
+        self.motor._por_tramos.add(sympy.Eq(y, solucion))
+        self.pasos.append(PasoCalculo(
+            tr("Comprobación por tramos"),
+            regla=tr("con escalones o deltas, la ecuación se comprueba en cada tramo entre los saltos, donde todo es "
+                     "derivable: el escalón vale 0 antes del salto y 1 después, y la delta vale 0 fuera del punto."),
+            partes=tr("los saltos están en {t} = {cortes}.", t=t, cortes=", ".join(texto(c) for c in cortes)),
+            calculo=tuple(lineas),
+            queda=tr("la solución es correcta")))

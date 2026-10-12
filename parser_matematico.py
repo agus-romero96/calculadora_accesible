@@ -19,6 +19,7 @@ from sympy.parsing.sympy_parser import (
 FUNCIONES_CONOCIDAS = (
     "log10", "asinh", "acosh", "atanh",
     "asin", "acos", "atan", "acot", "sinh", "cosh", "tanh", "coth", "sqrt",
+    "heaviside", "dirac",
     "sin", "cos", "tan", "cot", "sec", "csc", "exp", "log", "abs",
     "ln",
 )
@@ -94,6 +95,10 @@ class ParserMatematico:
             "tan": sympy.tan,
             "sqrt": sympy.sqrt,
             "abs": sympy.Abs,
+
+            # Escalón y delta (ecuaciones diferenciales con la transformada de Laplace)
+            "heaviside": sympy.Heaviside,
+            "dirac": sympy.DiracDelta,
 
             # Matrices: Matrix([[1,2],[3,4]]) (se escribe en minúsculas tras normalizar)
             "matrix": sympy.Matrix,

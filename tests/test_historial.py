@@ -162,6 +162,7 @@ RESULTADOS_PERSISTENCIA = {
     # Ecuación diferencial: la ecuación con Derivative(y(x), x) sin evaluar y las condiciones
     "edo": lambda c: c.ecuacion_diferencial("y' = 2*x*y"),
     "edo_condicion": lambda c: c.ecuacion_diferencial("y' = x/y, y(0) = -2"),
+    "edo_laplace": lambda c: c.ecuacion_diferencial("y'' + 4*y = heaviside(t - 3), y(0) = 1, y'(0) = 0"),
     # Determinante: el planteamiento es Determinant(A), que debe seguir sin evaluar
     "determinante": lambda c: c.determinante("2 0 1\n1 3 2\n1 0 4"),
     # Polinomio de Taylor (el valor es el polinomio; el punto, un parámetro)

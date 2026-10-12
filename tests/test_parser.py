@@ -112,3 +112,11 @@ def test_gauss_infinitas_soluciones_parametriza_con_variables_reales(core):
     # linsolve recibe variables creadas por nombre: deben ser las mismas del sistema
     salida = core.ResolverSistemaGauss(["x + y = 1", "2x + 2y = 2"])
     assert "x = 1 - y" in salida
+
+
+def test_escalon_y_delta():
+    # Antes se partían en letras: heaviside(x - 2) era E*E*a*d*h*i*i*s*v*(x - 2)
+    p = ParserMatematico()
+    x = ParserMatematico.simbolo("x")
+    assert p.parsear("heaviside(x - 2)").doit() == sp.Heaviside(x - 2)
+    assert p.parsear("dirac(x - 1)").doit() == sp.DiracDelta(x - 1)
