@@ -143,9 +143,13 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
      steps, y is isolated (the constant C absorbs numbers, signs
      and exp(C)) and the constant solutions, h(y) = 0, are
      checked. If it is y' = F(a*x + b*y + c), the substitution
-     u = a*x + b*y + c makes it separable. Finally the solution
-     is checked by differentiating it. Other types are solved by
-     SymPy, without steps, with a note.
+     u = a*x + b*y + c makes it separable. If it is linear,
+     y' + P(x)*y = Q(x) (for example "x*y' + 2*y = x^2"), it is
+     multiplied by the integrating factor m(x) = exp(∫ P dx), the
+     left side becomes the derivative of m*y, it is integrated
+     and y is isolated. Finally the solution is checked by
+     differentiating it. Other types are solved by SymPy,
+     without steps, with a note.
    - Limit: Type 'sin(x)/x'. Press Ctrl+L.
      Variable: x. Approaches: 0.
      For a one-sided limit, type the value followed by + or -,

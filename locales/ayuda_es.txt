@@ -141,9 +141,12 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
      paso de Integrar, se despeja y (la constante C absorbe los
      números, los signos y exp(C)) y se ven las soluciones
      constantes, h(y) = 0. Si es y' = F(a*x + b*y + c), el cambio
-     u = a*x + b*y + c la hace separable. Al final se comprueba
-     la solución derivándola. Los demás tipos los resuelve SymPy,
-     sin pasos, con una nota.
+     u = a*x + b*y + c la hace separable. Si es lineal,
+     y' + P(x)*y = Q(x) (por ejemplo "x*y' + 2*y = x^2"), se
+     multiplica por el factor integrante m(x) = exp(∫ P dx), el
+     lado izquierdo queda como la derivada de m*y, se integra y
+     se despeja y. Al final se comprueba la solución derivándola.
+     Los demás tipos los resuelve SymPy, sin pasos, con una nota.
    - Límite: Escriba 'sin(x)/x'. Pulse Ctrl+L.
      Variable: x. Tendencia: 0.
      Para un límite lateral escriba la tendencia con + o -,

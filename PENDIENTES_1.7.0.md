@@ -17,9 +17,9 @@ Una tarea terminada se tacha (`~~...~~`) y se anota el commit.
 
 ### Primer orden
 
-1. ~~**Variables separables** — separar, integrar los dos lados, despejar `y`. Incluye las reducibles a separables `y' = f(a*x + b*y + c)` (cambio `u = a*x + b*y + c`).~~ — **completada** (menú **Cálculo**, `Ctrl+Shift+R`, `calculo/edo.py`)
+1. ~~**Variables separables** — separar, integrar los dos lados, despejar `y`. Incluye las reducibles a separables `y' = f(a*x + b*y + c)` (cambio `u = a*x + b*y + c`).~~ — **completada** (menú **Cálculo**, `Ctrl+Shift+R`, `calculo/edo.py`; commit `860c095`)
    - Con la base común: lectura de `y'`/`dy/dx` y condiciones, planteamiento, despeje de `y` función a función con la constante renombrada, soluciones constantes, condición inicial y comprobación.
-2. **Lineales de primer orden** — forma `y' + P(x)*y = Q(x)`, factor integrante `e^(∫P dx)`, multiplicar e integrar.
+2. ~~**Lineales de primer orden** — forma `y' + P(x)*y = Q(x)`, factor integrante `e^(∫P dx)`, multiplicar e integrar.~~ — **completada** (`MotorEdo._lineal`; el factor integrante se llama `m(x)`, sin letra griega)
 3. **Homogéneas** — `y' = f(y/x)`, cambio `y = u*x`, y la separable que resulta.
 4. **Exactas** — comprobar `∂M/∂y = ∂N/∂x`, hallar la función potencial. Si no es exacta, **factor integrante** que dependa solo de `x` o solo de `y`.
 5. **Bernoulli** — `y' + P(x)*y = Q(x)*y^n`, cambio `v = y^(1-n)` y la lineal que resulta.

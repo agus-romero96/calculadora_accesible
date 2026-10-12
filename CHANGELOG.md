@@ -8,6 +8,15 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Añadido
 
+- **Ecuaciones diferenciales lineales de primer orden**, `y' + P(x)*y = Q(x)`, con el **factor integrante** (tarea 2 de la 1.7.0):
+  - **Tipo de ecuación**, a partir de la ecuación tal como se escribió (sin despejar `y'` antes): se dejan a la izquierda los términos con `y'` y con `y`, se divide entre lo que multiplica a `y'` y se dicen `P(x)` y `Q(x)` (`x*y' + 2*y = x^2` da `y' + (2/x)*y = x`).
+  - **Factor integrante** `m(x) = exp(∫ P dx)`: la integral de `P` con el paso a paso de **Integrar**, el logaritmo con valor absoluto y la potencia que queda (`exp(2*log(Abs(x))) = x^2`). El valor absoluto se quita diciendo por qué (basta un factor integrante: `1/Abs(cos(x))` pasa a `1/cos(x)`). No se usa la letra griega habitual: NVDA no la lee.
+  - **Multiplicar por el factor integrante**: la ecuación multiplicada, y la comprobación de que `m' = m*P`, por la que el lado izquierdo es la derivada de un producto: `(x^2*y)' = x^3`.
+  - **Integrar los dos lados** (la integral de `m*Q`, con sus pasos) y **despejar `y`** dividiendo entre `m` (o multiplicando por su inverso: `y/cos(x) = x + C` da `y = (x + C)*cos(x)`).
+  - Las ecuaciones que son separables y lineales a la vez (`y' + 2*y = 4`) siguen por separación de variables, que es más corta; `y' = x + y`, que antes se resolvía con el cambio `u = x + y`, ahora es lineal.
+  - La ecuación se muestra como se escribió (`y' + y*tan(x) = cos(x)`, no `y*tan(x) + y' = cos(x)`).
+  - Pruebas: 11 más en `tests/test_edo.py` (8 lineales con su solución comprobada, las cuentas del factor integrante, el valor absoluto, la fracción y los signos).
+
 - **Ecuación diferencial** (menú **Cálculo**, `Ctrl+Shift+R`), la primera tarea de la 1.7.0: ecuaciones separables y reducibles a separables, paso a paso. Es una sola operación que reconoce el tipo de la ecuación, como **Integrar** reconoce el método; las tareas siguientes le añaden tipos.
   - **Entrada**: `y' = 2*x*y`, `dy/dx = ...`, `d2y/dx2`, `y(x)`; condiciones iniciales detrás de una coma o un punto y coma (`y' = 2*x*y, y(0) = 3`). Con otras letras (`dx/dt = k*x`), la función es la que lleva la prima y la variable, la del `d/dt` (o `x`, o `t`).
   - **Planteamiento**: qué es resolver la ecuación y su orden; si `y'` no está sola (`x*y' = y`), se **despeja** como una ecuación de primer grado.
@@ -22,6 +31,10 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
   - Código: `calculo/edo.py` (`MotorEdo` y `Despeje`, el despeje función a función que usarán los demás tipos).
   - Pruebas: `tests/test_edo.py` (40: 12 separables con su solución comprobada, las cuentas de la separación, el valor absoluto, la constante renombrada, la logística, 8 problemas con condición inicial, reducibles, implícitas, otras letras, errores, exportación e inglés), casos en registro e historial; dos casos más en la autoprueba del ejecutable (20).
   - Ayuda (F1) y README.
+
+### Corregido
+
+- **Signos en la comprobación de una ecuación diferencial** (de la tarea 1, sin publicar): al sustituir `y = -x - 1 + C*exp(x)` en `x + y`, el texto decía `x - (x - 1 + C*exp(x))` (el cálculo era correcto, la escritura no): la sustitución sin operar de SymPy imprimía mal el signo de una suma que empieza por menos. Se sustituye sobre el texto, con cada valor entre paréntesis, como en los sistemas. Las condiciones iniciales usan lo mismo.
 
 ## [1.6.0] - 2026-10-11
 

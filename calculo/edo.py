@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import sympy
 
-from algebra.ecuaciones import _pasar, despejar, sin_evaluar
+from algebra.ecuaciones import _pasar, despejar
 from calculo.calculo import Calculo
 from calculo.pasos import PasoCalculo, texto_paso
 from i18n import tr
@@ -52,6 +52,11 @@ class Edo:
     derivadas: List[Any]      # [y', y'', ...] hasta el orden
     orden: int
     condiciones: List[Condicion] = field(default_factory=list)
+    escrita: str = ""         # la ecuación tal como se escribió (para mostrarla en ese orden)
+
+    @property
+    def enunciado(self) -> str:
+        return self.escrita or f"{texto(self.izquierda)} = {texto(self.derecha)}"
 
 
 @dataclass
@@ -106,6 +111,29 @@ def producto(a: Any, b: Any) -> str:
     if b == 1:
         return texto(a)
     return f"{factor(a)}*{factor(b)}"
+
+
+def sustituir(expr: Any, valores: Dict[Any, Any]) -> str:
+    """
+    La expresión con cada letra cambiada por su valor, sin operar y en el orden escrito:
+    x + y con y = -x - 1 + C*exp(x) da 'x + (-x - 1 + C*exp(x))'. Cada valor que no es una
+    letra o un número positivo va entre paréntesis (sustituir y' antes que y).
+    """
+    expr = sympy.sympify(expr)
+    if expr in valores:
+        return texto(valores[expr])
+    escrita = texto(expr)
+    nombres = sorted(valores, key=lambda v: -len(v.name))
+    marcas = {v: f"\x00{i}\x00" for i, v in enumerate(nombres)}
+    for v in nombres:
+        escrita = re.sub(rf"(?<![\w.']){re.escape(v.name)}(?![\w('])", marcas[v], escrita)
+    for v in nombres:
+        valor = sympy.sympify(valores[v])
+        nombre = texto(valor)
+        if not (valor.is_Symbol or (valor.is_Integer and valor >= 0)):
+            nombre = f"({nombre})"
+        escrita = escrita.replace(marcas[v], nombre)
+    return escrita
 
 
 # ---------------------------------------------------------
@@ -291,7 +319,7 @@ class Despeje:
                 if numero == -1:
                     self.lineas.append(tr("Cambiamos el signo de los dos lados: {ecuacion}.",
                                           ecuacion=self._igualdad(resto, cociente)))
-                elif numero.is_Rational and numero.p == 1:
+                elif sympy.fraction(numero)[0] == 1:
                     self.lineas.append(tr("Multiplicamos los dos lados por {k}: {ecuacion}.", k=texto(1 / numero),
                                           ecuacion=self._igualdad(resto, cociente)))
                 else:
@@ -471,6 +499,7 @@ class MotorEdo:
         if not partes:
             raise ValueError(tr("La expresión está vacía."))
         ecuacion, condiciones_txt = partes[0], partes[1:]
+        escrita = re.sub(r"\s+", " ", ecuacion).strip()
         independiente = None
         # d2y/dx2 y dy/dx -> y'' e y'
         def derivada_leibniz(m):
@@ -539,7 +568,9 @@ class MotorEdo:
             condiciones.append(Condicion(k, self.parser.parsear(m.group(3)).doit(),
                                          self.parser.parsear(m.group(4)).doit()))
         derivadas = [marcas[s] for s in sorted(marcas, key=lambda s: s.name)]
-        return Edo(izquierda, derecha, x, y, derivadas, orden, sorted(condiciones, key=lambda c: c.orden))
+        if "=" not in escrita:
+            escrita += " = 0"
+        return Edo(izquierda, derecha, x, y, derivadas, orden, sorted(condiciones, key=lambda c: c.orden), escrita)
 
     # --- Fachada ---
 
@@ -589,7 +620,7 @@ class MotorEdo:
             valores += " " + tr("({k}: cualquier número entero)", k=K)
         lineas = [tr("RESULTADO: {valor}", valor=valores)] + avisos + [
             "=" * 30,
-            tr("Ecuación: {ecuacion}", ecuacion=f"{texto(edo.izquierda)} = {texto(edo.derecha)}")]
+            tr("Ecuación: {ecuacion}", ecuacion=edo.enunciado)]
         for cond in edo.condiciones:
             lineas.append(tr("Condición inicial: {condicion}", condicion=self._condicion_texto(cond, y)))
         if metodo:
@@ -650,7 +681,7 @@ class MotorEdo:
             cambio[constantes[0]] = C
         soluciones = [sympy.Eq(r.lhs.xreplace(cambio), r.rhs.xreplace(cambio)) for r in resultado]
         avisos.append(tr("NOTA: por ahora hay explicación paso a paso para las ecuaciones de primer orden "
-                         "separables y las reducibles a separables, y'= F(a*x + b*y + c). Esta ecuación la "
+                         "separables, lineales y reducibles a separables, y' = F(a*x + b*y + c). Esta ecuación la "
                          "resuelve SymPy, sin pasos."))
         return soluciones
 
@@ -674,22 +705,29 @@ class MotorEdo:
                      "todas las funciones que la cumplen: la solución general, con tantas constantes como el orden. "
                      "El orden es el de la derivada más alta.", x=x, y=y),
             partes=tr("la ecuación es {ecuacion}; la incógnita es la función {y}({x}); la derivada más alta es {d}, "
-                      "así que es de orden {orden}.", ecuacion=f"{texto(edo.izquierda)} = {texto(edo.derecha)}",
+                      "así que es de orden {orden}.", ecuacion=edo.enunciado,
                       x=x, y=y, d=edo.derivadas[-1], orden=edo.orden),
             queda=tr("ecuación de orden {orden}", orden=edo.orden)))
         if edo.orden != 1:
             raise SinExplicacion()
         yp = edo.derivadas[0]
-        f = self._despejar_derivada(edo, yp, pasos)
+        despeje: List[PasoCalculo] = []
+        f = self._despejar_derivada(edo, yp, despeje)
 
-        soluciones = self._separable(f, x, y, pasos, avisos)
-        if soluciones is not None:
-            metodo = tr("ecuación separable")
+        # El primer método que reconoce la ecuación (cada uno devuelve None si no es de su tipo, antes
+        # de añadir pasos). Las lineales parten de la ecuación escrita, sin despejar y'.
+        metodos = ((self._separable, tr("ecuación separable"), True),
+                   (lambda *a: self._lineal(*a, edo=edo), tr("ecuación lineal de primer orden (factor integrante)"),
+                    False),
+                   (self._reducible, tr("reducible a separable (cambio u = a*x + b*y + c)"), True))
+        for resolver, metodo, con_despeje in metodos:
+            pasos_metodo = list(despeje) if con_despeje else []
+            soluciones = resolver(f, x, y, pasos_metodo, avisos)
+            if soluciones is not None:
+                pasos.extend(pasos_metodo)
+                break
         else:
-            soluciones = self._reducible(f, x, y, pasos, avisos)
-            if soluciones is None:
-                raise SinExplicacion()
-            metodo = tr("reducible a separable (cambio u = a*x + b*y + c)")
+            raise SinExplicacion()
 
         if edo.condiciones:
             soluciones = self._condicion_inicial(soluciones, edo.condiciones[0], x, y, pasos)
@@ -711,7 +749,7 @@ class MotorEdo:
                 valores[d] = derivada
                 lineas.append(tr("Derivamos: {d} = {valor}.", d=d, valor=texto(derivada)))
             for lado, expr in ((tr("Lado izquierdo"), edo.izquierda), (tr("Lado derecho"), edo.derecha)):
-                escrita = texto(sin_evaluar(expr, valores))
+                escrita = sustituir(expr, valores)
                 valor = sympy.simplify(expr.xreplace(valores))
                 cuenta = escrita if escrita == texto(valor) else f"{escrita} = {texto(valor)}"
                 lineas.append(f"{lado}: {cuenta}.")
@@ -721,7 +759,7 @@ class MotorEdo:
             pasos.append(PasoCalculo(
                 tr("Comprobación"),
                 regla=tr("una solución tiene que cumplir la ecuación: se deriva y se sustituye en los dos lados."),
-                partes=tr("la ecuación es {ecuacion}.", ecuacion=f"{texto(edo.izquierda)} = {texto(edo.derecha)}"),
+                partes=tr("la ecuación es {ecuacion}.", ecuacion=edo.enunciado),
                 calculo=tuple(lineas),
                 queda=tr("la solución es correcta")))
 
@@ -935,6 +973,131 @@ class MotorEdo:
                 s = opuesta
         return s
 
+    # --- Lineales de primer orden ---
+
+    def _lineal(self, f: Any, x: Any, y: Any, pasos: List[PasoCalculo], avisos: List[str],
+                edo: Optional[Edo] = None) -> Optional[List[Any]]:
+        """y' + P(x)*y = Q(x): factor integrante m(x) = exp(∫ P dx), (m*y)' = m*Q, y se integra."""
+        a = sympy.simplify(sympy.diff(f, y))
+        if a.has(y) or a == 0:
+            return None
+        Q = sympy.simplify(f - a * y)
+        if Q.has(y):
+            return None
+        P = -a
+        yp = sympy.Symbol(nombre_derivada(y, 1))
+        if P.could_extract_minus_sign():
+            estandar = f"{yp} - {producto(-P, y)} = {texto(Q)}"
+        else:
+            estandar = f"{yp} + {producto(P, y)} = {texto(Q)}"
+        lineas = self._forma_lineal(edo, x, y, yp, estandar) if edo is not None else []
+        pasos.append(PasoCalculo(
+            tr("Tipo de ecuación: lineal de primer orden"),
+            regla=tr("una ecuación de primer orden es lineal si se puede escribir {yp} + P({x})*{y} = Q({x}): {y} y "
+                     "{yp} aparecen sin potencias ni funciones, multiplicadas solo por expresiones con {x}.",
+                     yp=yp, x=x, y=y),
+            partes=tr("{estandar}, con P({x}) = {P} y Q({x}) = {Q}.", estandar=estandar, x=x, P=texto(P),
+                      Q=texto(Q)),
+            calculo=tuple(lineas),
+            queda=estandar))
+
+        # El factor integrante
+        primitiva = self._integrar(P, x, pasos)
+        exponente = _con_abs(primitiva)
+        lineas = [f"∫ {factor(P)} d{x} = {texto(primitiva)}."]
+        lineas += self._lineas_abs(primitiva)
+        factor_m = sympy.exp(exponente)
+        if texto(factor_m) != f"exp({texto(exponente)})":
+            lineas.append(f"m({x}) = exp({texto(exponente)}) = {texto(factor_m)}.")
+        sin_abs = factor_m.replace(lambda e: isinstance(e, sympy.Abs), lambda e: e.args[0])
+        if sin_abs != factor_m:
+            lineas.append(tr("Basta un factor integrante: en cada intervalo en que el signo no cambia, {con} es "
+                             "{sin} o su opuesto, y multiplicar por -1 no cambia la ecuación. Tomamos m({x}) = {sin}.",
+                             con=texto(factor_m), sin=texto(sin_abs), x=x))
+            factor_m = sin_abs
+        pasos.append(PasoCalculo(
+            tr("Factor integrante"),
+            regla=tr("se multiplica la ecuación por m({x}) = exp(∫ P({x}) d{x}). Así m' = m*P, y el lado izquierdo "
+                     "queda como la derivada de un producto. Basta uno: la constante de esta integral no hace "
+                     "falta.", x=x),
+            partes=tr("P({x}) = {P}.", x=x, P=texto(P)),
+            calculo=tuple(lineas),
+            queda=f"m({x}) = {texto(factor_m)}"))
+
+        # Multiplicar y reconocer la derivada del producto
+        derivada_m = sympy.simplify(sympy.diff(factor_m, x))
+        lado_derecho = sympy.simplify(factor_m * Q)
+        m_y = self._por(factor_m, y)
+        m_p = sympy.simplify(factor_m * P)
+        signo, m_p = ("-", -m_p) if m_p.could_extract_minus_sign() else ("+", m_p)
+        lineas = [tr("Multiplicamos los dos lados por {m}: {ecuacion}.", m=texto(factor_m),
+                     ecuacion=f"{self._por(factor_m, yp)} {signo} {self._por(m_p, y)} = {texto(lado_derecho)}"),
+                  tr("La derivada de m es {dm}, que es m*P = {m}*{P}: el lado izquierdo es m*{yp} + m'*{y}, la "
+                     "derivada de m*{y} (regla del producto).", dm=texto(derivada_m), m=factor(factor_m),
+                     P=factor(P), yp=yp, y=y)]
+        pasos.append(PasoCalculo(
+            tr("Multiplicar por el factor integrante"),
+            regla=tr("con m' = m*P, el lado izquierdo m*{yp} + m*P*{y} es m*{yp} + m'*{y} = (m*{y})': la ecuación "
+                     "queda (m*{y})' = m*Q.", yp=yp, y=y),
+            partes=tr("m({x}) = {m}.", x=x, m=texto(factor_m)),
+            calculo=tuple(lineas),
+            queda=f"({m_y})' = {texto(lado_derecho)}"))
+
+        # Integrar
+        integral = _con_abs(self._integrar(lado_derecho, x, pasos))
+        pasos.append(PasoCalculo(
+            tr("Integrar los dos lados"),
+            regla=tr("la integral de la derivada de m*{y} es m*{y}; al otro lado, la integral de m*Q más la "
+                     "constante de integración C.", y=y),
+            partes=tr("se integra {f} respecto a {x} (los pasos están arriba).", f=texto(lado_derecho), x=x),
+            calculo=(f"∫ {factor(lado_derecho)} d{x} = {texto(integral)}.",),
+            queda=f"{m_y} = {texto(integral + C)}"))
+
+        # Despejar y
+        despeje = Despeje(y, [x])
+        (valor,) = despeje.resolver(factor_m * y, integral + C)
+        repartido = sympy.expand(valor)
+        if repartido != valor and len(texto(repartido)) <= len(texto(valor)) + 4:
+            despeje.lineas.append(tr("Repartimos la división entre cada término: {y} = {valor}.", y=y,
+                                     valor=texto(repartido)))
+            valor = repartido
+        valor = self._simplificada(valor, despeje.lineas)
+        pasos.append(PasoCalculo(
+            tr("Despejar {y}", y=y),
+            regla=tr("se divide entre m({x}), que no vale 0 en el intervalo en que se resuelve.", x=x),
+            partes=tr("la ecuación es {ecuacion}.", ecuacion=f"{m_y} = {texto(integral + C)}"),
+            calculo=tuple(despeje.lineas),
+            queda=f"{y} = {texto(valor)}"))
+        return [sympy.Eq(y, valor)]
+
+    @staticmethod
+    def _por(m: Any, y: Any) -> str:
+        """m*y como se escribe: x^2*y, y/cos(x) (no (1/cos(x))*y)."""
+        if m == 1:
+            return texto(y)
+        if (m.is_Mul or m.is_Pow or m.is_Rational) and sympy.fraction(m)[1] != 1:
+            return texto(m * y)
+        return f"{factor(m)}*{y}"
+
+    def _forma_lineal(self, edo: Edo, x: Any, y: Any, yp: Any, estandar: str) -> List[str]:
+        """Cómo se llega de la ecuación escrita a y' + P*y = Q: agrupar y dividir entre el coeficiente de y'."""
+        todo = sympy.expand(edo.izquierda - edo.derecha)
+        a1, a0 = todo.coeff(yp), todo.coeff(y)
+        resto = sympy.expand(todo - a1 * yp - a0 * y)
+        if a1.has(y) or a0.has(y) or a1.has(yp) or a0.has(yp) or resto.has(y) or resto.has(yp):
+            return []
+        lineas = []
+        agrupada = f"{self._por(a1, yp)} {'-' if a0.could_extract_minus_sign() else '+'} " \
+                   f"{self._por(-a0 if a0.could_extract_minus_sign() else a0, y)} = {texto(-resto)}"
+        ya_agrupada = sympy.expand(edo.izquierda - a1 * yp - a0 * y) == 0 and sympy.expand(edo.derecha + resto) == 0
+        if not ya_agrupada:
+            lineas.append(tr("Dejamos a la izquierda los términos con {yp} y con {y}, y a la derecha los demás: "
+                             "{ecuacion}.", yp=yp, y=y, ecuacion=agrupada))
+        if a1 != 1:
+            lineas.append(tr("Dividimos los dos lados entre {a}, lo que multiplica a {yp}: {ecuacion}.",
+                             a=texto(a1), yp=yp, ecuacion=estandar))
+        return lineas
+
     # --- Reducibles a separables ---
 
     def _reducible(self, f: Any, x: Any, y: Any, pasos: List[PasoCalculo], avisos: List[str]) -> Optional[List[Any]]:
@@ -1021,13 +1184,11 @@ class MotorEdo:
                                      x0=texto(x0), y0=texto(y0)))
                     particulares.append(s)
                 continue
-            izq = sin_evaluar(s.lhs, {x: x0, y: y0})
-            der = sin_evaluar(s.rhs, {x: x0, y: y0})
-            sustituida = f"{texto(izq)} = {texto(der)}"
+            sustituida = f"{sustituir(s.lhs, {x: x0, y: y0})} = {sustituir(s.rhs, {x: x0, y: y0})}"
             lineas.append(tr("Sustituimos {x} = {x0}, {y} = {y0} en {solucion}: {sustituida}.",
                              solucion=self._solucion_texto(s), x=x, x0=texto(x0), y=y, y0=texto(y0),
                              sustituida=sustituida))
-            izq, der = sympy.simplify(izq.doit()), sympy.simplify(der.doit())
+            izq, der = sympy.simplify(s.lhs.subs({x: x0, y: y0})), sympy.simplify(s.rhs.subs({x: x0, y: y0}))
             if f"{texto(izq)} = {texto(der)}" != sustituida:
                 lineas.append(tr("Operamos: {ecuacion}.", ecuacion=f"{texto(izq)} = {texto(der)}"))
             # Se despeja C del lado que la tiene (der); el otro queda como valor (izq)

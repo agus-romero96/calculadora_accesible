@@ -153,11 +153,71 @@ def test_reducible_a_separable(core):
     assert "Método: reducible a separable (cambio u = a*x + b*y + c)" in res.texto
 
 
-@pytest.mark.parametrize("entrada", ["y' = (2*x + 3*y + 1)^2", "y' = x + y"])
+@pytest.mark.parametrize("entrada", ["y' = (2*x + 3*y + 1)^2", "y' = sin(x - y)"])
 def test_otras_reducibles(core, entrada):
     res = core.ecuacion_diferencial(entrada)
     assert "PASO A PASO" in res.texto and "AVISO" not in res.texto
     cumple(res)
+
+
+LINEALES = [
+    ("y' + y = x", "y = x - 1 + C*exp(-x)"),
+    ("x*y' + 2*y = x^2", "y = x^2/4 + C/x^2"),
+    ("y' = x + y", "y = -x - 1 + C*exp(x)"),
+    ("y' + y*tan(x) = cos(x)", "y = (x + C)*cos(x)"),
+    ("y' + y = sin(x)", "y = sin(x)/2 - cos(x)/2 + C*exp(-x)"),
+    ("x*y' - y = x^3", "y = x^3/2 + C*x"),
+    ("y' - 2*y = exp(3*x), y(0) = 1", "y = exp(3*x)"),
+    ("y' + y/x = 3*x, y(1) = 2", "y = (x^3 + 1)/x"),
+]
+
+
+@pytest.mark.parametrize("entrada, resultado", LINEALES, ids=[c[0] for c in LINEALES])
+def test_lineales(core, entrada, resultado):
+    res = core.ecuacion_diferencial(entrada)
+    assert res.texto.splitlines()[0] == f"RESULTADO: {resultado}", res.texto
+    assert "Método: ecuación lineal de primer orden (factor integrante)" in res.texto
+    assert "AVISO" not in res.texto and "NOTA" not in res.texto
+    if "," not in entrada:
+        cumple(res)
+    nombres = titulos(res.texto)
+    for paso in ("Tipo de ecuación: lineal de primer orden.", "Factor integrante.",
+                 "Multiplicar por el factor integrante.", "Integrar los dos lados.", "Despejar y.", "Comprobación."):
+        assert paso in nombres
+    assert "Despejar y'." not in nombres  # se parte de la ecuación escrita, no de y' despejada
+    for paso in pasos(res.texto):
+        if paso.splitlines()[0].split(". ", 1)[1] in ("Factor integrante.", "Multiplicar por el factor integrante."):
+            assert "Regla: " in paso and "Queda: " in paso, paso
+
+
+def test_lineal_paso_a_paso(core):
+    texto = core.ecuacion_diferencial("x*y' + 2*y = x^2").texto
+    assert "En este caso: y' + (2/x)*y = x, con P(x) = 2/x y Q(x) = x." in texto
+    assert "Dividimos los dos lados entre x, lo que multiplica a y': y' + (2/x)*y = x." in texto
+    assert "Integral que da un logaritmo en ∫ 1/x dx (f del factor constante)." in texto  # los pasos de ∫ P
+    assert "m(x) = exp(2*log(Abs(x))) = x^2." in texto
+    assert "Multiplicamos los dos lados por x^2: x^2*y' + 2*x*y = x^3." in texto
+    assert "La derivada de m es 2*x, que es m*P = x^2*(2/x)" in texto
+    assert "Queda: (x^2*y)' = x^3" in texto
+    assert "Queda: x^2*y = x^4/4 + C" in texto
+    assert "Dividimos los dos lados entre x^2: y = x^2/4 + C/x^2." in texto
+    assert "Lado izquierdo: x*(x/2 - 2*C/x^3) + 2*(x^2/4 + C/x^2) = x^2." in texto
+
+
+def test_lineal_sin_valor_absoluto_y_fraccion(core):
+    texto = core.ecuacion_diferencial("y' + y*tan(x) = cos(x)").texto
+    assert "Tomamos m(x) = 1/cos(x)." in texto
+    assert "Multiplicamos los dos lados por 1/cos(x): y'/cos(x) + y*tan(x)/cos(x) = 1." in texto
+    assert "Queda: (y/cos(x))' = 1" in texto
+    assert "Multiplicamos los dos lados por cos(x): y = x*cos(x) + C*cos(x)." in texto
+
+
+def test_lineal_agrupa_y_signos(core):
+    texto = core.ecuacion_diferencial("y' = x + y").texto
+    assert "Dejamos a la izquierda los términos con y' y con y, y a la derecha los demás: y' - y = x." in texto
+    assert "Multiplicamos los dos lados por exp(-x): exp(-x)*y' - exp(-x)*y = x*exp(-x)." in texto
+    # La sustitución de la comprobación conserva los signos
+    assert "Lado derecho: x + (-x - 1 + C*exp(x)) = -1 + C*exp(x)." in texto
 
 
 def test_implicita_y_familia_de_constantes(core):
