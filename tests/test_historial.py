@@ -163,6 +163,8 @@ RESULTADOS_PERSISTENCIA = {
     "edo": lambda c: c.ecuacion_diferencial("y' = 2*x*y"),
     "edo_condicion": lambda c: c.ecuacion_diferencial("y' = x/y, y(0) = -2"),
     "edo_laplace": lambda c: c.ecuacion_diferencial("y'' + 4*y = heaviside(t - 3), y(0) = 1, y'(0) = 0"),
+    "edo_sistema": lambda c: c.ecuacion_diferencial("x' = x + 2*y; y' = 3*x + 2*y; x(0) = 1; y(0) = 0"),
+    "edo_serie": lambda c: c.ecuacion_diferencial("y'' - x*y = 0"),
     # Determinante: el planteamiento es Determinant(A), que debe seguir sin evaluar
     "determinante": lambda c: c.determinante("2 0 1\n1 3 2\n1 0 4"),
     # Polinomio de Taylor (el valor es el polinomio; el punto, un parámetro)

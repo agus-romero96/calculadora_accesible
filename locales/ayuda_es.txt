@@ -184,6 +184,16 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
      "y'' + y = dirac(t - 2), y(0) = 0, y'(0) = 0". Se transforma
      cada término, se despeja Y(s), se descompone en fracciones
      simples y se invierte con la tabla y la traslación.
+     Sistemas lineales X' = A*X: escriba las ecuaciones separadas
+     por punto y coma, y las condiciones en 0 detrás:
+     "x' = x + 2*y; y' = 3*x + 2*y; x(0) = 1; y(0) = 0" (la
+     variable es t). Se calculan det(A - r*I), los valores
+     propios y un vector propio para cada uno.
+     Series de potencias: las lineales de orden 2 con
+     coeficientes polinómicos que no tienen otro método, como
+     "y'' - x*y = 0" (o con la palabra serie). Se sustituye
+     y = Σ c[n]*x^n, sale la recurrencia de los coeficientes y la
+     serie hasta x^6.
      Los demás tipos los resuelve SymPy, sin pasos, con una nota.
    - Límite: Escriba 'sin(x)/x'. Pulse Ctrl+L.
      Variable: x. Tendencia: 0.

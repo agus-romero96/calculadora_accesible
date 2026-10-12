@@ -59,6 +59,7 @@ class Edo:
     diferencial: bool = False  # escrita como M dx + N dy = 0 (se lee como M + N*y' = 0)
     laplace: bool = False      # se pidió la transformada de Laplace
     y1: Any = None             # una solución conocida de la homogénea (reducción de orden)
+    serie: bool = False        # se pidió la solución en serie de potencias
 
     @property
     def enunciado(self) -> str:
@@ -90,6 +91,29 @@ class _Impresora(StrPrinter):
         con_c = [t for t in terminos if any(re.fullmatch(r"C\d*", s.name) for s in t.free_symbols
                                             if isinstance(s, sympy.Symbol))]
         return [t for t in terminos if t not in con_c] + con_c
+
+    def _print_Add(self, expr, order=None):
+        # Una serie: C1*(1 + x^3/6 + ...) + C2*(x + ...) + O(x^7), con las potencias de menor a mayor
+        if any(isinstance(a, sympy.Order) for a in expr.args):
+            partes = [a for a in expr.args if not isinstance(a, sympy.Order)]
+            orden = [a for a in expr.args if isinstance(a, sympy.Order)]
+            textos = [self._serie(a) for a in partes] + [self._print(o) for o in orden]
+            return " + ".join(textos).replace("+ -", "- ")
+        return super()._print_Add(expr, order=order)
+
+    def _serie(self, termino):
+        constante = [f for f in sympy.Mul.make_args(termino) if es_constante(f)]
+        resto = sympy.Mul(*[f for f in sympy.Mul.make_args(termino) if not es_constante(f)])
+        variables = sorted(resto.free_symbols, key=lambda s: s.name)
+        if resto == 1 and constante:
+            return self._print(constante[0])
+        if resto.is_Add and variables:
+            terminos = sorted(sympy.Add.make_args(resto), key=lambda t: sympy.Poly(t, *variables).total_degree())
+            cuerpo = self._print(terminos[0]) + "".join(
+                (" - " + self._print(-t)) if t.could_extract_minus_sign() else (" + " + self._print(t))
+                for t in terminos[1:])
+            return f"{self._print(constante[0])}*({cuerpo})" if constante else cuerpo
+        return self._print(termino)
 
     def _print_Pow(self, expr, rational=False):
         # x^(-2) se escribe 1/x^2, como 1/x
@@ -629,10 +653,13 @@ class MotorEdo:
             raise ValueError(tr("La función y la variable no pueden ser la misma letra."))
 
         condiciones = []
-        laplace, y1 = False, None
+        laplace, y1, serie = False, None, False
         for c in condiciones_txt:
             if c.strip() == "laplace":
                 laplace = True
+                continue
+            if c.strip() == "serie":
+                serie = True
                 continue
             m_y1 = re.match(r"^\s*y1\s*=\s*(.+)$", c)
             if m_y1:
@@ -655,11 +682,17 @@ class MotorEdo:
         if "=" not in escrita:
             escrita += " = 0"
         return Edo(izquierda, derecha, x, y, derivadas, orden, sorted(condiciones, key=lambda c: c.orden), escrita,
-                   diferencial=bool(diferencial), laplace=laplace, y1=y1)
+                   diferencial=bool(diferencial), laplace=laplace, y1=y1, serie=serie)
 
     # --- Fachada ---
 
     def resolver(self, entrada: str) -> ResultadoEdo:
+        partes = _partir(entrada.lower().replace("’", "'").replace("′", "'"))
+        # Un sistema: varias ecuaciones x' = ..., y' = ... (o dx/dt = ...), de funciones distintas
+        derivadas = [m.group(1) or m.group(2) for p in partes
+                     for m in [re.match(r"^\s*(?:([a-z])\s*'\s*=(?!=)|d\s*([a-z])\s*/\s*d\s*[a-z]\s*=)", p)] if m]
+        if len(set(derivadas)) >= 2:
+            return self._resolver_sistema(partes)
         try:
             edo = self._leer(entrada)
         except ValueError as e:
@@ -716,6 +749,95 @@ class MotorEdo:
             lineas += ["", tr("PASO A PASO:")] + [texto_paso(i, p) for i, p in enumerate(pasos, 1)]
         return ResultadoEdo("\n".join(lineas), soluciones=soluciones, x=x, y=y, planteamiento=planteamiento,
                             metodo=metodo, avisos=avisos)
+
+    # --- Sistemas ---
+
+    def _leer_sistema(self, partes: List[str]) -> Tuple[Any, List[Any], Any, Dict[Any, Any], List[str]]:
+        """(t, funciones, A, condiciones en 0, ecuaciones escritas) de x' = a*x + b*y; y' = c*x + d*y; x(0) = 1..."""
+        independiente = None
+        ecuaciones, condiciones = [], []
+        for parte in partes:
+            m = re.match(r"^\s*d\s*([a-z])\s*/\s*d\s*([a-z])\s*=(.*)$", parte)
+            if m:
+                independiente = m.group(2)
+                parte = f"{m.group(1)}' ={m.group(3)}"
+            m = re.match(r"^\s*([a-z])\s*'\s*=(.+)$", parte)
+            if m:
+                ecuaciones.append((m.group(1), m.group(2), re.sub(r"\s+", " ", parte).strip()))
+            else:
+                condiciones.append(parte)
+        letras = [e[0] for e in ecuaciones]
+        if len(set(letras)) != len(letras):
+            raise ValueError(tr("En un sistema, cada ecuación es la derivada de una función distinta "
+                                "(ej: x' = x + 2*y; y' = 3*x + 2*y)."))
+        nombre_t = independiente or "t"
+        if nombre_t in letras:
+            raise ValueError(tr("La función y la variable no pueden ser la misma letra."))
+        t = self.parser.simbolo(nombre_t)
+        funciones = [self.parser.simbolo(l) for l in letras]
+        filas = []
+        for letra, derecha, _ in ecuaciones:
+            if "'" in derecha:
+                raise SinExplicacion()
+            expr = sympy.expand(self.parser.parsear(derecha).doit())
+            fila = [expr.coeff(f) for f in funciones]
+            resto = sympy.expand(expr - sum(c * f for c, f in zip(fila, funciones)))
+            if resto != 0 or any(not c.is_number for c in fila):
+                raise SinExplicacion()
+            filas.append(fila)
+        valores = {}
+        for c in condiciones:
+            m = re.match(r"^\s*([a-z])\s*\(\s*0\s*\)\s*=\s*(.+)$", c)
+            if not m or m.group(1) not in letras:
+                raise ValueError(tr("En un sistema, las condiciones se escriben en 0 para cada función (ej: x(0) = 1)."))
+            valores[self.parser.simbolo(m.group(1))] = self.parser.parsear(m.group(2)).doit()
+        return t, funciones, sympy.Matrix(filas), valores, [e[2] for e in ecuaciones]
+
+    def _resolver_sistema(self, partes: List[str]) -> ResultadoEdo:
+        try:
+            t, funciones, A, valores, escritas = self._leer_sistema(partes)
+        except ValueError as e:
+            return ResultadoEdo(tr("Error de Validación: {error}", error=str(e)), es_error=True)
+        except SinExplicacion:
+            return ResultadoEdo(tr("Error de Validación: {error}", error=tr(
+                "por ahora se resuelven los sistemas lineales homogéneos con coeficientes constantes, X' = A*X "
+                "(ej: x' = x + 2*y; y' = 3*x + 2*y).")), es_error=True)
+        Fs = [sympy.Function(f.name, real=True)(t) for f in funciones]
+        planteamiento = [sympy.Eq(sympy.Derivative(F, t), sum(A[i, j] * G for j, G in enumerate(Fs)), evaluate=False)
+                         for i, F in enumerate(Fs)]
+        planteamiento += [sympy.Eq(F.subs(t, 0), valores[f], evaluate=False) for f, F in zip(funciones, Fs)
+                          if f in valores]
+        pasos: List[PasoCalculo] = []
+        avisos: List[str] = []
+        sistema = _Sistema(self, t, funciones, A, pasos)
+        try:
+            X = sistema.resolver()
+            if valores:
+                X = sistema.condiciones(X, valores)
+            if not sistema.comprobar(X):
+                raise SinExplicacion()
+            soluciones = [sympy.Eq(f, e) for f, e in zip(funciones, X)]
+            metodo = tr("sistema lineal (valores y vectores propios)")
+        except Exception:
+            pasos, metodo = [], ""
+            avisos.append(tr("NOTA: este sistema lo resuelve SymPy, sin pasos."))
+            try:
+                ics = {F.subs(t, 0): valores[f] for f, F in zip(funciones, Fs) if f in valores}
+                resultado = sympy.dsolve([sympy.Eq(F.diff(t), sum(A[i, j] * G for j, G in enumerate(Fs)))
+                                          for i, F in enumerate(Fs)], Fs, ics=ics or None)
+            except Exception as e:
+                return ResultadoEdo(tr("Error del Sistema: {error}", error=str(e)), es_error=True)
+            cambio = {F: f for f, F in zip(funciones, Fs)}
+            soluciones = [sympy.Eq(r.lhs.xreplace(cambio), r.rhs.xreplace(cambio)) for r in resultado]
+        lineas = [tr("RESULTADO: {valor}", valor="; ".join(self._solucion_texto(s) for s in soluciones))] + avisos
+        lineas += ["=" * 30] + [tr("Ecuación: {ecuacion}", ecuacion=e) for e in escritas]
+        lineas += [tr("Condición inicial: {condicion}", condicion=f"{f}(0) = {texto(v)}") for f, v in valores.items()]
+        if metodo:
+            lineas.append(tr("Método: {metodo}", metodo=metodo))
+        if pasos:
+            lineas += ["", tr("PASO A PASO:")] + [texto_paso(i, p) for i, p in enumerate(pasos, 1)]
+        return ResultadoEdo("\n".join(lineas), soluciones=soluciones, x=t, y=", ".join(str(f) for f in funciones),
+                            planteamiento=planteamiento, metodo=metodo, avisos=avisos)
 
     # --- Conversión a SymPy y comprobación ---
 
@@ -812,8 +934,9 @@ class MotorEdo:
                          "separables, lineales, de Bernoulli, homogéneas, exactas (o con factor integrante) y "
                          "reducibles a separables, y' = F(a*x + b*y + c); para las lineales de orden superior con "
                          "coeficientes constantes y las de Cauchy-Euler (y las no homogéneas de orden 2, por "
-                         "coeficientes indeterminados o variación de parámetros), con una solución conocida (y1 = ...) "
-                         "o por la transformada de Laplace. Esta ecuación la resuelve SymPy, sin pasos."))
+                         "coeficientes indeterminados o variación de parámetros), con una solución conocida (y1 = ...), "
+                         "por la transformada de Laplace o en serie de potencias (con coeficientes polinómicos y x = 0 "
+                         "punto ordinario). Esta ecuación la resuelve SymPy, sin pasos."))
         return soluciones
 
     # --- Textos ---
@@ -862,7 +985,9 @@ class MotorEdo:
             if resultado is None:
                 raise SinExplicacion()
             soluciones, metodo = resultado
-            if edo.condiciones:
+            if edo.condiciones and orden_superior.serie_texto is not None:
+                soluciones = [sympy.Eq(y, orden_superior.condiciones_serie(soluciones[0].rhs, edo.condiciones))]
+            elif edo.condiciones:
                 soluciones = [sympy.Eq(y, orden_superior.condiciones(soluciones[0].rhs, edo.condiciones))]
             self._comprobacion(edo, soluciones, pasos)
             return soluciones, metodo
@@ -902,6 +1027,8 @@ class MotorEdo:
         x, y = edo.x, edo.y
         lineas = []
         for s in soluciones:
+            if s in getattr(self, "_por_tramos", set()):
+                continue  # ya comprobada por su método (por tramos, o la serie hasta su orden)
             if s.lhs != y or not s.rhs.has(x):
                 continue  # implícitas y constantes: las comprueba SymPy (las constantes ya se vieron)
             # log(Abs(u)) tiene la misma derivada que log(u): sin el valor absoluto no salen sign(x)
@@ -1890,6 +2017,13 @@ class _OrdenSuperior:
         return a, sympy.simplify(-resto)
 
     def resolver(self) -> Optional[Tuple[List[Any], str]]:
+        self.serie_texto = None
+        if self.edo.serie:
+            antes = len(self.pasos)
+            resultado = self.serie()
+            if resultado is not None:
+                return resultado
+            del self.pasos[antes:]
         if self.edo.y1 is not None:
             antes = len(self.pasos)
             resultado = self.reduccion()
@@ -1901,7 +2035,7 @@ class _OrdenSuperior:
         if datos is None:
             datos, euler = self.coeficientes_euler(), True
             if datos is None:
-                return None
+                return None if self.edo.serie else self.serie()
         a, g = datos
         n, x, y = len(a) - 1, self.x, self.y
         homogenea = g == 0
@@ -2047,6 +2181,7 @@ class _OrdenSuperior:
             lineas.append(tr("Cada factor igualado a 0 (producto nulo):"))
             for f, m in factores:
                 raices += self._grado_menor(sympy.Poly(f, r), m, lineas)
+            raices.sort(key=lambda t: (t[1] != 0, t[0]))  # las reales, de menor a mayor
         self.pasos.append(PasoCalculo(
             titulo,
             regla=tr("de primer grado, se despeja r; de segundo grado, la fórmula r = (-b ± sqrt(D))/(2*a) con el "
@@ -2200,6 +2335,113 @@ class _OrdenSuperior:
             calculo=((f"{y} = {texto(y_h)} + {texto(y_p)}").replace("+ -", "- "),),
             queda=f"{y} = {texto(solucion)}"))
         return [sympy.Eq(y, solucion)], tr("reducción de orden y variación de parámetros")
+
+    # --- Series de potencias ---
+
+    TERMINOS_SERIE = 6  # hasta x^6
+
+    def serie(self) -> Optional[Tuple[List[Any], str]]:
+        """
+        y'' + P*y' + Q*y = 0 con coeficientes polinómicos y x = 0 punto ordinario: y = Σ c_n*x^n.
+        Se sustituye, se igualan a 0 los coeficientes de x^m y sale la recurrencia de c_(m+2).
+        """
+        x, y = self.x, self.y
+        todo = sympy.expand(self.edo.izquierda - self.edo.derecha)
+        a = [todo.coeff(f) for f in self.funciones]
+        resto = sympy.expand(todo - sum(c * f for c, f in zip(a, self.funciones)))
+        if len(a) != 3 or resto != 0 or any(not c.is_polynomial(x) or any(c.has(f) for f in self.funciones)
+                                             for c in a):
+            return None
+        a2_0 = a[2].subs(x, 0)
+        if a2_0 == 0:
+            return None
+        N = self.TERMINOS_SERIE
+        c = sympy.IndexedBase("c")
+        m = sympy.Symbol("m", integer=True, nonnegative=True)
+        n = sympy.Symbol("n", integer=True, nonnegative=True)
+        lado = suma_lineal(a, self.funciones)
+        self.pasos.append(PasoCalculo(
+            tr("Tipo de ecuación: solución en serie de potencias"),
+            regla=tr("si los coeficientes son polinomios y el de {ypp} no vale 0 en {x} = 0 ({x} = 0 es un punto "
+                     "ordinario), la solución es una serie de potencias {y} = Σ c[n]*{x}^n: se sustituye y se "
+                     "hallan los coeficientes c[n] uno a uno.", ypp=self.funciones[2], x=x, y=y),
+            partes=tr("{ecuacion}; el coeficiente de {ypp} en {x} = 0 vale {a}.", ecuacion=f"{lado} = 0",
+                      ypp=self.funciones[2], x=x, a=texto(a2_0)),
+            queda=f"{y} = Σ c[n]*{x}^n"))
+
+        # Cada término a_(k,j)*x^j*y^(k), con el índice desplazado para que quede x^m
+        lineas = [tr("{y} = Σ c[n]*{x}^n; {yp} = Σ n*c[n]*{x}^(n - 1); {ypp} = Σ n*(n - 1)*c[n]*{x}^(n - 2).",
+                     y=y, x=x, yp=self.funciones[1], ypp=self.funciones[2])]
+        recurrencia = sympy.S.Zero
+        for k in range(3):
+            poli = sympy.Poly(a[k], x)
+            for (j,), coef in zip(poli.monoms(), poli.coeffs()):
+                if coef == 0:
+                    continue
+                desplazado = m + k - j
+                termino = coef * sympy.ff(desplazado, k) * c[desplazado]
+                recurrencia += termino
+                potencia = n - k + j
+                original = texto(sympy.factor(coef * sympy.ff(n, k)) * c[n]) + (
+                    f"*{x}^{entre_parentesis(potencia)}" if potencia != 0 else "")
+                nombre = texto(coef * x ** j) + "*" + str(self.funciones[k]) if (coef * x ** j) != 1 \
+                    else str(self.funciones[k])
+                lineas.append(tr("{termino}: Σ {original}; con n = {desplazado} queda Σ {nuevo}*{x}^m.",
+                                 termino=nombre.replace("-1*", "-"), original=original, desplazado=texto(desplazado),
+                                 nuevo=entre_parentesis(sympy.factor(termino)), x=x))
+        lineas.append(tr("El coeficiente de {x}^m tiene que valer 0: {recurrencia} = 0.", x=x,
+                         recurrencia=texto(recurrencia)))
+        principal = sympy.expand(recurrencia).coeff(c[m + 2])
+        despejado = sympy.factor(sympy.expand(-(recurrencia - principal * c[m + 2]) / principal))
+        self.pasos.append(PasoCalculo(
+            tr("Sustituir la serie"),
+            regla=tr("se sustituye cada derivada y se cambia el índice de cada suma para que todas lleven {x}^m; una "
+                     "serie vale 0 solo si cada coeficiente vale 0. Los c con índice negativo valen 0.", x=x),
+            partes=tr("los coeficientes son polinomios: {coefs}.", coefs="; ".join(
+                f"{self.funciones[k]}: {texto(a[k])}" for k in range(3))),
+            calculo=tuple(lineas),
+            queda=f"c[m + 2] = {texto(despejado)}"))
+
+        # Los coeficientes: c0 y c1 libres (C1 y C2); los demás, con la recurrencia
+        C1, C2 = constantes_de(2)
+        valores = {0: C1, 1: C2}
+        lineas = [tr("c[0] = {y}(0) y c[1] = {yp}(0) quedan libres: c[0] = C1, c[1] = C2.", y=y,
+                     yp=self.funciones[1])]
+        for mm in range(N - 1):
+            cuenta = despejado.subs(m, mm)
+            sustituida = cuenta.replace(lambda e: isinstance(e, sympy.Indexed),
+                                        lambda e: valores.get(int(e.indices[0]), 0) if e.indices[0] >= 0 else 0)
+            valor = sympy.expand(sustituida)
+            valores[mm + 2] = valor
+            lineas.append(f"m = {mm}: c[{mm + 2}] = {texto(cuenta)} = {texto(valor)}.")
+        serie = sum(valores[k] * x ** k for k in range(N + 1))
+        agrupada = sympy.collect(sympy.expand(serie), [C1, C2], evaluate=False)
+        orden = sympy.Order(x ** (N + 1))
+        agrupados = [sympy.Mul(constante, agrupada[constante], evaluate=False) for constante in (C1, C2)
+                     if agrupada.get(constante, 0) != 0]
+        partes_c = [texto(sympy.Add(g, orden, evaluate=False)).rsplit(" + O(", 1)[0] for g in agrupados]
+        self.pasos.append(PasoCalculo(
+            tr("Coeficientes de la serie"),
+            regla=tr("con la recurrencia, cada coeficiente sale de los anteriores: se dan valores a m = 0, 1, 2..."),
+            calculo=tuple(lineas),
+            queda=" + ".join(partes_c) + f" + O({x}^{N + 1})"))
+
+        # Comprobación: hasta x^(N - 2), los coeficientes del lado izquierdo se anulan
+        derivadas = [serie, sympy.diff(serie, x), sympy.diff(serie, x, 2)]
+        residuo = sympy.expand(sum(ak * d for ak, d in zip(a, derivadas)))
+        coeficientes = [residuo.coeff(x, k) for k in range(N - 1)]
+        if any(sympy.simplify(co) != 0 for co in coeficientes):
+            raise SinExplicacion()
+        self.pasos.append(PasoCalculo(
+            tr("Comprobación"),
+            regla=tr("al sustituir la serie cortada en {x}^{N}, los coeficientes de {x}^0 a {x}^{M} del lado izquierdo "
+                     "valen 0; los de grado mayor dependen de los términos que se dejan fuera.", x=x, N=N, M=N - 2),
+            calculo=(tr("Los coeficientes de {x}^0, ..., {x}^{M} valen 0.", x=x, M=N - 2),),
+            queda=tr("la solución es correcta hasta {x}^{N}", x=x, N=N)))
+        solucion = sympy.Add(*agrupados, orden, evaluate=False)
+        self.motor._por_tramos.add(sympy.Eq(y, solucion))
+        self.serie_texto = " + ".join(partes_c) + f" + O({x}^{N + 1})"
+        return [sympy.Eq(y, solucion)], tr("serie de potencias alrededor de x = 0")
 
     # --- Variación de parámetros ---
 
@@ -2408,6 +2650,25 @@ class _OrdenSuperior:
         return suma, bases
 
     # --- Condiciones iniciales ---
+
+    def condiciones_serie(self, solucion: Any, condiciones: List[Condicion]) -> Any:
+        """En la serie alrededor de 0, c[0] = y(0) y c[1] = y'(0): C1 y C2 son esos valores."""
+        y = self.y
+        C1, C2 = constantes_de(2)
+        valores = {}
+        for cond in condiciones:
+            if cond.punto != 0 or cond.orden > 1:
+                raise SinExplicacion()
+            valores[C1 if cond.orden == 0 else C2] = cond.valor
+        particular = sympy.Add(*[a.subs(valores) for a in solucion.args if a.subs(valores) != 0], evaluate=False)
+        self.motor._por_tramos.add(sympy.Eq(y, particular))
+        self.pasos.append(PasoCalculo(
+            tr("Condiciones iniciales"),
+            regla=tr("en la serie, c[0] = {y}(0) y c[1] = {yp}(0): las constantes son directamente las condiciones.",
+                     y=y, yp=self.funciones[1]),
+            calculo=tuple(f"{c} = {texto(v)}" for c, v in valores.items()),
+            queda=f"{y} = {texto(particular)}"))
+        return particular
 
     def condiciones(self, solucion: Any, condiciones: List[Condicion]) -> Any:
         x, y = self.x, self.y
@@ -2710,3 +2971,180 @@ class _Laplace:
             partes=tr("los saltos están en {t} = {cortes}.", t=t, cortes=", ".join(texto(c) for c in cortes)),
             calculo=tuple(lineas),
             queda=tr("la solución es correcta")))
+
+
+# ---------------------------------------------------------
+# Sistemas lineales X' = A*X con coeficientes constantes
+# ---------------------------------------------------------
+
+class _Raices(_OrdenSuperior):
+    """Solo las raíces de un polinomio en r, con los pasos de la ecuación característica."""
+
+    def __init__(self, motor: "MotorEdo", pasos: List[PasoCalculo]):
+        self.motor, self.pasos = motor, pasos
+        self.r = sympy.Symbol("r")
+
+
+def _vector(v: Any) -> str:
+    return "(" + ", ".join(texto(e) for e in v) + ")"
+
+
+def _entero(v: Any) -> Any:
+    """El vector con los números más sencillos: sin fracciones."""
+    partes = [p for e in v for p in (sympy.re(e), sympy.im(e)) if p != 0]
+    denominadores = [sympy.fraction(sympy.nsimplify(p))[1] for p in partes]
+    factor_comun = sympy.ilcm(1, 1, *[int(d) for d in denominadores if d.is_Integer])
+    return sympy.Matrix([sympy.expand(e * factor_comun) for e in v])
+
+
+class _Sistema:
+    def __init__(self, motor: "MotorEdo", t: Any, funciones: List[Any], A: Any, pasos: List[PasoCalculo]):
+        self.motor, self.t, self.funciones, self.A, self.pasos = motor, t, funciones, A, pasos
+
+    def resolver(self) -> List[Any]:
+        A, t, n = self.A, self.t, len(self.funciones)
+        r = sympy.Symbol("r")
+        filas = "; ".join("[" + ", ".join(texto(e) for e in A.row(i)) + "]" for i in range(n))
+        X = _vector(self.funciones)
+        self.pasos.append(PasoCalculo(
+            tr("Planteamiento"),
+            regla=tr("un sistema lineal con coeficientes constantes se escribe X' = A*X, con X el vector de las "
+                     "funciones y A la matriz de los coeficientes. Las soluciones son de la forma exp(r*{t})*v, con r "
+                     "un valor propio de A y v un vector propio: A*v = r*v.", t=t),
+            partes=tr("X = {X}; A = [{filas}] (una fila por ecuación).", X=X, filas=filas),
+            queda=tr("X' = A*X")))
+
+        M = A - r * sympy.eye(n)
+        p = sympy.expand(M.det())
+        if n == 2:
+            cuenta = (f"{factor(M[0, 0])}*{factor(M[1, 1])} - {factor(M[0, 1])}*{factor(M[1, 0])}")
+            lineas = [tr("A - r*I = [{filas}].", filas="; ".join(
+                "[" + ", ".join(texto(e) for e in M.row(i)) + "]" for i in range(n))),
+                      tr("det(A - r*I) = {cuenta} = {p}.", cuenta=cuenta, p=texto(p))]
+        else:
+            lineas = [tr("A - r*I = [{filas}].", filas="; ".join(
+                "[" + ", ".join(texto(e) for e in M.row(i)) + "]" for i in range(n))),
+                      tr("Desarrollando el determinante por la primera fila: det(A - r*I) = {p}.", p=texto(p))]
+        self.pasos.append(PasoCalculo(
+            tr("Ecuación característica del sistema"),
+            regla=tr("A*v = r*v tiene un vector v distinto de 0 solo si det(A - r*I) = 0, con I la matriz "
+                     "identidad: es un polinomio en r, y sus raíces son los valores propios."),
+            partes=tr("A = [{filas}].", filas=filas),
+            calculo=tuple(lineas),
+            queda=f"{texto(p)} = 0"))
+        raices = _Raices(self.motor, self.pasos)._raices(p, tr("Valores propios"))
+
+        constantes = constantes_de(n)
+        vectores: List[Any] = []  # cada solución independiente, como vector de funciones de t
+        lineas = []
+        for raiz, beta, m in raices:
+            valor = raiz + sympy.I * beta
+            N = A - valor * sympy.eye(n)
+            base = N.nullspace()
+            if not base:
+                raise SinExplicacion()
+            v = _entero(base[0])
+            filas_n = "; ".join("[" + ", ".join(texto(e) for e in N.row(i)) + "]" for i in range(n))
+            lineas.append(tr("r = {r}: (A - r*I)*v = 0 con A - r*I = [{filas}]; un vector que lo cumple es v = {v}.",
+                             r=_compleja(raiz, beta) if beta else texto(raiz), filas=filas_n, v=_vector(v)))
+            fila = next((N.row(i) for i in range(n) if any(e != 0 for e in N.row(i))), None)
+            if n == 2 and fila is not None and not beta:
+                ecuacion = " + ".join(f"{factor(c)}*v{j + 1}" for j, c in enumerate(fila) if c != 0) \
+                    .replace("+ -", "- ")
+                lineas.append(tr("De la primera fila: {ecuacion} = 0; con v = {v} se cumple: {cuenta} = 0.",
+                                 ecuacion=ecuacion, v=_vector(v), cuenta=" + ".join(
+                                     f"{factor(c)}*{factor(e)}" for c, e in zip(fila, v) if c != 0)))
+            if beta:
+                a_, b_ = v.applyfunc(sympy.re), v.applyfunc(sympy.im)
+                c, s_ = sympy.cos(beta * t), sympy.sin(beta * t)
+                e = sympy.exp(raiz * t) if raiz != 0 else 1
+                v1 = (a_ * c - b_ * s_) * e
+                v2 = (a_ * s_ + b_ * c) * e
+                lineas.append(tr("Es complejo: v = {a} + {b}*i. La parte real y la imaginaria de exp(r*{t})*v son "
+                                 "dos soluciones reales: {v1} y {v2}.", a=_vector(a_), b=_vector(b_), t=t,
+                                 v1=_vector(v1.applyfunc(sympy.expand)), v2=_vector(v2.applyfunc(sympy.expand))))
+                vectores += [v1, v2]
+                continue
+            e = sympy.exp(raiz * t)
+            if len(base) >= m:
+                for k in range(m):
+                    vk = _entero(base[k])
+                    if k:
+                        lineas.append(tr("Otro vector independiente para r = {r}: {v}.", r=texto(raiz), v=_vector(vk)))
+                    vectores.append(vk * e)
+                continue
+            if m == 2 and len(base) == 1:
+                # Valor propio doble con un solo vector: el vector generalizado w, con (A - r*I)*w = v
+                w_sim = sympy.Matrix(sympy.symbols(f"w1:{n + 1}"))
+                ecuaciones = (N * w_sim - v)
+                sol = sympy.solve(list(ecuaciones), list(w_sim), dict=True)
+                if not sol:
+                    raise SinExplicacion()
+                w = w_sim.subs(sol[0]).subs({s_: 0 for s_ in w_sim})
+                lineas.append(tr("r = {r} es doble pero solo tiene un vector propio: se busca w con (A - r*I)*w = v; "
+                                 "w = {w}. Las soluciones son exp(r*{t})*v y exp(r*{t})*({t}*v + w).", r=texto(raiz),
+                                 w=_vector(w), t=t))
+                vectores += [v * e, (t * v + w) * e]
+                continue
+            raise SinExplicacion()
+        self.pasos.append(PasoCalculo(
+            tr("Vectores propios"),
+            regla=tr("para cada valor propio r se resuelve (A - r*I)*v = 0: las filas son proporcionales, y basta "
+                     "una para elegir v. Un valor propio complejo a ± b*i da dos soluciones reales (la parte real y "
+                     "la imaginaria); uno doble con un solo vector, un vector generalizado w."),
+            partes=tr("los valores propios son {raices}.", raices="; ".join(
+                (_compleja(r_, b_) if b_ else texto(r_)) + (f" ({_veces(m)})" if m > 1 else "") for r_, b_, m in raices)),
+            calculo=tuple(lineas),
+            queda=tr("{n} soluciones independientes", n=len(vectores))))
+        if len(vectores) != n:
+            raise SinExplicacion()
+        X_sol = sum((c * v for c, v in zip(constantes, vectores)), sympy.zeros(n, 1))
+        X_sol = X_sol.applyfunc(lambda e: sympy.collect(sympy.expand(e), constantes))
+        self.pasos.append(PasoCalculo(
+            tr("Solución general"),
+            regla=tr("la solución general es la combinación de las soluciones independientes: X = C1*X1 + C2*X2 + ..."),
+            calculo=(tr("X = {suma}.", suma=" + ".join(f"{c}*{_vector(v.applyfunc(sympy.factor))}"
+                                                       for c, v in zip(constantes, vectores))),)
+                    + tuple(f"{f} = {texto(e)}" for f, e in zip(self.funciones, X_sol)),
+            queda="; ".join(f"{f} = {texto(e)}" for f, e in zip(self.funciones, X_sol))))
+        return list(X_sol)
+
+    def condiciones(self, X_sol: List[Any], valores: Dict[Any, Any]) -> List[Any]:
+        t = self.t
+        constantes = sorted({s for e in X_sol for s in e.free_symbols if es_constante(s)}, key=lambda s: s.name)
+        lineas, ecuaciones = [], []
+        for f, e in zip(self.funciones, X_sol):
+            if f in valores:
+                valor = sympy.expand(sympy.simplify(e.subs(t, 0)))
+                lineas.append(tr("{condicion}: {sustituida} = {valor}, es decir {ecuacion}.",
+                                 condicion=f"{f}(0) = {texto(valores[f])}", sustituida=sustituir(e, {t: 0}),
+                                 valor=texto(valores[f]), ecuacion=f"{texto(valor)} = {texto(valores[f])}"))
+                ecuaciones.append((valor, valores[f]))
+        solucion = resolver_sistema(ecuaciones, constantes, lineas)
+        particular = [sympy.expand(e.subs(solucion)) for e in X_sol]
+        self.pasos.append(PasoCalculo(
+            tr("Condiciones iniciales"),
+            regla=tr("cada condición da una ecuación para las constantes: se sustituye {t} = 0 en cada función y se "
+                     "resuelve el sistema.", t=t),
+            calculo=tuple(lineas),
+            queda="; ".join(f"{f} = {texto(e)}" for f, e in zip(self.funciones, particular))))
+        return particular
+
+    def comprobar(self, X_sol: List[Any]) -> bool:
+        t, A = self.t, self.A
+        lineas = []
+        cambios = dict(zip(self.funciones, X_sol))
+        for i, (f, e) in enumerate(zip(self.funciones, X_sol)):
+            derivada = _mas_corta(sympy.diff(e, t), sympy.simplify(sympy.diff(e, t)))
+            lado = sum(A[i, j] * g for j, g in enumerate(self.funciones))
+            valor = sympy.expand(lado.xreplace(cambios))
+            if sympy.simplify(derivada - valor) != 0:
+                return False
+            lineas.append(tr("{f}' = {d}; {lado} = {valor}: valen lo mismo.", f=f, d=texto(derivada), lado=texto(lado),
+                             valor=texto(valor)))
+        self.pasos.append(PasoCalculo(
+            tr("Comprobación"),
+            regla=tr("se deriva cada función y se compara con el lado derecho de su ecuación."),
+            calculo=tuple(lineas),
+            queda=tr("la solución es correcta")))
+        return True

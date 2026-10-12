@@ -187,7 +187,16 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
      y(0) = 1, y'(0) = 0" or "y'' + y = dirac(t - 2), y(0) = 0,
      y'(0) = 0". Each term is transformed, Y(s) is isolated,
      split into partial fractions and inverted with the table and
-     the shift theorem. Other types are solved by SymPy,
+     the shift theorem. Linear systems X' = A*X: write the
+     equations separated by semicolons, and the conditions at 0
+     after them: "x' = x + 2*y; y' = 3*x + 2*y; x(0) = 1;
+     y(0) = 0" (the variable is t). det(A - r*I), the eigenvalues
+     and an eigenvector for each one are computed. Power series:
+     second-order linear equations with polynomial coefficients
+     that have no other method, such as "y'' - x*y = 0" (or with
+     the word serie). y = Σ c[n]*x^n is substituted, the
+     recurrence of the coefficients comes out, and the series up
+     to x^6. Other types are solved by SymPy,
      without steps, with a note.
    - Limit: Type 'sin(x)/x'. Press Ctrl+L.
      Variable: x. Approaches: 0.

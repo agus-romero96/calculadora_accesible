@@ -9,7 +9,7 @@ como 1/2 y la ecuación y = y de un sistema con infinitas soluciones como True.
 import io
 import pickle
 
-from sympy import Atom, Basic, Function, Set
+from sympy import Atom, Basic, Function, Order, Set
 from sympy.concrete.expr_with_limits import ExprWithLimits
 from sympy.core.function import AppliedUndef
 from sympy.core.parameters import evaluate
@@ -32,8 +32,9 @@ class _Pickler(pickle.Pickler):
         # Cada nodo se reconstruye sin evaluar, salvo las integrales (y sumas), cuyo
         # constructor no calcula nada pero sin evaluar añadiría un "1*" al integrando, y los
         # conjuntos solución de una ecuación: ya están en forma canónica, y Union sin evaluar
-        # falla (necesita comparar los extremos de los intervalos).
-        if isinstance(obj, Basic) and not isinstance(obj, (Atom, ExprWithLimits, Set)):
+        # falla (necesita comparar los extremos de los intervalos). Tampoco O(x^7) de una serie: sin evaluar
+        # no se puede construir.
+        if isinstance(obj, Basic) and not isinstance(obj, (Atom, ExprWithLimits, Set, Order)):
             return _sin_evaluar, (type(obj), obj.args)
         return NotImplemented
 

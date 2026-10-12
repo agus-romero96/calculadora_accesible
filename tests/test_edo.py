@@ -609,6 +609,88 @@ def test_laplace_sin_condiciones_en_0(core):
     assert "NOTA: la transformada de Laplace necesita las condiciones en 0: y(0), y'(0)." in res.texto
 
 
+SISTEMAS = [
+    ("x' = x + 2*y; y' = 3*x + 2*y", "x = -C1*exp(-t) + 2*C2*exp(4*t); y = C1*exp(-t) + 3*C2*exp(4*t)"),
+    ("x' = x + 2*y; y' = 3*x + 2*y; x(0) = 1; y(0) = 0",
+     "x = 2*exp(4*t)/5 + 3*exp(-t)/5; y = 3*exp(4*t)/5 - 3*exp(-t)/5"),
+    ("x' = -y; y' = x", "x = -C1*sin(t) + C2*cos(t); y = C1*cos(t) + C2*sin(t)"),
+    ("x' = 3*x - y; y' = x + y", "x = C1*exp(2*t) + C2*(t*exp(2*t) + exp(2*t)); y = C1*exp(2*t) + C2*t*exp(2*t)"),
+    ("x' = x; y' = 2*y; z' = x + y + 3*z", None),
+    ("dx/dt = x - 2*y, dy/dt = 2*x + y", None),
+]
+
+
+@pytest.mark.parametrize("entrada, resultado", SISTEMAS, ids=[c[0] for c in SISTEMAS])
+def test_sistemas(core, entrada, resultado):
+    res = core.ecuacion_diferencial(entrada)
+    assert not res.es_error, res.texto
+    if resultado:
+        assert res.texto.splitlines()[0] == f"RESULTADO: {resultado}", res.texto
+    assert "Método: sistema lineal (valores y vectores propios)" in res.texto
+    assert "NOTA" not in res.texto
+    nombres = titulos(res.texto)
+    for paso in ("Planteamiento.", "Ecuación característica del sistema.", "Valores propios.", "Vectores propios.",
+                 "Solución general.", "Comprobación."):
+        assert paso in nombres
+    # Cada función cumple su ecuación
+    t = ParserMatematico.simbolo("t")
+    valores = {s.lhs: s.rhs for s in res.valor}
+    for ecuacion in res.planteamiento:
+        if isinstance(ecuacion.lhs, sympy.Derivative):
+            f = ParserMatematico.simbolo(ecuacion.lhs.expr.func.__name__)
+            lado = ecuacion.rhs.replace(lambda e: isinstance(e, sympy.core.function.AppliedUndef),
+                                        lambda e: valores[ParserMatematico.simbolo(e.func.__name__)])
+            assert sympy.simplify(sympy.diff(valores[f], t) - lado) == 0
+
+
+def test_sistema_paso_a_paso(core):
+    texto = core.ecuacion_diferencial("x' = x + 2*y; y' = 3*x + 2*y; x(0) = 1; y(0) = 0").texto
+    assert "En este caso: X = (x, y); A = [[1, 2]; [3, 2]] (una fila por ecuación)." in texto
+    assert "det(A - r*I) = (1 - r)*(2 - r) - 2*3 = r^2 - 3*r - 4." in texto
+    assert "De la primera fila: 2*v1 + 2*v2 = 0; con v = (-1, 1) se cumple: 2*(-1) + 2*1 = 0." in texto
+    assert "x(0) = 1: -C1*exp(-0) + 2*C2*exp(4*0) = 1, es decir -C1 + 2*C2 = 1." in texto
+    complejo = core.ecuacion_diferencial("x' = -y; y' = x").texto
+    assert "Es complejo: v = (0, 1) + (1, 0)*i." in complejo
+    doble = core.ecuacion_diferencial("x' = 3*x - y; y' = x + y").texto
+    assert "r = 2 es doble pero solo tiene un vector propio" in doble
+
+
+def test_sistema_no_lineal(core):
+    res = core.ecuacion_diferencial("x' = x*y; y' = x")
+    assert res.es_error and "sistemas lineales homogéneos con coeficientes constantes" in res.texto
+
+
+SERIES = [
+    ("y'' - x*y = 0", "y = C1*(1 + x^3/6 + x^6/180) + C2*(x + x^4/12) + O(x^7)"),
+    ("y'' - 2*x*y' + 4*y = 0", "y = C1*(1 - 2*x^2) + C2*(x - x^3/3 - x^5/30) + O(x^7)"),
+    ("y'' + y = 0, serie", "y = C1*(1 - x^2/2 + x^4/24 - x^6/720) + C2*(x - x^3/6 + x^5/120) + O(x^7)"),
+    ("y'' - x*y = 0, y(0) = 1, y'(0) = 0", "y = 1 + x^3/6 + x^6/180 + O(x^7)"),
+    ("y'' + x^2*y' = 0", "y = C1 + C2*(x - x^4/12) + O(x^7)"),
+]
+
+
+@pytest.mark.parametrize("entrada, resultado", SERIES, ids=[c[0] for c in SERIES])
+def test_series(core, entrada, resultado):
+    res = core.ecuacion_diferencial(entrada)
+    assert res.texto.splitlines()[0] == f"RESULTADO: {resultado}", res.texto
+    assert "Método: serie de potencias alrededor de x = 0" in res.texto
+    assert "AVISO" not in res.texto and "NOTA" not in res.texto
+    nombres = titulos(res.texto)
+    for paso in ("Tipo de ecuación: solución en serie de potencias.", "Sustituir la serie.",
+                 "Coeficientes de la serie.", "Comprobación."):
+        assert paso in nombres
+    assert nombres.count("Comprobación.") == 1
+
+
+def test_serie_paso_a_paso(core):
+    texto = core.ecuacion_diferencial("y'' - x*y = 0").texto
+    assert "-x*y: Σ -c[n]*x^(n + 1); con n = m - 1 queda Σ (-c[m - 1])*x^m." in texto
+    assert "El coeficiente de x^m tiene que valer 0: (m + 1)*(m + 2)*c[m + 2] - c[m - 1] = 0." in texto
+    assert "Queda: c[m + 2] = c[m - 1]/((m + 1)*(m + 2))" in texto
+    assert "m = 1: c[3] = c[0]/6 = C1/6." in texto
+    assert "m = 0: c[2] = c[-1]/2 = 0." in texto
+
+
 def test_implicita_y_familia_de_constantes(core):
     res = core.ecuacion_diferencial("y' = sin(x)*cos(y)")
     assert not res.es_error
@@ -624,9 +706,9 @@ def test_otras_letras(core):
 
 
 def test_sin_pasos_lo_resuelve_sympy(core):
-    res = core.ecuacion_diferencial("y'' + x^2*y' = 0")
+    res = core.ecuacion_diferencial("x*y'' + y' + x*y = 0")  # Bessel: x = 0 no es un punto ordinario
     assert not res.es_error
-    assert res.texto.splitlines()[0] == "RESULTADO: y = C1 + C2*lowergamma(1/3, x^3/3)"
+    assert res.texto.splitlines()[0] == "RESULTADO: y = C1*besselj(0, x) + C2*bessely(0, x)"
     assert "NOTA: por ahora hay explicación paso a paso" in res.texto
     assert "PASO A PASO" not in res.texto
 
