@@ -116,8 +116,9 @@ def producto(a: Any, b: Any) -> str:
 def sustituir(expr: Any, valores: Dict[Any, Any]) -> str:
     """
     La expresión con cada letra cambiada por su valor, sin operar y en el orden escrito:
-    x + y con y = -x - 1 + C*exp(x) da 'x + (-x - 1 + C*exp(x))'. Cada valor que no es una
-    letra o un número positivo va entre paréntesis (sustituir y' antes que y).
+    x + y con y = -x - 1 + C*exp(x) da 'x + (-x - 1 + C*exp(x))'. Un valor va entre paréntesis
+    si es una suma o negativo, si se eleva a una potencia, o si va detrás de una división y es un
+    producto (sustituir y' antes que y).
     """
     expr = sympy.sympify(expr)
     if expr in valores:
@@ -127,13 +128,21 @@ def sustituir(expr: Any, valores: Dict[Any, Any]) -> str:
     marcas = {v: f"\x00{i}\x00" for i, v in enumerate(nombres)}
     for v in nombres:
         escrita = re.sub(rf"(?<![\w.']){re.escape(v.name)}(?![\w('])", marcas[v], escrita)
-    for v in nombres:
-        valor = sympy.sympify(valores[v])
+
+    def poner(m):
+        valor = sympy.sympify(valores[nombres[int(m.group(1))]])
         nombre = texto(valor)
-        if not (valor.is_Symbol or (valor.is_Integer and valor >= 0)):
+        if valor.is_Symbol or (valor.is_Integer and valor >= 0):
+            return nombre
+        antes = m.string[m.start() - 1] if m.start() > 0 else ""
+        despues = m.string[m.end()] if m.end() < len(m.string) else ""
+        if (valor.is_Add or valor.could_extract_minus_sign() or despues == "^"
+                or (antes == "/" and (valor.is_Mul or valor.is_Pow or valor.is_Rational))
+                or ("*" in (antes, despues) and valor.is_Mul)
+                or (valor.is_Rational and not valor.is_Integer)):
             nombre = f"({nombre})"
-        escrita = escrita.replace(marcas[v], nombre)
-    return escrita
+        return nombre
+    return re.sub(r"\x00(\d+)\x00", poner, escrita)
 
 
 # ---------------------------------------------------------
@@ -681,7 +690,8 @@ class MotorEdo:
             cambio[constantes[0]] = C
         soluciones = [sympy.Eq(r.lhs.xreplace(cambio), r.rhs.xreplace(cambio)) for r in resultado]
         avisos.append(tr("NOTA: por ahora hay explicación paso a paso para las ecuaciones de primer orden "
-                         "separables, lineales y reducibles a separables, y' = F(a*x + b*y + c). Esta ecuación la "
+                         "separables, lineales, homogéneas y reducibles a separables, y' = F(a*x + b*y + c). Esta "
+                         "ecuación la "
                          "resuelve SymPy, sin pasos."))
         return soluciones
 
@@ -719,6 +729,7 @@ class MotorEdo:
         metodos = ((self._separable, tr("ecuación separable"), True),
                    (lambda *a: self._lineal(*a, edo=edo), tr("ecuación lineal de primer orden (factor integrante)"),
                     False),
+                   (self._homogenea, tr("ecuación homogénea (cambio y = u*x)"), True),
                    (self._reducible, tr("reducible a separable (cambio u = a*x + b*y + c)"), True))
         for resolver, metodo, con_despeje in metodos:
             pasos_metodo = list(despeje) if con_despeje else []
@@ -741,16 +752,22 @@ class MotorEdo:
         for s in soluciones:
             if s.lhs != y or not s.rhs.has(x):
                 continue  # implícitas y constantes: las comprueba SymPy (las constantes ya se vieron)
-            valores = {y: s.rhs}
-            derivada = s.rhs
+            # log(Abs(u)) tiene la misma derivada que log(u): sin el valor absoluto no salen sign(x)
+            # ni trozos; al escribir el resultado se vuelve a poner
+            abs_logs = {sympy.log(e.args[0].args[0]): e for e in s.rhs.atoms(sympy.log)
+                        if isinstance(e.args[0], sympy.Abs)}
+            sin_abs = s.rhs.xreplace({v: k for k, v in abs_logs.items()})
+            valores, calculo = {y: s.rhs}, {y: sin_abs}
+            derivada = sin_abs
             for n, d in enumerate(edo.derivadas, 1):
                 derivada = min((sympy.diff(derivada, x), sympy.simplify(sympy.diff(derivada, x)),
                                 sympy.factor(sympy.diff(derivada, x))), key=lambda e: len(texto(e)))
-                valores[d] = derivada
-                lineas.append(tr("Derivamos: {d} = {valor}.", d=d, valor=texto(derivada)))
+                calculo[d] = derivada
+                valores[d] = derivada.xreplace(abs_logs)
+                lineas.append(tr("Derivamos: {d} = {valor}.", d=d, valor=texto(valores[d])))
             for lado, expr in ((tr("Lado izquierdo"), edo.izquierda), (tr("Lado derecho"), edo.derecha)):
                 escrita = sustituir(expr, valores)
-                valor = sympy.simplify(expr.xreplace(valores))
+                valor = sympy.simplify(expr.xreplace(calculo)).xreplace(abs_logs)
                 cuenta = escrita if escrita == texto(valor) else f"{escrita} = {texto(valor)}"
                 lineas.append(f"{lado}: {cuenta}.")
             lineas.append(tr("Los dos lados valen lo mismo: {solucion} cumple la ecuación.",
@@ -1098,6 +1115,105 @@ class MotorEdo:
                              a=texto(a1), yp=yp, ecuacion=estandar))
         return lineas
 
+    # --- Homogéneas ---
+
+    def _homogenea(self, f: Any, x: Any, y: Any, pasos: List[PasoCalculo], avisos: List[str]) -> Optional[List[Any]]:
+        """y' = F(y/x): f(t*x, t*y) = f(x, y). Con y = u*x, y' = u + x*u' y queda x*u' = F(u) - u, separable."""
+        if not f.has(y) or not f.has(x):
+            return None
+        nombre_t = "s" if "t" in (x.name, y.name) else "t"
+        t = sympy.Symbol(nombre_t, positive=True)
+        con_t = f.subs({x: t * x, y: t * y}, simultaneous=True)
+        if sympy.simplify(con_t - f) != 0:
+            return None
+        u = sympy.Symbol("u", real=True)
+        F = sympy.simplify(f.subs(y, u * x))
+        if F.has(x):
+            return None
+        yp, up = sympy.Symbol(nombre_derivada(y, 1)), sympy.Symbol(nombre_derivada(u, 1))
+        t_texto = sympy.Symbol(nombre_t)
+        lineas = [tr("Cambiamos {x} por {t}*{x} e {y} por {t}*{y}: f({t}*{x}, {t}*{y}) = {sustituida} = {f}.",
+                     x=x, y=y, t=t_texto, f=texto(f),
+                     sustituida=sustituir(f, {x: t_texto * x, y: t_texto * y}))]
+        lineas.append(tr("{t} se simplifica: f no cambia, así que solo depende del cociente {y}/{x}.", t=t_texto,
+                         y=y, x=x))
+        lineas.append(tr("Con {y} = u*{x} (es decir, u = {y}/{x}): f = {sustituida} = {F}.", y=y, x=x,
+                         sustituida=sustituir(f, {y: u * x}), F=texto(F)))
+        pasos.append(PasoCalculo(
+            tr("Tipo de ecuación: homogénea"),
+            regla=tr("una ecuación {yp} = f({x}, {y}) es homogénea si f({t}*{x}, {t}*{y}) = f({x}, {y}) para todo {t}: "
+                     "entonces f solo depende de {y}/{x}, y el cambio {y} = u*{x} la convierte en separable.",
+                     yp=yp, x=x, y=y, t=t_texto),
+            partes=tr("f({x}, {y}) = {f}.", x=x, y=y, f=texto(f)),
+            calculo=tuple(lineas),
+            queda=tr("{yp} = {F}, con u = {y}/{x}", yp=yp, F=texto(F), y=y, x=x)))
+
+        resta = sympy.simplify(F - u)
+        nueva = sympy.factor_terms(sympy.together(resta / x))
+        lineas = [tr("{y} = u*{x}; derivamos con la regla del producto (u también depende de {x}): {yp} = u + {x}*{up}.",
+                     y=y, x=x, yp=yp, up=up),
+                  tr("Sustituimos en la ecuación: u + {x}*{up} = {F}.", x=x, up=up, F=texto(F)),
+                  tr("Pasamos u a la derecha cambiando de signo: {x}*{up} = {cuenta} = {resta}.", x=x, up=up,
+                     cuenta=f"{texto(F)} - u", resta=texto(resta)),
+                  tr("Dividimos los dos lados entre {x}: {up} = {nueva}.", x=x, up=up, nueva=texto(nueva))]
+        pasos.append(PasoCalculo(
+            tr("Cambio de variable"),
+            regla=tr("con {y} = u*{x}, la derivada es {yp} = u + {x}*{up}; al sustituir, la ecuación queda con u y "
+                     "{x} separables.", y=y, x=x, yp=yp, up=up),
+            partes=tr("u = {y}/{x}.", y=y, x=x),
+            calculo=tuple(lineas),
+            queda=f"{up} = {texto(nueva)}"))
+
+        soluciones_u = self._separable(nueva, x, u, pasos, avisos)
+        if soluciones_u is None:
+            return None
+        self._nota_en_y(avisos, u, y)
+        soluciones, lineas = [], []
+        for s in soluciones_u:
+            if s.lhs == u:
+                lineas.append(tr("u = {y}/{x}: {ecuacion}.", y=y, x=x, ecuacion=f"{y}/{x} = {texto(s.rhs)}"))
+                valor = sympy.expand(x * s.rhs) if s.rhs.is_Add else x * s.rhs
+                lineas.append(tr("Multiplicamos los dos lados por {x}: {y} = {valor}.", x=x, y=y,
+                                 valor=texto(valor)))
+                valor = self._simplificada(valor, lineas)
+                soluciones.append(sympy.Eq(y, valor))
+            else:
+                implicita = sympy.Eq(s.lhs.subs(u, y / x), s.rhs.subs(u, y / x))
+                lineas.append(tr("Cambiamos u por {cambio}: {ecuacion}.", cambio=f"{y}/{x}",
+                                 ecuacion=f"{texto(implicita.lhs)} = {texto(implicita.rhs)}"))
+                soluciones.append(self._juntar_implicita(implicita, lineas))
+        pasos.append(PasoCalculo(
+            tr("Deshacer el cambio"),
+            regla=tr("se vuelve a la variable {y}: se cambia u por {y}/{x} y se despeja {y}.", y=y, x=x),
+            partes=tr("u = {y}/{x}.", y=y, x=x),
+            calculo=tuple(lineas),
+            queda="; ".join(self._solucion_texto(s) for s in soluciones)))
+        return soluciones
+
+    @staticmethod
+    def _nota_en_y(avisos: List[str], u: Any, y: Any) -> None:
+        """Tras un cambio de variable, la nota de forma implícita se refiere a y, no a u."""
+        en_u = tr("NOTA: la solución queda en forma implícita (sin despejar {y}).", y=u)
+        avisos[:] = [tr("NOTA: la solución queda en forma implícita (sin despejar {y}).", y=y) if a == en_u else a
+                     for a in avisos]
+
+    def _juntar_implicita(self, implicita: Any, lineas: List[str]) -> Any:
+        """
+        L = R + C con logaritmos a los dos lados: se pasan a la izquierda y se juntan
+        (log(sqrt(1 + y^2/x^2)) + log(Abs(x)) = log(sqrt(x^2 + y^2))), si así queda más corta.
+        """
+        sin_c = sympy.expand(implicita.rhs - C)
+        if not sin_c.has(sympy.log) or not implicita.lhs.has(sympy.log):
+            return implicita
+        juntos = sympy.logcombine(implicita.lhs - sin_c, force=True)
+        juntos = juntos.replace(lambda e: isinstance(e, sympy.log), lambda e: sympy.log(sympy.simplify(e.args[0])))
+        if len(texto(juntos)) >= len(texto(implicita.lhs)) + len(texto(sin_c)):
+            return implicita
+        lineas.append(tr("Pasamos {termino} a la izquierda y juntamos los logaritmos (log(a) + log(b) = log(a*b), "
+                         "k*log(a) = log(a^k)): {ecuacion}.", termino=texto(sin_c),
+                         ecuacion=f"{texto(juntos)} = C"))
+        return sympy.Eq(juntos, C)
+
     # --- Reducibles a separables ---
 
     def _reducible(self, f: Any, x: Any, y: Any, pasos: List[PasoCalculo], avisos: List[str]) -> Optional[List[Any]]:
@@ -1147,6 +1263,7 @@ class MotorEdo:
         soluciones_u = self._separable(nueva, x, u, pasos, avisos)
         if soluciones_u is None:
             return None
+        self._nota_en_y(avisos, u, y)
         soluciones = []
         lineas = []
         for s in soluciones_u:

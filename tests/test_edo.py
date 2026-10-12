@@ -220,6 +220,49 @@ def test_lineal_agrupa_y_signos(core):
     assert "Lado derecho: x + (-x - 1 + C*exp(x)) = -1 + C*exp(x)." in texto
 
 
+HOMOGENEAS = [
+    ("y' = (x^2 + y^2)/(x*y)", "y = x*sqrt(2*log(Abs(x)) + C); y = -x*sqrt(2*log(Abs(x)) + C)"),
+    ("x*y' = y + x*exp(y/x)", "y = -x*log(-log(Abs(x)) + C)"),
+    ("y' = y/x + tan(y/x)", "y = x*asin(C*x); y = pi*k*x (k: cualquier número entero)"),
+    ("x^2*y' = x^2 + y^2 + x*y", "y = x*tan(log(Abs(x)) + C)"),
+    ("y' = (x^2 + y^2)/(x*y), y(1) = 2", "y = x*sqrt(2*log(Abs(x)) + 4)"),
+]
+
+
+@pytest.mark.parametrize("entrada, resultado", HOMOGENEAS, ids=[c[0] for c in HOMOGENEAS])
+def test_homogeneas(core, entrada, resultado):
+    res = core.ecuacion_diferencial(entrada)
+    assert res.texto.splitlines()[0] == f"RESULTADO: {resultado}", res.texto
+    assert "Método: ecuación homogénea (cambio y = u*x)" in res.texto
+    assert "AVISO" not in res.texto and "NOTA" not in res.texto
+    if "," not in entrada:
+        cumple(res)
+    nombres = titulos(res.texto)
+    for paso in ("Tipo de ecuación: homogénea.", "Cambio de variable.", "Tipo de ecuación: separable.",
+                 "Deshacer el cambio.", "Comprobación."):
+        assert paso in nombres
+
+
+def test_homogenea_paso_a_paso(core):
+    texto = core.ecuacion_diferencial("y' = (x^2 + y^2)/(x*y)").texto
+    assert ("Cambiamos x por t*x e y por t*y: f(t*x, t*y) = ((t*x)^2 + (t*y)^2)/((t*x)*(t*y)) = "
+            "(x^2 + y^2)/(x*y).") in texto
+    assert "Con y = u*x (es decir, u = y/x): f = (x^2 + (u*x)^2)/(x*(u*x)) = u + 1/u." in texto
+    assert "y = u*x; derivamos con la regla del producto (u también depende de x): y' = u + x*u'." in texto
+    assert "Pasamos u a la derecha cambiando de signo: x*u' = u + 1/u - u = 1/u." in texto
+    assert "Dividimos los dos lados entre x: u' = 1/(u*x)." in texto
+    assert "Multiplicamos los dos lados por x: y = x*sqrt(2*log(Abs(x)) + C)." in texto
+    # La comprobación, sin sign(x) ni trozos
+    assert "sign(" not in texto and "Piecewise" not in texto
+
+
+def test_homogenea_implicita_junta_logaritmos(core):
+    res = core.ecuacion_diferencial("y' = (x + y)/(x - y)")
+    assert res.texto.splitlines()[0] == "RESULTADO: log(sqrt(x^2 + y^2)) - atan(y/x) = C"
+    assert "NOTA: la solución queda en forma implícita (sin despejar y)." in res.texto
+    assert "Pasamos -log(Abs(x)) a la izquierda y juntamos los logaritmos" in res.texto
+
+
 def test_implicita_y_familia_de_constantes(core):
     res = core.ecuacion_diferencial("y' = sin(x)*cos(y)")
     assert not res.es_error

@@ -147,7 +147,10 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
      y' + P(x)*y = Q(x) (for example "x*y' + 2*y = x^2"), it is
      multiplied by the integrating factor m(x) = exp(∫ P dx), the
      left side becomes the derivative of m*y, it is integrated
-     and y is isolated. Finally the solution is checked by
+     and y is isolated. If it is homogeneous, y' = F(y/x) (for
+     example "y' = (x^2 + y^2)/(x*y)"), the substitution y = u*x,
+     with y' = u + x*u', makes it separable in u and x; then we
+     go back to y. Finally the solution is checked by
      differentiating it. Other types are solved by SymPy,
      without steps, with a note.
    - Limit: Type 'sin(x)/x'. Press Ctrl+L.

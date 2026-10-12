@@ -8,6 +8,15 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Añadido
 
+- **Ecuaciones diferenciales homogéneas**, `y' = F(y/x)`, con el cambio `y = u*x` (tarea 3 de la 1.7.0):
+  - **Tipo de ecuación**: se comprueba que `f(t*x, t*y) = f(x, y)` sustituyendo (`((t*x)^2 + (t*y)^2)/((t*x)*(t*y)) = (x^2 + y^2)/(x*y)`), y se escribe `f` en función de `u = y/x` (`u + 1/u`).
+  - **Cambio de variable**: `y = u*x` se deriva con la regla del producto, `y' = u + x*u'`; se sustituye, se pasa `u` al otro lado y se divide entre `x`, y queda una separable en `u` y `x`, que se resuelve con todos sus pasos (las soluciones constantes de `u`, como `u = pi*k`, dan rectas `y = pi*k*x`).
+  - **Deshacer el cambio**: `y/x = ...` se multiplica por `x`; si la solución queda implícita, se pasan los logaritmos a la izquierda y se juntan (`log(sqrt(x^2 + y^2)) - atan(y/x) = C`).
+  - Se prueba después de las separables y las lineales, y antes de las reducibles.
+  - La comprobación ya no deriva `log(Abs(x))` como `sign(x)/Abs(x)`: con el logaritmo sin valor absoluto (la misma derivada) no salen `sign` ni trozos (`Piecewise`) en el texto. Y la sustitución sin operar pone paréntesis solo donde hacen falta (`(t*x)^2`, `(t*x)*(t*y)`, no `(t*x) + (t*y)`).
+  - Tras un cambio de variable, la nota de solución implícita habla de `y`, no de `u`.
+  - Pruebas: 7 más en `tests/test_edo.py`.
+
 - **Ecuaciones diferenciales lineales de primer orden**, `y' + P(x)*y = Q(x)`, con el **factor integrante** (tarea 2 de la 1.7.0):
   - **Tipo de ecuación**, a partir de la ecuación tal como se escribió (sin despejar `y'` antes): se dejan a la izquierda los términos con `y'` y con `y`, se divide entre lo que multiplica a `y'` y se dicen `P(x)` y `Q(x)` (`x*y' + 2*y = x^2` da `y' + (2/x)*y = x`).
   - **Factor integrante** `m(x) = exp(∫ P dx)`: la integral de `P` con el paso a paso de **Integrar**, el logaritmo con valor absoluto y la potencia que queda (`exp(2*log(Abs(x))) = x^2`). El valor absoluto se quita diciendo por qué (basta un factor integrante: `1/Abs(cos(x))` pasa a `1/cos(x)`). No se usa la letra griega habitual: NVDA no la lee.
