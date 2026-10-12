@@ -152,6 +152,17 @@ def sustituir(expr: Any, valores: Dict[Any, Any]) -> str:
     return re.sub(r"\x00(\d+)\x00", poner, escrita)
 
 
+def _mas(coeficiente: Any, variable: Any) -> str:
+    """' + 2*y', ' - y', ' + (1/x)*y': el término coeficiente*variable de una suma, con su signo."""
+    coeficiente = sympy.sympify(coeficiente)
+    if coeficiente == 0:
+        return ""
+    signo, valor = (" - ", -coeficiente) if coeficiente.could_extract_minus_sign() else (" + ", coeficiente)
+    if sympy.fraction(valor)[1] != 1 and not valor.is_Add:
+        return signo + texto(valor * variable)  # y/x, no (1/x)*y
+    return signo + producto(valor, variable)
+
+
 # ---------------------------------------------------------
 # Lectura de la entrada
 # ---------------------------------------------------------
@@ -406,6 +417,8 @@ class Despeje:
             return [(base ** -exponente, 1 / der)]
         inverso = 1 / exponente
         nueva = der ** inverso
+        if der.is_Pow and der.exp == -1:  # (1/a)^(1/2) se escribe 1/a^(1/2)
+            nueva = 1 / der.base ** inverso
         p = exponente.p  # base^(p/q) = R: base = R^(q/p); con p par, ±
         if exponente == 2:
             self.lineas.append(tr("Sacamos la raíz cuadrada de los dos lados (deshace el cuadrado); hay dos signos: "
@@ -703,6 +716,8 @@ class MotorEdo:
 
     def _comprobadas(self, ode: Any, soluciones: List[Any], edo: Edo, Y: Any) -> bool:
         for s in soluciones:
+            if s in getattr(self, "_condiciones", {}):
+                continue
             if s.lhs != edo.y and edo.orden == 1:
                 # Implícita, F(x, y) = 0: y' = -F_x/F_y (derivación implícita) cumple la ecuación
                 # log(Abs(u)) y log(u) tienen la misma derivada: sin el valor absoluto se simplifica mejor
@@ -736,7 +751,8 @@ class MotorEdo:
             cambio[constantes[0]] = C
         soluciones = [sympy.Eq(r.lhs.xreplace(cambio), r.rhs.xreplace(cambio)) for r in resultado]
         avisos.append(tr("NOTA: por ahora hay explicación paso a paso para las ecuaciones de primer orden "
-                         "separables, lineales, homogéneas, exactas (o con factor integrante) y reducibles a separables, "
+                         "separables, lineales, de Bernoulli, homogéneas, exactas (o con factor integrante) y reducibles a "
+                         "separables, "
                          "y' = F(a*x + b*y + c). Esta "
                          "ecuación la "
                          "resuelve SymPy, sin pasos."))
@@ -756,6 +772,9 @@ class MotorEdo:
 
     def _explicar(self, edo: Edo, pasos: List[PasoCalculo], avisos: List[str]) -> Tuple[List[Any], str]:
         x, y = edo.x, edo.y
+        # Soluciones que valen con una condición (y = v^2 con v = sqrt(y) >= 0): el método las comprueba
+        # por su cuenta y la comprobación dice dónde valen
+        self._condiciones: Dict[Any, str] = {}
         pasos.append(PasoCalculo(
             tr("Planteamiento"),
             regla=tr("una ecuación diferencial relaciona una función {y}({x}) con sus derivadas. Resolverla es hallar "
@@ -778,6 +797,8 @@ class MotorEdo:
                    (lambda *a: self._lineal(*a, edo=edo), tr("ecuación lineal de primer orden (factor integrante)"),
                     False),
                    (self._homogenea, tr("ecuación homogénea (cambio y = u*x)"), True),
+                   (lambda *a: self._bernoulli(*a, edo=edo), tr("ecuación de Bernoulli (cambio v = y^(1 - n))"),
+                    False),
                    exacta,
                    (self._reducible, tr("reducible a separable (cambio u = a*x + b*y + c)"), True))
         if edo.diferencial:  # escrita como M dx + N dy = 0: primero, el método de las exactas
@@ -821,6 +842,10 @@ class MotorEdo:
                 valor = sympy.simplify(expr.xreplace(calculo)).xreplace(abs_logs)
                 cuenta = escrita if escrita == texto(valor) else f"{escrita} = {texto(valor)}"
                 lineas.append(f"{lado}: {cuenta}.")
+            if s in self._condiciones:
+                lineas.append(tr("Los dos lados valen lo mismo {condicion}: {solucion} cumple la ecuación.",
+                                 condicion=self._condiciones[s], solucion=self._solucion_texto(s)))
+                continue
             lineas.append(tr("Los dos lados valen lo mismo: {solucion} cumple la ecuación.",
                              solucion=self._solucion_texto(s)))
         if lineas:
@@ -1165,6 +1190,125 @@ class MotorEdo:
             lineas.append(tr("Dividimos los dos lados entre {a}, lo que multiplica a {yp}: {ecuacion}.",
                              a=texto(a1), yp=yp, ecuacion=estandar))
         return lineas
+
+    # --- Bernoulli ---
+
+    def _bernoulli(self, f: Any, x: Any, y: Any, pasos: List[PasoCalculo], avisos: List[str],
+                   edo: Optional[Edo] = None) -> Optional[List[Any]]:
+        """
+        y' + P(x)*y = Q(x)*y^n (n distinto de 0 y 1): con v = y^(1 - n), v' = (1 - n)*y^(-n)*y', y al
+        dividir entre y^n queda la lineal v' + (1 - n)*P*v = (1 - n)*Q.
+        """
+        grupos: Dict[Any, Any] = {}
+        for t in sympy.Add.make_args(sympy.expand(f)):
+            coef, parte = t.as_independent(y, as_Add=False)
+            if parte == 1:
+                return None  # un término sin y: no es de Bernoulli
+            base, exponente = parte.as_base_exp()
+            if base != y or not exponente.is_Rational:
+                return None
+            grupos[exponente] = grupos.get(exponente, 0) + coef
+        otras = [e for e in grupos if e != 1]
+        if 1 not in grupos or len(otras) != 1 or len(grupos) != 2:
+            return None
+        n = otras[0]
+        P, Q = sympy.factor_terms(-grupos[1]), sympy.factor_terms(grupos[n])
+        if P == 0 or Q == 0:
+            return None
+        yp = sympy.Symbol(nombre_derivada(y, 1))
+        v = sympy.Symbol("v", real=True)
+        vp = sympy.Symbol(nombre_derivada(v, 1))
+        k = 1 - n  # el exponente del cambio
+        y_n = sympy.Pow(y, n, evaluate=False)
+        estandar = f"{yp}{_mas(P, y)} = {texto(Q * y_n)}"
+        lineas = []
+        if edo is not None:
+            todo = sympy.expand(edo.izquierda - edo.derecha)
+            a1 = sympy.factor_terms(todo.coeff(yp))
+            if not a1.has(y) and not a1.has(yp):
+                izq_bien = sympy.expand(edo.izquierda - a1 * yp - a1 * P * y) == 0
+                der_bien = sympy.expand(edo.derecha - a1 * Q * y ** n) == 0
+                if not (izq_bien and der_bien):
+                    lineas.append(tr("Dejamos a la izquierda los términos con {yp} y con {y}, y a la derecha el de "
+                                     "{yn}: {ecuacion}.", yp=yp, y=y, yn=texto(y_n),
+                                     ecuacion=f"{MotorEdo._por(a1, yp)}{_mas(sympy.expand(a1 * P), y)} = "
+                                              f"{texto(sympy.expand(a1 * Q) * y_n)}"))
+                if a1 != 1:
+                    lineas.append(tr("Dividimos los dos lados entre {a}, lo que multiplica a {yp}: {ecuacion}.",
+                                     a=texto(a1), yp=yp, ecuacion=estandar))
+        pasos.append(PasoCalculo(
+            tr("Tipo de ecuación: de Bernoulli"),
+            regla=tr("una ecuación es de Bernoulli si se puede escribir {yp} + P({x})*{y} = Q({x})*{y}^n, con n "
+                     "distinto de 0 y de 1 (con n = 0 o n = 1 sería lineal).", yp=yp, x=x, y=y),
+            partes=tr("{estandar}: P({x}) = {P}, Q({x}) = {Q} y n = {n}.", estandar=estandar, x=x, P=texto(P),
+                      Q=texto(Q), n=texto(n)),
+            calculo=tuple(lineas),
+            queda=estandar))
+
+        P_v, Q_v = sympy.factor_terms(k * P), sympy.factor_terms(k * Q)
+        y_menos_n = sympy.Pow(y, -n, evaluate=False)
+        y_k = sympy.Pow(y, k, evaluate=False) if k != 1 else y
+        dividida = f"{texto(y_menos_n * yp)}{_mas(P, y_k)} = {texto(Q)}"
+        lineas = [tr("Dividimos los dos lados entre {yn}: {ecuacion}.", yn=texto(y_n), ecuacion=dividida),
+                  tr("Con v = {yk}, la regla de la cadena da v' = {dv}; así {ymn} = {vk}.", yk=texto(y_k),
+                     dv=texto(k * y_menos_n * yp), ymn=texto(y_menos_n * yp), vk=texto(vp / k)),
+                  tr("Sustituimos: {ecuacion}.", ecuacion=f"{texto(vp / k)}{_mas(P, v)} = {texto(Q)}")]
+        lineal = f"{vp}{_mas(P_v, v)} = {texto(Q_v)}"
+        if k != 1:
+            lineas.append(tr("Multiplicamos los dos lados por {k}: {ecuacion}.", k=texto(k), ecuacion=lineal))
+        pasos.append(PasoCalculo(
+            tr("Cambio de variable"),
+            regla=tr("con v = {y}^(1 - n) la ecuación se vuelve lineal en v: se divide entre {y}^n, y {y}^(-n)*{yp} "
+                     "es v'/(1 - n).", y=y, yp=yp),
+            partes=tr("n = {n}, así que 1 - n = {k} y v = {yk}.", n=texto(n), k=texto(k), yk=texto(y_k)),
+            calculo=tuple(lineas),
+            queda=lineal))
+
+        soluciones_v = self._lineal(sympy.expand(Q_v - P_v * v), x, v, pasos, avisos)
+        if soluciones_v is None:
+            return None
+        lineas, soluciones = [], []
+        V = sympy.Function("v", real=True)(x)
+        lineal_v = sympy.Eq(V.diff(x) + P_v * V, Q_v)
+        for s in soluciones_v:
+            lineas.append(f"{texto(y_k)} = {texto(s.rhs)}.")
+            despeje = Despeje(y, [x], constantes=False)
+            for valor in despeje.resolver(y_k, s.rhs):
+                solucion = sympy.Eq(y, valor)
+                if not k.is_Integer:
+                    # y = v^(1/k) con k fraccionario: vale donde v >= 0 (v es una raíz de y); se comprueba la
+                    # lineal en v, que es la que se resolvió
+                    if not sympy.checkodesol(lineal_v, sympy.Eq(V, s.rhs), solve_for_func=False)[0]:
+                        return None
+                    self._condiciones[solucion] = tr("donde {v} >= 0 (v = {yk} no puede ser negativa)",
+                                                     v=texto(s.rhs), yk=texto(y_k))
+                soluciones.append(solucion)
+            lineas.extend(despeje.lineas)
+        pasos.append(PasoCalculo(
+            tr("Deshacer el cambio"),
+            regla=tr("se vuelve a la variable {y}: v = {yk}, y se despeja {y}.", y=y, yk=texto(y_k)),
+            partes=tr("v = {yk}.", yk=texto(y_k)),
+            calculo=tuple(lineas),
+            queda="; ".join(self._solucion_texto(s) for s in soluciones)))
+
+        if n > 0:  # al dividir entre y^n se pierde y = 0, que es solución
+            incluida = self._incluida(sympy.S.Zero, soluciones, y)
+            regla = tr("al dividir entre {y}^n se supuso {y} distinto de 0; {y} = 0 cumple la ecuación ({yp} = 0 y los "
+                       "dos términos con {y} valen 0).", y=y, yp=yp)
+            if incluida is not None:
+                pasos.append(PasoCalculo(
+                    tr("La solución constante {y} = {r}", y=y, r=0), regla=regla,
+                    calculo=(tr("Con C = {c}, la solución general da {y} = {r}: está incluida.", c=texto(incluida),
+                                y=y, r=0),),
+                    queda=tr("incluida en la solución general")))
+            else:
+                pasos.append(PasoCalculo(
+                    tr("La solución constante {y} = {r}", y=y, r=0), regla=regla,
+                    calculo=(tr("Ningún valor de C da {y} = {r}: se añade aparte (es una solución singular).", y=y,
+                                r=0),),
+                    queda=f"{y} = 0"))
+                soluciones.append(sympy.Eq(y, 0))
+        return soluciones
 
     # --- Homogéneas ---
 

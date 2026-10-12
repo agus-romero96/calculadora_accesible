@@ -150,7 +150,10 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
      and y is isolated. If it is homogeneous, y' = F(y/x) (for
      example "y' = (x^2 + y^2)/(x*y)"), the substitution y = u*x,
      with y' = u + x*u', makes it separable in u and x; then we
-     go back to y. Exact equations can be written in
+     go back to y. If it is a Bernoulli equation,
+     y' + P(x)*y = Q(x)*y^n (for example "y' + y = x*y^2"), it is
+     divided by y^n and the substitution v = y^(1 - n) makes it
+     linear in v. Exact equations can be written in
      differential form: "(2*x*y + 3) dx + (x^2 - 1) dy = 0". It
      is checked that M_y = N_x (if not, an integrating factor
      depending only on x or on y is sought), M is integrated

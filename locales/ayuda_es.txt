@@ -148,7 +148,10 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
      se despeja y. Si es homogénea, y' = F(y/x) (por ejemplo
      "y' = (x^2 + y^2)/(x*y)"), el cambio y = u*x, con
      y' = u + x*u', la deja separable en u y x; al final se
-     vuelve a y. Las exactas se pueden escribir en forma
+     vuelve a y. Si es de Bernoulli, y' + P(x)*y = Q(x)*y^n (por
+     ejemplo "y' + y = x*y^2"), se divide entre y^n y el cambio
+     v = y^(1 - n) la deja lineal en v. Las exactas se pueden
+     escribir en forma
      diferencial: "(2*x*y + 3) dx + (x^2 - 1) dy = 0". Se
      comprueba que M_y = N_x (si no, se busca un factor
      integrante que solo dependa de x o de y), se integra M

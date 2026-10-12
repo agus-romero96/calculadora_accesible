@@ -8,6 +8,16 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Añadido
 
+- **Ecuaciones diferenciales de Bernoulli**, `y' + P(x)*y = Q(x)*y^n`, con el cambio `v = y^(1 - n)` (tarea 5 de la 1.7.0):
+  - **Tipo de ecuación**, desde la ecuación escrita: se reconocen los términos en `y` y en `y^n` (`n` distinto de 0 y de 1, también fraccionario o negativo), se dicen `P`, `Q` y `n`, y si hace falta se reordena y se divide entre lo que multiplica a `y'` (`x*y' + y = x^2*y^2` da `y' + y/x = x*y^2`).
+  - **Cambio de variable**: se divide entre `y^n` (`y'/y^2 + 1/(x*y) = x`), `v = y^(1 - n)` se deriva con la regla de la cadena (`v' = -y'/y^2`, así `y'/y^2 = -v'`), se sustituye y se multiplica por `1 - n`: queda una **lineal en `v`**, que se resuelve con todos los pasos del factor integrante.
+  - **Deshacer el cambio**: `1/y = ...` con el inverso; `1/y^2 = ...` con el inverso y la raíz con sus dos signos (`y = ±1/sqrt(...)`); `sqrt(y) = ...` elevando al cuadrado.
+  - `y = 0`, que se pierde al dividir entre `y^n` si `n > 0`, se dice aparte (incluida en la general o singular).
+  - Con `n` fraccionario (`y' + y = x*sqrt(y)`), la solución `y = v^2` vale donde `v >= 0`, porque `v = sqrt(y)` no puede ser negativa: se comprueba la lineal en `v` y la comprobación dice dónde valen los dos lados. SymPy no lo podía comprobar sin esa condición y la explicación se descartaba.
+  - Se prueba después de las homogéneas: `y' = (x^2 + y^2)/(x*y) = x/y + y/x` es de Bernoulli con `n = -1`, pero en clase se resuelve como homogénea.
+  - En las sumas con un coeficiente fraccionario se escribe `y/x`, no `(1/x)*y`; y `(1/a)^(1/2)` se escribe `1/sqrt(a)`.
+  - Pruebas: 7 más en `tests/test_edo.py`.
+
 - **Ecuaciones diferenciales exactas** y con **factor integrante** (tarea 4 de la 1.7.0):
   - **Forma diferencial en la entrada**: `(2*x*y + 3) dx + (x^2 - 1) dy = 0` (o `M dx = N dy`) se lee como `M + N*y' = 0`; cada término debe llevar `dx` o `dy` una sola vez. Escrita así, se intenta primero el método de las exactas; con `y'`, después de las separables, lineales y homogéneas.
   - **Forma diferencial**: `M` y `N` (desde `y'`, multiplicando por `dx`).

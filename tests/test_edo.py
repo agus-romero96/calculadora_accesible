@@ -326,6 +326,52 @@ def test_forma_diferencial_mal_escrita(core):
     assert res.es_error and "cada término debe llevar dx o dy una sola vez" in res.texto
 
 
+BERNOULLI = [
+    ("y' + y = x*y^2", "y = 1/(x + 1 + C*exp(x)); y = 0"),
+    ("x*y' + y = x^2*y^2", "y = 1/(-x^2 + C*x); y = 0"),
+    ("y' = y + x*y^3", "y = 1/sqrt(-x + 1/2 + C*exp(-2*x)); y = -1/sqrt(-x + 1/2 + C*exp(-2*x)); y = 0"),
+    ("y' - 2*y = exp(x)*y^2", "y = 1/(-exp(x)/3 + C*exp(-2*x)); y = 0"),
+    ("y' + y/x = y^2, y(1) = 1", "y = -1/(x*(log(Abs(x)) - 1))"),
+]
+
+
+@pytest.mark.parametrize("entrada, resultado", BERNOULLI, ids=[c[0] for c in BERNOULLI])
+def test_bernoulli(core, entrada, resultado):
+    res = core.ecuacion_diferencial(entrada)
+    assert res.texto.splitlines()[0] == f"RESULTADO: {resultado}", res.texto
+    assert "Método: ecuación de Bernoulli (cambio v = y^(1 - n))" in res.texto
+    assert "AVISO" not in res.texto and "NOTA" not in res.texto
+    if "," not in entrada:
+        cumple(res)
+    nombres = titulos(res.texto)
+    for paso in ("Tipo de ecuación: de Bernoulli.", "Cambio de variable.", "Tipo de ecuación: lineal de primer orden.",
+                 "Factor integrante.", "Deshacer el cambio.", "Comprobación."):
+        assert paso in nombres
+    assert "Despejar y'." not in nombres
+
+
+def test_bernoulli_paso_a_paso(core):
+    texto = core.ecuacion_diferencial("x*y' + y = x^2*y^2").texto
+    assert "En este caso: y' + y/x = x*y^2: P(x) = 1/x, Q(x) = x y n = 2." in texto
+    assert "Dividimos los dos lados entre x, lo que multiplica a y': y' + y/x = x*y^2." in texto
+    assert "Dividimos los dos lados entre y^2: y'/y^2 + 1/(x*y) = x." in texto
+    assert "Con v = 1/y, la regla de la cadena da v' = -y'/y^2; así y'/y^2 = -v'." in texto
+    assert "Sustituimos: -v' + v/x = x." in texto
+    assert "Multiplicamos los dos lados por -1: v' - v/x = -x." in texto
+    assert "Tomamos el inverso de los dos lados: y = 1/(-x^2 + C*x)." in texto
+    assert "Ningún valor de C da y = 0: se añade aparte (es una solución singular)." in texto
+
+
+def test_bernoulli_con_raiz(core):
+    # n = 1/2: y = v^2 con v = sqrt(y), que no puede ser negativa; la solución vale donde v >= 0
+    res = core.ecuacion_diferencial("y' + y = x*sqrt(y)")
+    assert res.texto.splitlines()[0] == "RESULTADO: y = (x - 2 + C*exp(-x/2))^2; y = 0"
+    assert "AVISO" not in res.texto
+    assert "Con v = sqrt(y), la regla de la cadena da v' = y'/(2*sqrt(y)); así y'/sqrt(y) = 2*v'." in res.texto
+    assert ("Los dos lados valen lo mismo donde x - 2 + C*exp(-x/2) >= 0 (v = sqrt(y) no puede ser negativa)"
+            in res.texto)
+
+
 def test_implicita_y_familia_de_constantes(core):
     res = core.ecuacion_diferencial("y' = sin(x)*cos(y)")
     assert not res.es_error
