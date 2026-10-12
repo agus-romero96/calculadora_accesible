@@ -6,6 +6,10 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Sin publicar]
 
+## [1.7.0] - 2026-10-11
+
+Versión de las ecuaciones diferenciales: una sola operación (menú Cálculo, `Ctrl+Shift+R`) que reconoce el tipo de la ecuación y la resuelve paso a paso con el método de clase, en catorce casos: separables (y reducibles a separables), lineales de primer orden, homogéneas, exactas y con factor integrante, Bernoulli, Riccati, Clairaut, reducibles de orden, lineales de orden superior con coeficientes constantes (coeficientes indeterminados y variación de parámetros), Cauchy-Euler, reducción de orden, transformada de Laplace (con escalón y delta), sistemas lineales `X' = A*X` y series de potencias; con condiciones iniciales y la comprobación de cada solución.
+
 ### Añadido
 
 - **Riccati, Clairaut y ecuaciones reducibles de orden** (tarea 6, la última de la 1.7.0):
@@ -533,7 +537,8 @@ Versión de calidad: corrige resultados matemáticos incorrectos (límites bilat
 
 Primera versión publicada con instalador para Windows: evaluación, simplificación y factorización; derivadas, integrales y límites con explicación paso a paso; sistemas por Gauss-Jordan e inversa por cofactores; interfaz accesible para NVDA.
 
-[Sin publicar]: https://github.com/agus-romero96/calculadora_accesible/compare/v1.6.0...HEAD
+[Sin publicar]: https://github.com/agus-romero96/calculadora_accesible/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/agus-romero96/calculadora_accesible/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/agus-romero96/calculadora_accesible/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/agus-romero96/calculadora_accesible/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/agus-romero96/calculadora_accesible/compare/v1.3.0...v1.4.0

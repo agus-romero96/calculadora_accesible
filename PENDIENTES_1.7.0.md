@@ -47,5 +47,5 @@ Una tarea terminada se tacha (`~~...~~`) y se anota el commit.
 
 ## Antes de publicar la 1.7.0
 
-- Fusionar la rama con `main`.
+- ~~Fusionar la rama con `main`.~~ Hecho (avance rápido a `05fd206`).
 - Compilar el ejecutable con `compilar.py` (autoprueba del `.exe`, con un caso de ecuación diferencial).
