@@ -263,6 +263,69 @@ def test_homogenea_implicita_junta_logaritmos(core):
     assert "Pasamos -log(Abs(x)) a la izquierda y juntamos los logaritmos" in res.texto
 
 
+EXACTAS = [
+    ("(2*x*y + 3) dx + (x^2 - 1) dy = 0", "y = (-3*x + C)/(x^2 - 1)"),
+    ("(3*x^2 + y*cos(x)) dx + (sin(x) - 4*y^3) dy = 0", "x^3 - y^4 + y*sin(x) = C"),
+    ("2*x*y + (x^2 + 2*y)*y' = 0", "x^2*y + y^2 = C"),
+    ("(exp(x) + y) dx + (x + exp(y)) dy = 0", "x*y + exp(x) + exp(y) = C"),
+    ("(2*x*y + 3) dx + (x^2 - 1) dy = 0, y(0) = 2", "y = (-3*x - 2)/(x^2 - 1)"),
+    # Con factor integrante que solo depende de x o de y
+    ("(x*y - 1) dx + (x^2 - x*y) dy = 0", "x*y - y^2/2 - log(Abs(x)) = C"),
+    ("y dx - x dy = 0", "y = C*x"),
+    ("y dx + (2*x - y*exp(y)) dy = 0", "x*y^2 + (-y^2 + 2*y - 2)*exp(y) = C"),
+]
+
+
+@pytest.mark.parametrize("entrada, resultado", EXACTAS, ids=[c[0] for c in EXACTAS])
+def test_exactas(core, entrada, resultado):
+    res = core.ecuacion_diferencial(entrada)
+    assert res.texto.splitlines()[0] == f"RESULTADO: {resultado}", res.texto
+    assert "Método: ecuación exacta" in res.texto
+    assert "AVISO" not in res.texto
+    if "," not in entrada:
+        cumple(res)
+    nombres = titulos(res.texto)
+    for paso in ("Forma diferencial.", "Tipo de ecuación: ¿exacta?.", "Integrar M respecto a x.", "Hallar g(y).",
+                 "Solución general."):
+        assert paso in nombres
+    for paso in pasos(res.texto):
+        if paso.splitlines()[0].split(". ", 1)[1] in ("Tipo de ecuación: ¿exacta?.", "Hallar g(y).",
+                                                        "Factor integrante."):
+            assert "Regla: " in paso and "Queda: " in paso, paso
+
+
+def test_exacta_paso_a_paso(core):
+    texto = core.ecuacion_diferencial("(2*x*y + 3) dx + (x^2 - 1) dy = 0").texto
+    assert "M_y es la derivada de M respecto a y, con x como constante: M_y = 2*x." in texto
+    assert "N_x es la derivada de N respecto a x, con y como constante: N_x = 2*x." in texto
+    assert "Son iguales: la ecuación es exacta." in texto
+    assert "Regla del factor constante en ∫ 2*x*y dx (término 1 de la suma)." in texto  # pasos de Integrar
+    assert "Queda: F = x^2*y + 3*x + g(y)" in texto
+    assert "Igualamos a N: x^2 + g'(y) = x^2 - 1." in texto
+    assert "Despejamos: g'(y) = x^2 - 1 - x^2 = -1." in texto
+    assert "Queda: x^2*y + 3*x - y = C" in texto
+    assert "Sacamos y factor común: x^2*y - y = y*(x^2 - 1)." in texto
+
+
+def test_exacta_desde_y_prima(core):
+    texto = core.ecuacion_diferencial("2*x*y + (x^2 + 2*y)*y' = 0").texto
+    assert "y' es dy/dx: multiplicando por dx y pasando todo a la izquierda, 2*x*y dx + (x^2 + 2*y) dy = 0." in texto
+
+
+def test_factor_integrante_de_exactas(core):
+    texto = core.ecuacion_diferencial("(x*y - 1) dx + (x^2 - x*y) dy = 0").texto
+    assert "No son iguales: la ecuación no es exacta." in texto
+    assert "(M_y - N_x)/N = (x - (2*x - y))/(x*(x - y)) = -1/x: solo depende de x." in texto
+    assert "m(x) = exp(-log(Abs(x))) = 1/x." in texto
+    assert "Ahora M_y = 1 y N_x = 1: son iguales, la ecuación ya es exacta." in texto
+    assert "m(y) = " in core.ecuacion_diferencial("y dx + (2*x - y*exp(y)) dy = 0").texto
+
+
+def test_forma_diferencial_mal_escrita(core):
+    res = core.ecuacion_diferencial("dx*dy = 0")
+    assert res.es_error and "cada término debe llevar dx o dy una sola vez" in res.texto
+
+
 def test_implicita_y_familia_de_constantes(core):
     res = core.ecuacion_diferencial("y' = sin(x)*cos(y)")
     assert not res.es_error

@@ -53,6 +53,7 @@ class Edo:
     orden: int
     condiciones: List[Condicion] = field(default_factory=list)
     escrita: str = ""         # la ecuación tal como se escribió (para mostrarla en ese orden)
+    diferencial: bool = False  # escrita como M dx + N dy = 0 (se lee como M + N*y' = 0)
 
     @property
     def enunciado(self) -> str:
@@ -82,6 +83,12 @@ class _Impresora(StrPrinter):
     def _as_ordered_terms(self, expr, order=None):
         terminos = super()._as_ordered_terms(expr, order=order)
         return [t for t in terminos if not t.has(C)] + [t for t in terminos if t.has(C)]
+
+    def _print_Pow(self, expr, rational=False):
+        # x^(-2) se escribe 1/x^2, como 1/x
+        if expr.exp.is_Integer and expr.exp < -1:
+            return "1/" + self.parenthesize(sympy.Pow(expr.base, -expr.exp, evaluate=False), 50)
+        return super()._print_Pow(expr, rational=rational)
 
 
 def texto(expr: Any) -> str:
@@ -487,9 +494,25 @@ class Despeje:
         polinomio = sympy.expand(izq - der)
         if sympy.degree(polinomio, u) != 1 if polinomio.is_polynomial(u) else True:
             raise SinExplicacion()
-        lineas, valor = despejar(izq, der, u)
-        self.lineas.extend(lineas)
-        return [(u, sympy.factor_terms(valor))]
+        # De primer grado en u: los términos con u a la izquierda, u factor común y dividir
+        coeficiente = sympy.factor_terms(polinomio.coeff(u))
+        resto = sympy.expand(-(polinomio - polinomio.coeff(u) * u))
+        con_u = [t for t in sympy.Add.make_args(sympy.expand(izq)) if t.has(u)] + \
+                [-t for t in sympy.Add.make_args(sympy.expand(der)) if t.has(u)]
+        sin_u = [t for t in sympy.Add.make_args(sympy.expand(der)) if not t.has(u)] + \
+                [-t for t in sympy.Add.make_args(sympy.expand(izq)) if not t.has(u) and t != 0]
+        izquierda_txt = texto(sympy.Add(*con_u))
+        if sympy.expand(izq) != sympy.Add(*con_u) or sympy.expand(der) != sympy.Add(*sin_u):
+            self.lineas.append(tr("Dejamos a la izquierda los términos con {u} y a la derecha los demás: {ecuacion}.",
+                                  u=u, ecuacion=f"{izquierda_txt} = {texto(resto)}"))
+        if len(con_u) > 1:
+            self.lineas.append(tr("Sacamos {u} factor común: {suma} = {u}*{coeficiente}.", u=u, suma=izquierda_txt,
+                                  coeficiente=factor(coeficiente)))
+        valor = sympy.factor_terms(resto / coeficiente)
+        if coeficiente != 1:
+            self.lineas.append(tr("Dividimos los dos lados entre {k} (suponiendo que no vale 0): {ecuacion}.",
+                                  k=texto(coeficiente), ecuacion=self._igualdad(u, valor)))
+        return [(u, valor)]
 
 
 # ---------------------------------------------------------
@@ -517,6 +540,18 @@ class MotorEdo:
             return f"{m.group(2)}" + "'" * int(m.group(1) or 1)
         ecuacion = re.sub(r"d\s*\^?\s*(\d)?\s*([a-z])\s*/\s*d\s*([a-z])\s*(?:\^?\s*\d)?", derivada_leibniz, ecuacion)
         con_primas = set(re.findall(r"([a-z])\s*'", ecuacion))
+        diferencial = None
+        if not con_primas:
+            # Forma diferencial, M dx + N dy = 0: se lee como M + N*y' = 0 (dividiendo entre dx)
+            patron = r"(?<![a-z])d([a-z])(?![a-z0-9_(])"
+            letras = sorted(set(re.findall(patron, ecuacion)))
+            if len(letras) == 2:
+                dependiente_dif = "y" if "y" in letras else letras[1]
+                independiente = letras[0] if letras[1] == dependiente_dif else letras[1]
+                diferencial = (dependiente_dif, independiente)
+                ecuacion = re.sub(patron, lambda m: f"{m.group(1)}'" if m.group(1) == dependiente_dif
+                                  else f" dif_{m.group(1)} ", ecuacion)
+                con_primas = {dependiente_dif}
         if not con_primas:
             raise ValueError(tr("No hay ninguna derivada: escriba la ecuación con y' (o dy/dx), por ejemplo "
                                 "y' = 2*x*y. Para una ecuación sin derivadas, use Resolver ecuación (Ctrl+R)."))
@@ -548,6 +583,16 @@ class MotorEdo:
         marcas = {self.parser.simbolo(f"d{n}_{dependiente}"): sympy.Symbol(nombre_derivada(y, n))
                   for n in range(1, orden + 1)}
         izquierda, derecha = izquierda.xreplace(marcas), derecha.xreplace(marcas)
+        if diferencial:
+            dx = self.parser.simbolo(f"dif_{diferencial[1]}")
+            dy = marcas[self.parser.simbolo(f"d1_{dependiente}")]
+            todo = sympy.expand(izquierda - derecha)
+            terminos = sympy.Add.make_args(todo)
+            if not all(sympy.Poly(t, dx, dy).total_degree() == 1 for t in terminos if t != 0) \
+                    or not todo.is_polynomial(dx, dy):
+                raise ValueError(tr("En la forma diferencial, cada término debe llevar d{x} o d{y} una sola vez "
+                                    "(ej: (2*x*y + 3) dx + (x^2 - 1) dy = 0).", x=diferencial[1], y=dependiente))
+            izquierda, derecha = izquierda.subs(dx, 1), derecha.subs(dx, 1)
         otras = (izquierda.free_symbols | derecha.free_symbols) - set(marcas.values()) - {y}
         nombres = {s.name: s for s in otras}
         if independiente:
@@ -579,7 +624,8 @@ class MotorEdo:
         derivadas = [marcas[s] for s in sorted(marcas, key=lambda s: s.name)]
         if "=" not in escrita:
             escrita += " = 0"
-        return Edo(izquierda, derecha, x, y, derivadas, orden, sorted(condiciones, key=lambda c: c.orden), escrita)
+        return Edo(izquierda, derecha, x, y, derivadas, orden, sorted(condiciones, key=lambda c: c.orden), escrita,
+                   diferencial=bool(diferencial))
 
     # --- Fachada ---
 
@@ -690,7 +736,8 @@ class MotorEdo:
             cambio[constantes[0]] = C
         soluciones = [sympy.Eq(r.lhs.xreplace(cambio), r.rhs.xreplace(cambio)) for r in resultado]
         avisos.append(tr("NOTA: por ahora hay explicación paso a paso para las ecuaciones de primer orden "
-                         "separables, lineales, homogéneas y reducibles a separables, y' = F(a*x + b*y + c). Esta "
+                         "separables, lineales, homogéneas, exactas (o con factor integrante) y reducibles a separables, "
+                         "y' = F(a*x + b*y + c). Esta "
                          "ecuación la "
                          "resuelve SymPy, sin pasos."))
         return soluciones
@@ -726,11 +773,15 @@ class MotorEdo:
 
         # El primer método que reconoce la ecuación (cada uno devuelve None si no es de su tipo, antes
         # de añadir pasos). Las lineales parten de la ecuación escrita, sin despejar y'.
+        exacta = (lambda *a: self._exacta(*a, edo=edo), tr("ecuación exacta"), False)
         metodos = ((self._separable, tr("ecuación separable"), True),
                    (lambda *a: self._lineal(*a, edo=edo), tr("ecuación lineal de primer orden (factor integrante)"),
                     False),
                    (self._homogenea, tr("ecuación homogénea (cambio y = u*x)"), True),
+                   exacta,
                    (self._reducible, tr("reducible a separable (cambio u = a*x + b*y + c)"), True))
+        if edo.diferencial:  # escrita como M dx + N dy = 0: primero, el método de las exactas
+            metodos = (exacta,) + tuple(m for m in metodos if m is not exacta)
         for resolver, metodo, con_despeje in metodos:
             pasos_metodo = list(despeje) if con_despeje else []
             soluciones = resolver(f, x, y, pasos_metodo, avisos)
@@ -1213,6 +1264,163 @@ class MotorEdo:
                          "k*log(a) = log(a^k)): {ecuacion}.", termino=texto(sin_c),
                          ecuacion=f"{texto(juntos)} = C"))
         return sympy.Eq(juntos, C)
+
+    # --- Exactas ---
+
+    def _exacta(self, f: Any, x: Any, y: Any, pasos: List[PasoCalculo], avisos: List[str],
+                edo: Optional[Edo] = None) -> Optional[List[Any]]:
+        """
+        M dx + N dy = 0 con M_y = N_x (o tras multiplicar por un factor integrante que solo depende
+        de x o de y): existe F con F_x = M y F_y = N, y la solución es F(x, y) = C.
+        """
+        yp = sympy.Symbol(nombre_derivada(y, 1))
+        if edo is not None:
+            todo = sympy.expand(edo.izquierda - edo.derecha)
+            if not todo.is_polynomial(yp) or sympy.degree(todo, yp) != 1:
+                return None
+            N = sympy.factor_terms(todo.coeff(yp))
+            M = sympy.factor_terms(sympy.expand(todo - todo.coeff(yp) * yp))
+        else:
+            M, N = -f, sympy.S.One
+        if M == 0 or N == 0 or not M.has(y) and not N.has(x):
+            return None
+        M_y, N_x = sympy.simplify(sympy.diff(M, y)), sympy.simplify(sympy.diff(N, x))
+        exacta = sympy.simplify(M_y - N_x) == 0
+        factor_int, variable_m, pasos_m = None, None, []
+        if not exacta:
+            r = sympy.simplify((M_y - N_x) / N)
+            if not r.has(y):
+                variable_m = x
+            else:
+                r = sympy.simplify((N_x - M_y) / M)
+                if not r.has(x):
+                    variable_m = y
+            if variable_m is None:
+                return None
+            primitiva = self._integrar(r, variable_m, pasos_m)
+            factor_int = sympy.exp(_con_abs(primitiva)).replace(lambda e: isinstance(e, sympy.Abs),
+                                                                lambda e: e.args[0])
+            M2, N2 = sympy.simplify(factor_int * M), sympy.simplify(factor_int * N)
+            if sympy.simplify(sympy.diff(M2, y) - sympy.diff(N2, x)) != 0:
+                return None
+
+        # Forma diferencial
+        lineas = []
+        if not (edo is not None and edo.diferencial):
+            lineas.append(tr("{yp} es d{y}/d{x}: multiplicando por d{x} y pasando todo a la izquierda, "
+                             "{ecuacion}.", yp=yp, y=y, x=x, ecuacion=self._forma_diferencial(M, N, x, y)))
+        pasos.append(PasoCalculo(
+            tr("Forma diferencial"),
+            regla=tr("se escribe la ecuación como M d{x} + N d{y} = 0, con M y N funciones de {x} y de {y}.", x=x, y=y),
+            partes=tr("M = {M} y N = {N}.", M=texto(M), N=texto(N)),
+            calculo=tuple(lineas),
+            queda=self._forma_diferencial(M, N, x, y)))
+
+        lineas = [tr("M_{y} es la derivada de M respecto a {y}, con {x} como constante: M_{y} = {My}.", y=y, x=x,
+                     My=texto(M_y)),
+                  tr("N_{x} es la derivada de N respecto a {x}, con {y} como constante: N_{x} = {Nx}.", y=y, x=x,
+                     Nx=texto(N_x))]
+        lineas.append(tr("Son iguales: la ecuación es exacta.") if exacta else
+                      tr("No son iguales: la ecuación no es exacta."))
+        pasos.append(PasoCalculo(
+            tr("Tipo de ecuación: ¿exacta?"),
+            regla=tr("M d{x} + N d{y} = 0 es exacta si M_{y} = N_{x}: entonces es la diferencial de una función "
+                     "F({x}, {y}), con F_{x} = M y F_{y} = N, y la solución es F({x}, {y}) = C.", x=x, y=y),
+            partes=tr("M = {M} y N = {N}.", M=texto(M), N=texto(N)),
+            calculo=tuple(lineas),
+            queda=tr("exacta") if exacta else tr("no exacta")))
+
+        if not exacta:
+            pasos.extend(pasos_m)
+            divisor = lambda e: f"({texto(e)})" if e.is_Add or e.is_Mul or e.is_Pow else texto(e)
+            cociente = (f"(M_{y} - N_{x})/N = ({texto(M_y)} - {factor(N_x)})/{divisor(N)}" if variable_m == x
+                        else f"(N_{x} - M_{y})/M = ({texto(N_x)} - {factor(M_y)})/{divisor(M)}")
+            lineas = [tr("{cociente} = {r}: solo depende de {v}.", cociente=cociente, r=texto(r), v=variable_m),
+                      f"∫ {factor(r)} d{variable_m} = {texto(primitiva)}.",
+                      f"m({variable_m}) = exp({texto(_con_abs(primitiva))}) = {texto(factor_int)}."]
+            lineas.append(tr("Multiplicamos M y N por m: M = {M} y N = {N}.", M=texto(M2), N=texto(N2)))
+            lineas.append(tr("Ahora M_{y} = {My} y N_{x} = {Nx}: son iguales, la ecuación ya es exacta.", y=y, x=x,
+                             My=texto(sympy.simplify(sympy.diff(M2, y))), Nx=texto(sympy.simplify(sympy.diff(N2, x)))))
+            pasos.append(PasoCalculo(
+                tr("Factor integrante"),
+                regla=tr("si (M_{y} - N_{x})/N solo depende de {x}, m({x}) = exp(∫ (M_{y} - N_{x})/N d{x}) hace "
+                         "exacta la ecuación; si (N_{x} - M_{y})/M solo depende de {y}, m({y}) = exp(∫ (N_{x} - "
+                         "M_{y})/M d{y}).", x=x, y=y),
+                partes=tr("M_{y} = {My} y N_{x} = {Nx}.", y=y, x=x, My=texto(M_y), Nx=texto(N_x)),
+                calculo=tuple(lineas),
+                queda=self._forma_diferencial(M2, N2, x, y)))
+            M, N = M2, N2
+
+        # La función F: primero con F_x = M
+        primitiva_x = self._integrar(M, x, pasos)
+        integral_x = _con_abs(primitiva_x)
+        pasos.append(PasoCalculo(
+            tr("Integrar M respecto a {x}", x=x),
+            regla=tr("F_{x} = M: F es una primitiva de M respecto a {x} ({y} hace de constante). La constante de esa "
+                     "integral puede depender de {y}: se llama g({y}).", x=x, y=y),
+            partes=tr("M = {M}.", M=texto(M)),
+            calculo=(f"∫ {factor(M)} d{x} = {texto(primitiva_x)}.",) + self._lineas_abs(primitiva_x),
+            queda=f"F = {texto(integral_x)} + g({y})"))
+
+        # g(y) con F_y = N
+        derivada_y = sympy.simplify(sympy.diff(integral_x, y))
+        g_prima = sympy.simplify(N - derivada_y)
+        if g_prima.has(x):
+            return None
+        lineas = [tr("Derivamos F respecto a {y}: F_{y} = {d} + g'({y}).", y=y, d=texto(derivada_y)),
+                  tr("Igualamos a N: {d} + g'({y}) = {N}.", d=texto(derivada_y), y=y, N=texto(N)),
+                  tr("Despejamos: g'({y}) = {N} - {d} = {g}.", y=y, N=texto(N), d=entre_parentesis(derivada_y),
+                     g=texto(g_prima))]
+        pasos.append(PasoCalculo(
+            tr("Hallar g({y})", y=y),
+            regla=tr("F_{y} = N: se deriva F respecto a {y} y se iguala a N. Lo que queda es g'({y}), que no puede "
+                     "tener {x}.", x=x, y=y),
+            partes=tr("N = {N}.", N=texto(N)),
+            calculo=tuple(lineas),
+            queda=f"g'({y}) = {texto(g_prima)}"))
+        primitiva_g = self._integrar(g_prima, y, pasos) if g_prima != 0 else sympy.S.Zero
+        g_valor = _con_abs(primitiva_g)
+        F = integral_x + g_valor
+        if g_valor == 0:
+            suma = texto(F)
+        else:
+            signo, resto_g = ("-", -g_valor) if g_valor.could_extract_minus_sign() else ("+", g_valor)
+            suma = f"{texto(integral_x)} {signo} {f'({texto(resto_g)})' if resto_g.is_Add else texto(resto_g)}"
+            if suma != texto(F):
+                suma += f" = {texto(F)}"
+        pasos.append(PasoCalculo(
+            tr("Solución general"),
+            regla=tr("la solución es F({x}, {y}) = C: la constante de g no hace falta, porque ya está C.", x=x, y=y),
+            calculo=(f"g({y}) = ∫ {factor(g_prima)} d{y} = {texto(primitiva_g)}.",) + self._lineas_abs(primitiva_g)
+                    + (f"F = {suma}.",),
+            queda=f"{texto(F)} = C"))
+
+        # Despejar y, si se puede
+        despeje = Despeje(y, [x])
+        try:
+            explicitas = despeje.resolver(F, C)
+        except SinExplicacion:
+            explicitas = None
+        if explicitas and len(explicitas) <= 2 and not any(s.has(y) for s in explicitas):
+            explicitas = [self._simplificada(s, despeje.lineas) for s in explicitas]
+            pasos.append(PasoCalculo(
+                tr("Despejar {y}", y=y),
+                regla=tr("se deshace, de fuera hacia dentro, lo que envuelve a {y}: lo que suma pasa restando, lo que "
+                         "multiplica pasa dividiendo, y cada función se deshace con su inversa (log con exp, una "
+                         "potencia con una raíz). Una expresión que solo tiene constantes es otra constante.", y=y),
+                partes=tr("la ecuación es {ecuacion}.", ecuacion=f"{texto(F)} = C"),
+                calculo=tuple(despeje.lineas),
+                queda="; ".join(f"{y} = {texto(s)}" for s in explicitas)))
+            return [sympy.Eq(y, s) for s in explicitas]
+        avisos.append(tr("NOTA: la solución queda en forma implícita (sin despejar {y}).", y=y))
+        return [sympy.Eq(F, C)]
+
+    @staticmethod
+    def _forma_diferencial(M: Any, N: Any, x: Any, y: Any) -> str:
+        """'(2*x*y + 3) dx + (x^2 - 1) dy = 0'."""
+        if N.could_extract_minus_sign():
+            return f"{factor(M)} d{x} - {factor(-N)} d{y} = 0"
+        return f"{factor(M)} d{x} + {factor(N)} d{y} = 0"
 
     # --- Reducibles a separables ---
 

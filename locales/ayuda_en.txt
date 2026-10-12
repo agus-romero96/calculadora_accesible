@@ -150,7 +150,12 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
      and y is isolated. If it is homogeneous, y' = F(y/x) (for
      example "y' = (x^2 + y^2)/(x*y)"), the substitution y = u*x,
      with y' = u + x*u', makes it separable in u and x; then we
-     go back to y. Finally the solution is checked by
+     go back to y. Exact equations can be written in
+     differential form: "(2*x*y + 3) dx + (x^2 - 1) dy = 0". It
+     is checked that M_y = N_x (if not, an integrating factor
+     depending only on x or on y is sought), M is integrated
+     with respect to x, g(y) is found with F_y = N and the
+     solution is F(x, y) = C. Finally the solution is checked by
      differentiating it. Other types are solved by SymPy,
      without steps, with a note.
    - Limit: Type 'sin(x)/x'. Press Ctrl+L.

@@ -8,6 +8,16 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Añadido
 
+- **Ecuaciones diferenciales exactas** y con **factor integrante** (tarea 4 de la 1.7.0):
+  - **Forma diferencial en la entrada**: `(2*x*y + 3) dx + (x^2 - 1) dy = 0` (o `M dx = N dy`) se lee como `M + N*y' = 0`; cada término debe llevar `dx` o `dy` una sola vez. Escrita así, se intenta primero el método de las exactas; con `y'`, después de las separables, lineales y homogéneas.
+  - **Forma diferencial**: `M` y `N` (desde `y'`, multiplicando por `dx`).
+  - **¿Exacta?**: `M_y` y `N_x`, cada una con la otra variable como constante (se escribe `M_y` y no con el símbolo de derivada parcial, que NVDA no siempre lee).
+  - **Factor integrante** si no es exacta: `(M_y - N_x)/N` si solo depende de `x`, o `(N_x - M_y)/M` si solo depende de `y`; `m = exp(∫ ...)` con los pasos de la integral, `M` y `N` multiplicados y la comprobación de que ya es exacta.
+  - **Función potencial**: `F = ∫ M dx + g(y)` con el paso a paso de **Integrar** (`y` como constante), `F_y = N` para hallar `g'(y)` (que no puede tener `x`) y su integral; la solución es `F(x, y) = C`.
+  - **Despejar `y`** si se puede: una ecuación de primer grado en `y` se resuelve dejando los términos con `y` a un lado, sacando `y` factor común y dividiendo (`x^2*y - y = y*(x^2 - 1)`). Este despeje sustituye al de los sistemas en todas las ecuaciones diferenciales: con coeficientes con letras, aquel pasaba términos de un lado a otro sin necesidad (se nota en la logística).
+  - Las potencias negativas se escriben como fracción (`1/x^2`, no `x^(-2)`).
+  - Pruebas: 13 más en `tests/test_edo.py`.
+
 - **Ecuaciones diferenciales homogéneas**, `y' = F(y/x)`, con el cambio `y = u*x` (tarea 3 de la 1.7.0):
   - **Tipo de ecuación**: se comprueba que `f(t*x, t*y) = f(x, y)` sustituyendo (`((t*x)^2 + (t*y)^2)/((t*x)*(t*y)) = (x^2 + y^2)/(x*y)`), y se escribe `f` en función de `u = y/x` (`u + 1/u`).
   - **Cambio de variable**: `y = u*x` se deriva con la regla del producto, `y' = u + x*u'`; se sustituye, se pasa `u` al otro lado y se divide entre `x`, y queda una separable en `u` y `x`, que se resuelve con todos sus pasos (las soluciones constantes de `u`, como `u = pi*k`, dan rectas `y = pi*k*x`).

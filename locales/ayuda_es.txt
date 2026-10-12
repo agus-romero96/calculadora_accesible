@@ -148,7 +148,12 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
      se despeja y. Si es homogénea, y' = F(y/x) (por ejemplo
      "y' = (x^2 + y^2)/(x*y)"), el cambio y = u*x, con
      y' = u + x*u', la deja separable en u y x; al final se
-     vuelve a y. Al final se comprueba la solución derivándola.
+     vuelve a y. Las exactas se pueden escribir en forma
+     diferencial: "(2*x*y + 3) dx + (x^2 - 1) dy = 0". Se
+     comprueba que M_y = N_x (si no, se busca un factor
+     integrante que solo dependa de x o de y), se integra M
+     respecto a x, se halla g(y) con F_y = N y la solución es
+     F(x, y) = C. Al final se comprueba la solución derivándola.
      Los demás tipos los resuelve SymPy, sin pasos, con una nota.
    - Límite: Escriba 'sin(x)/x'. Pulse Ctrl+L.
      Variable: x. Tendencia: 0.
