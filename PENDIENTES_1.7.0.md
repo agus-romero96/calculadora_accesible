@@ -23,7 +23,7 @@ Una tarea terminada se tacha (`~~...~~`) y se anota el commit.
 3. ~~**Homogéneas** — `y' = f(y/x)`, cambio `y = u*x`, y la separable que resulta.~~ — **completada** (`MotorEdo._homogenea`; commit `9ce5c9e`)
 4. ~~**Exactas** — comprobar `∂M/∂y = ∂N/∂x`, hallar la función potencial. Si no es exacta, **factor integrante** que dependa solo de `x` o solo de `y`.~~ — **completada** (`MotorEdo._exacta`; entrada también en forma diferencial, `M dx + N dy = 0`; commit `a4f8e27`)
 5. ~~**Bernoulli** — `y' + P(x)*y = Q(x)*y^n`, cambio `v = y^(1-n)` y la lineal que resulta.~~ — **completada** (`MotorEdo._bernoulli`; commit `904248d`)
-6. **Riccati** (si se da una solución particular) y **Clairaut** / **reducibles de orden** (`F(x, y', y'') = 0` sin `y`, o sin `x`).
+6. ~~**Riccati** (si se da una solución particular) y **Clairaut** / **reducibles de orden** (`F(x, y', y'') = 0` sin `y`, o sin `x`).~~ — **completada** (`MotorEdo._riccati`, `_clairaut` y `_reducir_orden`)
 
 ### Orden superior, lineales
 
@@ -36,12 +36,14 @@ Una tarea terminada se tacha (`~~...~~`) y se anota el commit.
 ### Otros métodos
 
 12. ~~**Transformada de Laplace** para problemas de valor inicial — transformar cada término (tabla con su regla), despejar `Y(s)`, fracciones parciales y transformada inversa. Incluye escalón unitario y delta.~~ — **completada** (`_Laplace`; con la palabra `laplace`, o siempre con `heaviside`/`dirac`; comprobación por tramos; commit `496b3ab`)
-13. ~~**Sistemas lineales de primer orden** con coeficientes constantes `X' = A*X` — valores y vectores propios; casos de raíces distintas, repetidas y complejas.~~ — **completada** (`_Sistema`; ecuaciones separadas por `;`, 2 o 3 funciones)
-14. ~~**Series de potencias** alrededor de un punto ordinario — la recurrencia de los coeficientes y los primeros términos. (Frobenius en un punto singular regular, si da tiempo.)~~ — **completada** (`_OrdenSuperior.serie`, hasta `x^6`; Frobenius queda fuera: esas ecuaciones las resuelve SymPy)
+13. ~~**Sistemas lineales de primer orden** con coeficientes constantes `X' = A*X` — valores y vectores propios; casos de raíces distintas, repetidas y complejas.~~ — **completada** (`_Sistema`; ecuaciones separadas por `;`, 2 o 3 funciones; commit `78a0c6c`)
+14. ~~**Series de potencias** alrededor de un punto ordinario — la recurrencia de los coeficientes y los primeros términos. (Frobenius en un punto singular regular, si da tiempo.)~~ — **completada** (`_OrdenSuperior.serie`, hasta `x^6`; Frobenius queda fuera: esas ecuaciones las resuelve SymPy; commit `78a0c6c`)
 
 ## Orden propuesto
 
 1 → 2 → 3 → 4 → 5 primero (comparten "separar e integrar"), después 7 → 8 → 9 → 10 → 11, y al final 12, 13, 14 y 6, que son los más largos o menos usados.
+
+**Las catorce tareas de la 1.7.0 están completas.** Falta lo de abajo para publicarla.
 
 ## Antes de publicar la 1.7.0
 

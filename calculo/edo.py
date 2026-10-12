@@ -936,7 +936,8 @@ class MotorEdo:
                          "coeficientes constantes y las de Cauchy-Euler (y las no homogéneas de orden 2, por "
                          "coeficientes indeterminados o variación de parámetros), con una solución conocida (y1 = ...), "
                          "por la transformada de Laplace o en serie de potencias (con coeficientes polinómicos y x = 0 "
-                         "punto ordinario). Esta ecuación la resuelve SymPy, sin pasos."))
+                         "punto ordinario); y para las de Riccati (con y1 = ...), Clairaut y las de orden 2 sin y o sin "
+                         "x. Esta ecuación la resuelve SymPy, sin pasos."))
         return soluciones
 
     # --- Textos ---
@@ -981,8 +982,17 @@ class MotorEdo:
                 raise SinExplicacion()  # con escalones o deltas no hay otro método con pasos
         if edo.orden > 1:
             orden_superior = _OrdenSuperior(self, edo, pasos, avisos)
+            antes = len(pasos)
             resultado = orden_superior.resolver()
             if resultado is None:
+                del pasos[antes:]
+                if edo.orden == 2 and edo.y1 is None:
+                    reducidas = self._reducir_orden(edo, pasos, avisos)
+                    if reducidas is not None:
+                        if edo.condiciones:
+                            reducidas = [sympy.Eq(y, orden_superior.condiciones(reducidas[0].rhs, edo.condiciones))]
+                        self._comprobacion(edo, reducidas, pasos)
+                        return reducidas, tr("reducible de orden (p = y')")
                 raise SinExplicacion()
             soluciones, metodo = resultado
             if edo.condiciones and orden_superior.serie_texto is not None:
@@ -992,13 +1002,22 @@ class MotorEdo:
             self._comprobacion(edo, soluciones, pasos)
             return soluciones, metodo
         yp = edo.derivadas[0]
+        pasos_clairaut: List[PasoCalculo] = []
+        soluciones = self._clairaut(edo, pasos_clairaut, avisos)
+        if soluciones is not None:
+            pasos.extend(pasos_clairaut)
+            if edo.condiciones:
+                soluciones = self._condicion_inicial(soluciones, edo.condiciones[0], x, y, pasos)
+            self._comprobacion(edo, soluciones, pasos)
+            return soluciones, tr("ecuación de Clairaut")
         despeje: List[PasoCalculo] = []
         f = self._despejar_derivada(edo, yp, despeje)
 
         # El primer método que reconoce la ecuación (cada uno devuelve None si no es de su tipo, antes
         # de añadir pasos). Las lineales parten de la ecuación escrita, sin despejar y'.
         exacta = (lambda *a: self._exacta(*a, edo=edo), tr("ecuación exacta"), False)
-        metodos = ((self._separable, tr("ecuación separable"), True),
+        metodos = ((lambda *a: self._riccati(*a, edo=edo), tr("ecuación de Riccati (cambio y = y1 + 1/v)"), True),
+                   (self._separable, tr("ecuación separable"), True),
                    (lambda *a: self._lineal(*a, edo=edo), tr("ecuación lineal de primer orden (factor integrante)"),
                     False),
                    (self._homogenea, tr("ecuación homogénea (cambio y = u*x)"), True),
@@ -1268,8 +1287,11 @@ class MotorEdo:
             s = simple
         if s.has(C):
             # -C*exp(x)/(1 - C*exp(x)): con -C en lugar de C (otra constante cualquiera) quedan menos signos
-            opuesta = sympy.simplify(s.subs(C, -C))
             signos = lambda e: texto(e).count("-") + texto(e).count("(-")
+            # 1/(-x - C) se escribe -1/(x + C)
+            sin_menos = lambda e: e.replace(lambda f: f.is_Pow and f.exp == -1 and f.base.could_extract_minus_sign(),
+                                            lambda f: -1 / (-f.base))
+            opuesta = min((s.subs(C, -C), sin_menos(s.subs(C, -C)), sympy.simplify(s.subs(C, -C))), key=signos)
             if signos(opuesta) < signos(s):
                 lineas.append(tr("-C es también una constante cualquiera: cambiando C por -C, {antes} se escribe "
                                  "{despues}.", antes=texto(s), despues=texto(opuesta)))
@@ -1775,6 +1797,209 @@ class MotorEdo:
         if N.could_extract_minus_sign():
             return f"{factor(M)} d{x} - {factor(-N)} d{y} = 0"
         return f"{factor(M)} d{x} + {factor(N)} d{y} = 0"
+
+    # --- Riccati (con una solución conocida) ---
+
+    def _riccati(self, f: Any, x: Any, y: Any, pasos: List[PasoCalculo], avisos: List[str],
+                 edo: Optional[Edo] = None) -> Optional[List[Any]]:
+        """y' = P + Q*y + R*y^2 con una solución y1: y = y1 + 1/v da la lineal v' + (Q + 2*R*y1)*v = -R."""
+        if edo is None or edo.y1 is None:
+            return None
+        y1 = edo.y1
+        g = sympy.expand(f)
+        if not g.is_polynomial(y) or sympy.degree(g, y) != 2:
+            return None
+        R, Q, P = (sympy.factor_terms(g.coeff(y, k)) for k in (2, 1, 0))
+        if any(c.has(y) for c in (P, Q, R)):
+            return None
+        yp = sympy.Symbol(nombre_derivada(y, 1))
+        d1 = sympy.simplify(sympy.diff(y1, x))
+        en_y1 = sympy.simplify(f.subs(y, y1))
+        if sympy.simplify(d1 - en_y1) != 0:
+            nota = tr("NOTA: {y1} no es solución de la ecuación ({yp} = {d}, pero el lado derecho vale {f}): no sirve "
+                      "para la ecuación de Riccati.", y1=texto(y1), yp=yp, d=texto(d1), f=texto(en_y1))
+            avisos.append(nota)
+            self._notas_metodo.append(nota)
+            return None
+        pasos.append(PasoCalculo(
+            tr("Tipo de ecuación: de Riccati"),
+            regla=tr("una ecuación de Riccati es {yp} = P({x}) + Q({x})*{y} + R({x})*{y}^2. Si se conoce una solución "
+                     "y1, el cambio {y} = y1 + 1/v la convierte en lineal en v.", yp=yp, x=x, y=y),
+            partes=tr("P = {P}, Q = {Q}, R = {R}; y1 = {y1}.", P=texto(P), Q=texto(Q), R=texto(R), y1=texto(y1)),
+            calculo=(tr("Comprobamos y1: y1' = {d} y el lado derecho con {y} = y1 vale {f}: es solución.", d=texto(d1),
+                        y=y, f=texto(en_y1)),),
+            queda=f"{y} = {factor(y1)} + 1/v"))
+        v = sympy.Symbol("v", real=True)
+        coef = sympy.simplify(Q + 2 * R * y1)
+        lineas = [tr("{y} = y1 + 1/v: {yp} = y1' - v'/v^2.", y=y, yp=yp),
+                  tr("Al sustituir, y1' se va con P + Q*y1 + R*y1^2 (y1 es solución) y queda -v'/v^2 = "
+                     "(Q + 2*R*y1)/v + R/v^2."),
+                  tr("Multiplicamos por -v^2: v' + (Q + 2*R*y1)*v = -R, con Q + 2*R*y1 = {c} y -R = {menos_r}.",
+                     c=texto(coef), menos_r=texto(-R))]
+        pasos.append(PasoCalculo(
+            tr("Cambio de variable"),
+            regla=tr("con {y} = y1 + 1/v, la derivada es {yp} = y1' - v'/v^2; al sustituir se cancela lo que ya cumple "
+                     "y1 y queda una lineal en v.", y=y, yp=yp),
+            partes=f"y1 = {texto(y1)}.",
+            calculo=tuple(lineas),
+            queda=f"v'{_mas(coef, v)} = {texto(-R)}"))
+        ecuacion_v = sympy.expand(-R - coef * v)
+        # Si Q + 2*R*y1 = 0, v' = -R es una integración directa
+        soluciones_v = (self._lineal(ecuacion_v, x, v, pasos, avisos) if coef != 0
+                        else self._separable(ecuacion_v, x, v, pasos, avisos))
+        if soluciones_v is None:
+            return None
+        lineas, soluciones = [], []
+        for s in soluciones_v:
+            if s.lhs != v:
+                return None
+            valor = _mas_corta(sympy.simplify(y1 + 1 / s.rhs), y1 + 1 / s.rhs)
+            lineas.append(f"{y} = {factor(y1)} + 1/{factor(s.rhs)} = {texto(valor)}.")
+            valor = self._simplificada(valor, lineas)
+            soluciones.append(sympy.Eq(y, valor))
+        pasos.append(PasoCalculo(
+            tr("Deshacer el cambio"),
+            regla=tr("se vuelve a {y} = y1 + 1/v.", y=y),
+            calculo=tuple(lineas),
+            queda="; ".join(self._solucion_texto(s) for s in soluciones)))
+        return soluciones
+
+    # --- Clairaut ---
+
+    def _clairaut(self, edo: Edo, pasos: List[PasoCalculo], avisos: List[str]) -> Optional[List[Any]]:
+        """y = x*y' + f(y'): derivando, p'*(x + f'(p)) = 0. p = C da y = C*x + f(C); x = -f'(p), la singular."""
+        x, y, yp = edo.x, edo.y, edo.derivadas[0]
+        todo = sympy.expand(edo.izquierda - edo.derecha)
+        c = todo.coeff(y)
+        if not c.is_number or c == 0:
+            return None
+        resto = sympy.expand(todo / c - y)
+        fp = sympy.expand(-(resto + x * yp))
+        if fp.has(x) or fp.has(y) or not fp.has(yp):
+            return None
+        if fp.is_polynomial(yp) and sympy.degree(fp, yp) < 2:
+            return None  # f lineal en p: es una lineal, mejor por su método
+        p = sympy.Symbol("p", real=True)
+        f = fp.subs(yp, p)
+        df = sympy.simplify(sympy.diff(f, p))
+        pasos.append(PasoCalculo(
+            tr("Tipo de ecuación: de Clairaut"),
+            regla=tr("una ecuación de Clairaut es {y} = {x}*{yp} + f({yp}). Se llama p = {yp} y se deriva respecto "
+                     "a {x}.", y=y, x=x, yp=yp),
+            partes=tr("{y} = {x}*p + f(p), con f(p) = {f}.", y=y, x=x, f=texto(f)),
+            calculo=(tr("Derivamos: p = p + {x}*p' + f'(p)*p', con f'(p) = {df}.", x=x, df=texto(df)),
+                     tr("La p de los dos lados se va: 0 = p'*({x} + f'(p)) = p'*({suma}).", x=x,
+                        suma=f"{x}{_mas(df, 1)}")),
+            queda=f"p'*({x}{_mas(df, 1)}) = 0"))
+        general = C * x + f.subs(p, C)
+        pasos.append(PasoCalculo(
+            tr("Solución general"),
+            regla=tr("si p' = 0, p es una constante C: se sustituye p = C en {y} = {x}*p + f(p), y sale una familia de "
+                     "rectas.", y=y, x=x),
+            queda=f"{y} = {texto(general)}"))
+        soluciones = [sympy.Eq(y, general)]
+        despeje = Despeje(p, [x], constantes=False)
+        try:
+            ramas = despeje.resolver(df, -x)
+        except SinExplicacion:
+            ramas = []
+        lineas = [tr("Si {x} + f'(p) = 0: {ecuacion}.", x=x, ecuacion=f"{texto(df)} = {texto(-x)}")] + despeje.lineas
+        for rama in ramas:
+            singular = _mas_corta(sympy.simplify(x * rama + f.subs(p, rama)), sympy.expand(x * rama + f.subs(p, rama)))
+            lineas.append(tr("Con p = {p}: {y} = {x}*p + f(p) = {valor}.", p=texto(rama), y=y, x=x,
+                             valor=texto(singular)))
+            soluciones.append(sympy.Eq(y, singular))
+        if not ramas:
+            # p no se despeja: la singular queda en forma paramétrica
+            y_param = _mas_corta(sympy.simplify(f - p * df), f - p * df)
+            pasos.append(PasoCalculo(
+                tr("Solución singular"),
+                regla=tr("el otro factor, {x} + f'(p) = 0, da la envolvente de las rectas; si p no se puede despejar, "
+                         "se deja en forma paramétrica, con p como parámetro.", x=x),
+                calculo=(tr("{x} = -f'(p) = {xp}; {y} = {x}*p + f(p) = {yp}.", x=x, xp=texto(-df), y=y,
+                            yp=texto(y_param)),),
+                queda=f"{x} = {texto(-df)}, {y} = {texto(y_param)}"))
+            avisos.append(tr("NOTA: además está la solución singular en forma paramétrica: {x} = {xp}, {y} = {yp}.",
+                             x=x, xp=texto(-df), y=y, yp=texto(y_param)))
+        if ramas:
+            pasos.append(PasoCalculo(
+                tr("Solución singular"),
+                regla=tr("el otro factor, {x} + f'(p) = 0, da p en función de {x}: al sustituirlo sale una curva que no "
+                         "es de la familia (la envolvente de las rectas).", x=x),
+                calculo=tuple(lineas),
+                queda="; ".join(self._solucion_texto(s) for s in soluciones[1:])))
+        return soluciones
+
+    # --- Reducibles de orden ---
+
+    def _reducir_orden(self, edo: Edo, pasos: List[PasoCalculo], avisos: List[str]) -> Optional[List[Any]]:
+        """
+        Orden 2 sin y: p = y', y'' = p' (primer orden en p(x)); después y = ∫ p dx + C2.
+        Orden 2 sin x: p = y', y'' = p*dp/dy (primer orden en p(y)); después y' = p(y), separable.
+        """
+        x, y = edo.x, edo.y
+        yp, ypp = edo.derivadas
+        todo = edo.izquierda - edo.derecha
+        p = sympy.Symbol("p", real=True)
+        pp = sympy.Symbol("p'")
+        C1, C2 = constantes_de(2)
+        if not todo.has(y):
+            ecuacion = (edo.izquierda.xreplace({yp: p, ypp: pp}), edo.derecha.xreplace({yp: p, ypp: pp}))
+            pasos.append(PasoCalculo(
+                tr("Tipo de ecuación: reducible de orden (sin {y})", y=y),
+                regla=tr("si en la ecuación no aparece {y}, con p = {yp} queda {ypp} = p': una ecuación de primer "
+                         "orden en p({x}). Después, {y} = ∫ p d{x} + C2.", y=y, yp=yp, ypp=ypp, x=x),
+                partes=tr("la ecuación en p es {ecuacion}.", ecuacion=f"{texto(ecuacion[0])} = {texto(ecuacion[1])}"),
+                queda=f"{texto(ecuacion[0])} = {texto(ecuacion[1])}"))
+            sub = Edo(ecuacion[0], ecuacion[1], x, p, [pp], 1, escrita=f"{texto(ecuacion[0])} = {texto(ecuacion[1])}")
+            soluciones_p, _ = self._explicar(sub, pasos, avisos)
+            generales = [s for s in soluciones_p if s.lhs == p and s.has(C)]  # sin las constantes, p = 0...
+            if len(generales) != 1:
+                return None
+            valor_p = generales[0].rhs.xreplace({C: C1})
+            primitiva = self._integrar(valor_p, x, pasos)
+            solucion = _con_abs(primitiva) + C2
+            pasos.append(PasoCalculo(
+                tr("Volver a {y}", y=y),
+                regla=tr("p es {yp}: {y} es una primitiva de p, más otra constante.", y=y, yp=yp),
+                calculo=(tr("La constante C de p pasa a llamarse C1."),
+                         f"{y} = ∫ {factor(valor_p)} d{x} = {texto(primitiva)} + C2.") + self._lineas_abs(primitiva),
+                queda=f"{y} = {texto(solucion)}"))
+            return [sympy.Eq(y, solucion)]
+        if not todo.has(x):
+            cambio = {yp: p, ypp: p * pp}
+            ecuacion = (edo.izquierda.xreplace(cambio), edo.derecha.xreplace(cambio))
+            pasos.append(PasoCalculo(
+                tr("Tipo de ecuación: reducible de orden (sin {x})", x=x),
+                regla=tr("si en la ecuación no aparece {x}, con p = {yp} tomado como función de {y}, la regla de la "
+                         "cadena da {ypp} = dp/d{x} = dp/d{y}*d{y}/d{x} = p*p': una ecuación de primer orden en p({y}). "
+                         "Después, {yp} = p({y}) es separable.", x=x, y=y, yp=yp, ypp=ypp),
+                partes=tr("la ecuación en p es {ecuacion} (p' es dp/d{y}).", y=y,
+                          ecuacion=f"{texto(ecuacion[0])} = {texto(ecuacion[1])}"),
+                queda=f"{texto(ecuacion[0])} = {texto(ecuacion[1])}"))
+            sub = Edo(ecuacion[0], ecuacion[1], y, p, [pp], 1, escrita=f"{texto(ecuacion[0])} = {texto(ecuacion[1])}")
+            soluciones_p, _ = self._explicar(sub, pasos, avisos)
+            explicitas = [s for s in soluciones_p if s.lhs == p and s.has(C)]
+            if len(explicitas) != 1:
+                return None
+            valor_p = explicitas[0].rhs.xreplace({C: C1})
+            pasos.append(PasoCalculo(
+                tr("Volver a {y}", y=y),
+                regla=tr("p es {yp}: queda {yp} = p({y}), una ecuación separable en {x} e {y}.", y=y, yp=yp, x=x),
+                calculo=(tr("La constante C de p pasa a llamarse C1."),),
+                queda=f"{yp} = {texto(valor_p)}"))
+            soluciones = self._separable(valor_p, x, y, pasos, avisos)
+            if soluciones is None:
+                return None
+            soluciones = [sympy.Eq(s.lhs, s.rhs.xreplace({C: C2})) for s in soluciones if s.has(C)]
+            if len(soluciones) != 1 or soluciones[0].lhs != y:
+                return None
+            pasos.append(PasoCalculo(
+                tr("Solución general"),
+                regla=tr("la constante C de esta última integración pasa a llamarse C2: la solución tiene dos."),
+                queda=f"{y} = {texto(soluciones[0].rhs)}"))
+            return soluciones
+        return None
 
     # --- Reducibles a separables ---
 

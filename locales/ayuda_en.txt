@@ -196,7 +196,12 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
      that have no other method, such as "y'' - x*y = 0" (or with
      the word serie). y = Σ c[n]*x^n is substituted, the
      recurrence of the coefficients comes out, and the series up
-     to x^6. Other types are solved by SymPy,
+     to x^6. Riccati, with a known solution after it:
+     "y' = y^2 - 2*x*y + x^2 + 1, y1 = x" (the substitution
+     y = y1 + 1/v makes it linear). Clairaut: "y = x*y' + y'^2"
+     (the family of lines y = C*x + f(C) and the singular
+     solution). Second order without y ("x*y'' = y'") or without x
+     ("y*y'' = y'^2"): with p = y' it goes down to first order. Other types are solved by SymPy,
      without steps, with a note.
    - Limit: Type 'sin(x)/x'. Press Ctrl+L.
      Variable: x. Approaches: 0.

@@ -194,6 +194,12 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
      "y'' - x*y = 0" (o con la palabra serie). Se sustituye
      y = Σ c[n]*x^n, sale la recurrencia de los coeficientes y la
      serie hasta x^6.
+     Riccati, con una solución conocida detrás:
+     "y' = y^2 - 2*x*y + x^2 + 1, y1 = x" (el cambio y = y1 + 1/v
+     la deja lineal). Clairaut: "y = x*y' + y'^2" (la familia de
+     rectas y = C*x + f(C) y la solución singular). De orden 2 sin
+     y ("x*y'' = y'") o sin x ("y*y'' = y'^2"): con p = y' baja a
+     primer orden.
      Los demás tipos los resuelve SymPy, sin pasos, con una nota.
    - Límite: Escriba 'sin(x)/x'. Pulse Ctrl+L.
      Variable: x. Tendencia: 0.

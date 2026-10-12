@@ -691,6 +691,62 @@ def test_serie_paso_a_paso(core):
     assert "m = 0: c[2] = c[-1]/2 = 0." in texto
 
 
+RICCATI_CLAIRAUT_REDUCIBLES = [
+    ("y' = y^2 - 2*x*y + x^2 + 1, y1 = x", "y = x - 1/(x + C)", "ecuación de Riccati (cambio y = y1 + 1/v)"),
+    ("y' = -y^2 + 1 + x^2, y1 = x", "y = x + exp(-x^2)/(sqrt(pi)*erf(x)/2 + C)", "ecuación de Riccati"),
+    ("y = x*y' + y'^2", "y = C^2 + C*x; y = -x^2/4", "ecuación de Clairaut"),
+    ("y = x*y' - y'^3", "y = -C^3 + C*x; y = 2*sqrt(3)*x^(3/2)/9; y = -2*sqrt(3)*x^(3/2)/9", "ecuación de Clairaut"),
+    ("y = x*y' + sqrt(1 + y'^2)", "y = C*x + sqrt(1 + C^2)", "ecuación de Clairaut"),
+    ("y'' = y'^2", "y = C2 - log(Abs(x + C1))", "reducible de orden (p = y')"),
+    ("x*y'' = y'", "y = C1*x^2/2 + C2", "reducible de orden (p = y')"),
+    ("y*y'' = y'^2", "y = C2*exp(C1*x)", "reducible de orden (p = y')"),
+    ("y*y'' = y'^2, y(0) = 1, y'(0) = 2", "y = exp(2*x)", "reducible de orden (p = y')"),
+]
+
+
+@pytest.mark.parametrize("entrada, resultado, metodo", RICCATI_CLAIRAUT_REDUCIBLES,
+                         ids=[c[0] for c in RICCATI_CLAIRAUT_REDUCIBLES])
+def test_riccati_clairaut_y_reducibles_de_orden(core, entrada, resultado, metodo):
+    res = core.ecuacion_diferencial(entrada)
+    assert res.texto.splitlines()[0] == f"RESULTADO: {resultado}", res.texto
+    assert f"Método: {metodo}" in res.texto
+    assert "AVISO" not in res.texto
+    if "," not in entrada or "y1" in entrada:
+        cumple(res)
+    assert "Comprobación." in titulos(res.texto)
+
+
+def test_riccati_paso_a_paso(core):
+    texto = core.ecuacion_diferencial("y' = y^2 - 2*x*y + x^2 + 1, y1 = x").texto
+    assert "P = x^2 + 1, Q = -2*x, R = 1; y1 = x." in texto
+    assert "Comprobamos y1: y1' = 1 y el lado derecho con y = y1 vale 1: es solución." in texto
+    assert "Multiplicamos por -v^2: v' + (Q + 2*R*y1)*v = -R, con Q + 2*R*y1 = 0 y -R = -1." in texto
+    assert "Tipo de ecuación: integración directa." in titulos(texto)
+    res = core.ecuacion_diferencial("y' = y^2 + 1, y1 = x")
+    assert "NOTA: x no es solución de la ecuación" in res.texto
+
+
+def test_clairaut_paso_a_paso(core):
+    texto = core.ecuacion_diferencial("y = x*y' + y'^2").texto
+    assert "En este caso: y = x*p + f(p), con f(p) = p^2." in texto
+    assert "Derivamos: p = p + x*p' + f'(p)*p', con f'(p) = 2*p." in texto
+    assert "Queda: p'*(x + 2*p) = 0" in texto
+    assert "Con p = -x/2: y = x*p + f(p) = -x^2/4." in texto
+    raiz = core.ecuacion_diferencial("y = x*y' + sqrt(1 + y'^2)").texto
+    assert "NOTA: además está la solución singular en forma paramétrica: x = -p/sqrt(p^2 + 1), y = 1/sqrt(p^2 + 1)." \
+        in raiz
+
+
+def test_reducibles_de_orden_paso_a_paso(core):
+    sin_y = core.ecuacion_diferencial("x*y'' = y'").texto
+    assert "Tipo de ecuación: reducible de orden (sin y)." in titulos(sin_y)
+    assert "En este caso: la ecuación en p es p'*x = p." in sin_y
+    sin_x = core.ecuacion_diferencial("y*y'' = y'^2").texto
+    assert "Tipo de ecuación: reducible de orden (sin x)." in titulos(sin_x)
+    assert "En este caso: la ecuación en p es p*p'*y = p^2 (p' es dp/dy)." in sin_x
+    assert "La constante C de p pasa a llamarse C1." in sin_x
+
+
 def test_implicita_y_familia_de_constantes(core):
     res = core.ecuacion_diferencial("y' = sin(x)*cos(y)")
     assert not res.es_error
