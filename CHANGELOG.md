@@ -6,6 +6,23 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Sin publicar]
 
+### Añadido
+
+- **Ecuación diferencial** (menú **Cálculo**, `Ctrl+Shift+R`), la primera tarea de la 1.7.0: ecuaciones separables y reducibles a separables, paso a paso. Es una sola operación que reconoce el tipo de la ecuación, como **Integrar** reconoce el método; las tareas siguientes le añaden tipos.
+  - **Entrada**: `y' = 2*x*y`, `dy/dx = ...`, `d2y/dx2`, `y(x)`; condiciones iniciales detrás de una coma o un punto y coma (`y' = 2*x*y, y(0) = 3`). Con otras letras (`dx/dt = k*x`), la función es la que lleva la prima y la variable, la del `d/dt` (o `x`, o `t`).
+  - **Planteamiento**: qué es resolver la ecuación y su orden; si `y'` no está sola (`x*y' = y`), se **despeja** como una ecuación de primer grado.
+  - **Separable**, `y' = g(x)*h(y)`: se dicen `g` y `h`, se **separan las variables** (`(1/y) dy = 2*x dx`), se **integra cada lado** con el paso a paso de **Integrar** (fracciones parciales en la logística, `y' = y*(1 - y)`), los logaritmos pasan a `log(Abs(u))` diciendo por qué, y las dos constantes se juntan en una. Si `y'` solo depende de `x`, es **integración directa**.
+  - **Despejar `y`**: se deshace cada función con su inversa (lo que suma, lo que multiplica, potencias con su raíz y sus dos signos, `log` con `exp`, valor absoluto, `atan`...) y se juntan logaritmos con sus propiedades; una fracción con `y` arriba y abajo se multiplica por el denominador y queda de primer grado. **La constante se renombra a la vista**: `2*C` es otra constante, `±exp(C)` es cualquier número distinto de 0, `C*Abs(x)` es `C*x` en cada intervalo, y `-C` se usa si deja menos signos (`C*exp(x)/(1 + C*exp(x))`). Si `y` no se puede despejar, la solución queda en forma implícita, con una nota.
+  - **Soluciones constantes**: las raíces de `h(y)` (también familias, `y = pi*k + pi/2` con `k` entero), con su comprobación; se dice si salen de la general con algún `C` (`y = 0` con `C = 0`) o si son singulares y se añaden aparte.
+  - **Reducible a separable**, `y' = F(a*x + b*y + c)`: el cambio `u = a*x + b*y + c`, su derivada `u' = a + b*y'`, la separable en `u` (con todos sus pasos) y la vuelta a `y`.
+  - **Condición inicial**: se sustituye en la solución general, se despeja `C` con el mismo despeje, y se descarta la rama que no la cumple (`y' = x/y, y(0) = -2` da `y = -sqrt(x^2 + 4)`).
+  - **Comprobación**: se deriva la solución y se sustituye en los dos lados de la ecuación.
+  - Cada solución se comprueba con `checkodesol` de SymPy (las implícitas, derivándolas implícitamente); si la explicación no llega a una correcta, o la ecuación es de otro tipo, se da la de `dsolve` sin pasos, con una nota.
+  - Se exporta como "ecuación y condiciones ⟹ solución" (`\begin{cases} ... \end{cases}`), con el método en el resumen. El historial guarda la función `y(x)` (su clase se crea al vuelo y `pickle` no la encontraba: `serializacion.py` la reconstruye por su nombre).
+  - Código: `calculo/edo.py` (`MotorEdo` y `Despeje`, el despeje función a función que usarán los demás tipos).
+  - Pruebas: `tests/test_edo.py` (40: 12 separables con su solución comprobada, las cuentas de la separación, el valor absoluto, la constante renombrada, la logística, 8 problemas con condición inicial, reducibles, implícitas, otras letras, errores, exportación e inglés), casos en registro e historial; dos casos más en la autoprueba del ejecutable (20).
+  - Ayuda (F1) y README.
+
 ## [1.6.0] - 2026-10-11
 
 Versión de nuevas operaciones, todas con el paso a paso de la 1.5.0: resolver ecuaciones e inecuaciones de una variable, recta tangente y normal, extremos e intervalos de crecimiento, polinomio de Taylor, determinante por cofactores y derivada implícita; y dos métodos de integración explicados como en clase, fracciones parciales y sustitución trigonométrica.

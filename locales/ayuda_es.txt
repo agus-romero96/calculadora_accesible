@@ -27,6 +27,7 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
    [Ctrl + Mayús + X] : EXTREMOS e intervalos de crecimiento.
    [Ctrl + Mayús + T] : POLINOMIO DE TAYLOR de orden n en un punto.
    [Ctrl + J]         : DERIVADA IMPLÍCITA dy/dx de una curva F(x, y).
+   [Ctrl + Mayús + R] : ECUACIÓN DIFERENCIAL (con condición inicial opcional).
    [Ctrl + R]         : RESOLVER una ecuación o inecuación.
    [Ctrl + G]         : Resolver SISTEMA por Gauss-Jordan.
    [Ctrl + M]         : MATRIZ INVERSA por cofactores.
@@ -131,6 +132,18 @@ MANUAL DE USUARIO: CALCULADORA CIENTÍFICA ACCESIBLE
      añade el factor y' (en x*y, regla del producto). Al final se
      despeja y': pasar términos, sacar y' factor común, dividir y
      simplificar.
+   - Ecuación diferencial: Escriba "y' = 2*x*y" (también vale
+     dy/dx). Pulse Ctrl+Mayús+R. Resultado: y = C*exp(x^2).
+     Para una condición inicial, escríbala detrás con una coma:
+     "y' = 2*x*y, y(0) = 3" da y = 3*exp(x^2). Primero se dice
+     el tipo de ecuación. Si es separable, y' = g(x)*h(y): se
+     separan las variables, se integra cada lado con el paso a
+     paso de Integrar, se despeja y (la constante C absorbe los
+     números, los signos y exp(C)) y se ven las soluciones
+     constantes, h(y) = 0. Si es y' = F(a*x + b*y + c), el cambio
+     u = a*x + b*y + c la hace separable. Al final se comprueba
+     la solución derivándola. Los demás tipos los resuelve SymPy,
+     sin pasos, con una nota.
    - Límite: Escriba 'sin(x)/x'. Pulse Ctrl+L.
      Variable: x. Tendencia: 0.
      Para un límite lateral escriba la tendencia con + o -,

@@ -27,6 +27,7 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
    [Ctrl + Shift + X] : EXTREMA and intervals of increase.
    [Ctrl + Shift + T] : TAYLOR POLYNOMIAL of order n at a point.
    [Ctrl + J]         : IMPLICIT DERIVATIVE dy/dx of a curve F(x, y).
+   [Ctrl + Shift + R] : DIFFERENTIAL EQUATION (optional initial condition).
    [Ctrl + R]         : SOLVE an equation or inequality.
    [Ctrl + G]         : Solve a SYSTEM by Gauss-Jordan.
    [Ctrl + M]         : INVERSE MATRIX by cofactors.
@@ -133,6 +134,18 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
      the chain rule adds the factor y' (for x*y, the product
      rule). Finally y' is isolated: moving terms, factoring out
      y', dividing and simplifying.
+   - Differential equation: Type "y' = 2*x*y" (dy/dx also
+     works). Press Ctrl+Shift+R. Result: y = C*exp(x^2). For an
+     initial condition, add it after a comma: "y' = 2*x*y,
+     y(0) = 3" gives y = 3*exp(x^2). First the type of equation
+     is stated. If it is separable, y' = g(x)*h(y): the variables
+     are separated, each side is integrated with the Integrate
+     steps, y is isolated (the constant C absorbs numbers, signs
+     and exp(C)) and the constant solutions, h(y) = 0, are
+     checked. If it is y' = F(a*x + b*y + c), the substitution
+     u = a*x + b*y + c makes it separable. Finally the solution
+     is checked by differentiating it. Other types are solved by
+     SymPy, without steps, with a note.
    - Limit: Type 'sin(x)/x'. Press Ctrl+L.
      Variable: x. Approaches: 0.
      For a one-sided limit, type the value followed by + or -,

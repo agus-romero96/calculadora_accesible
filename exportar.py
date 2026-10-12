@@ -21,6 +21,7 @@ import sympy
 
 from _version import __version__
 from algebra.resolucion import describir_conjunto
+from calculo import edo
 from calculo.extremos import lineas_resultado
 from calculo.rectas import ecuacion_recta
 from calculo.taylor import nombre_polinomio, taylor_latex, taylor_texto
@@ -68,6 +69,8 @@ def resultado_corto(res: ResultadoOperacion) -> str:
         return _taylor_corto(res)
     if res.operacion == "implicita" and valor is not None:
         return f"{_derivada_implicita(res)} = {valor}"
+    if res.operacion == "edo" and _es_lista(valor):
+        return "; ".join(_solucion_edo(eq) for eq in valor)
     if _son_rectas(res):
         tangente, normal = (ecuacion_recta(eq, _variable(res)) for eq in valor)
         return tr("tangente: {t}; normal: {n}", t=tangente, n=normal)
@@ -98,6 +101,8 @@ def resumen(res: ResultadoOperacion) -> str:
     elif _son_rectas(res):
         lineas = [tr("Recta tangente: {recta}", recta=ecuacion_recta(valor[0], _variable(res))),
                   tr("Recta normal: {recta}", recta=ecuacion_recta(valor[1], _variable(res)))]
+    elif res.operacion == "edo" and _es_lista(valor):
+        lineas = [_solucion_edo(eq) for eq in valor]
     elif _es_lista(valor):
         lineas = [f"{eq.lhs} = {eq.rhs}" for eq in valor]
     elif isinstance(valor, sympy.MatrixBase) and valor.rows > 1:
@@ -107,8 +112,8 @@ def resumen(res: ResultadoOperacion) -> str:
     texto = [tr("RESULTADO: {valor}", valor=lineas[0])] if len(lineas) == 1 else [tr("RESULTADO:")] + lineas
     texto.append(tr("Operación: {operacion}", operacion=nombre_operacion(res)))
     texto.append(f"{tr('Entrada')}: {res.entrada.strip().replace(chr(10), '; ')}")
-    # El método de un sistema clásico ya lo dice el nombre de la operación
-    texto += _parametros_legibles(res, excluir={"metodo"})
+    # El método de un sistema clásico ya lo dice el nombre de la operación (el de una ecuación diferencial, no)
+    texto += _parametros_legibles(res, excluir={"metodo"} if res.operacion == "sistema_clasico" else ())
     return "\n".join(texto)
 
 
@@ -120,6 +125,11 @@ def _es_conjunto_solucion(res: ResultadoOperacion) -> bool:
 def _variable(res: ResultadoOperacion) -> sympy.Symbol:
     # Real, como las del parser: si no, no coincidiría con la variable de las rectas
     return sympy.Symbol(res.parametros.get("variable") or "x", real=True)
+
+
+def _solucion_edo(eq: Any) -> str:
+    """'y = x^2/2 + C': como en el paso a paso, con ^ y la constante al final."""
+    return f"{edo.texto(eq.lhs)} = {edo.texto(eq.rhs)}"
 
 
 def _derivada_implicita(res: ResultadoOperacion) -> str:

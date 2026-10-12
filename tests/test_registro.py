@@ -26,6 +26,7 @@ EJEMPLOS = {
     "extremos": ("x^3 - 3*x", None),
     "taylor": ("exp(x)", None, 3, "0"),
     "implicita": ("x^2 + y^2 = 25",),
+    "edo": ("y' = 2*x*y",),
     "ecuacion": ("x^2 - 4 <= 0",),
     "gauss": (["x + y = 10", "x - y = 2"],),
     "sistema_clasico": (["x + y = 10", "x - y = 2"],),

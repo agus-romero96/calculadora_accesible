@@ -51,6 +51,7 @@ Disponible en **español e inglés** (interfaz, explicaciones y ayuda). Los resu
 | **Extremos y crecimiento** | Estudia `f(x)`: el **dominio** (los valores que anulan un denominador), la derivada con el paso a paso de **Derivar**, los **puntos críticos** resolviendo `f'(x) = 0` (una fracción vale 0 si su numerador vale 0; `exp(u)` nunca vale 0; el numerador se resuelve como una ecuación o, si es de grado 3 o más, se factoriza antes y se aplica el producto nulo), una **tabla de signos** de `f'` con un número de prueba por intervalo y el signo de cada factor (creciente si `f' > 0`, decreciente si `f' < 0`), el **criterio de la primera derivada** (máximo si `f'` pasa de + a -, mínimo si pasa de - a +, con `f(x₀)` operado) y el de la **segunda derivada** (`f''(x₀)` y su signo; en los cocientes se omite, porque sería larga y solo confirmaría). Un punto crítico sin cambio de signo (`x^3` en 0) no es extremo: la función sigue creciendo. Para otras funciones (`x*log(x)`), el resultado de SymPy sin pasos. |
 | **Polinomio de Taylor** | Pide el orden `n` (de 0 a 15) y el punto `x₀`. Enuncia la fórmula `P_n(x) = Σ f⁽ᵏ⁾(x₀)/k!·(x - x₀)ᵏ` (de Maclaurin si `x₀ = 0`), calcula cada derivada a partir de la anterior con el paso a paso de **Derivar** (como **Derivada de orden N**: si se hace demasiado larga, solo los resultados) y explica cada término en su paso: `f⁽ᵏ⁾(x₀)` con sus cuentas, el factorial desarrollado (`3! = 1*2*3 = 6`), el coeficiente y el término; si `f⁽ᵏ⁾(x₀) = 0`, el término no aparece. El polinomio se escribe en potencias de `(x - x₀)` sin desarrollar (`2 + (x - 4)/4 - (x - 4)^2/64`), también en LaTeX, y se compara con `series` de SymPy. |
 | **Derivada implícita** | `dy/dx` de una curva escrita como ecuación, `F(x, y) = G(x, y)` (`x^2 + y^2 = 25`). Se derivan los dos lados respecto a `x`, término a término con el paso a paso de **Derivar**: lo que solo tiene `x`, como siempre; lo que tiene `y`, con la **regla de la cadena**, que añade el factor `y'`; y un producto de una parte con `x` y otra con `y` (`6*x*y`), con la **regla del producto**. Después se **despeja `y'`**: pasar términos, sacar `y'` factor común, dividir (suponiendo que el divisor no es 0) y simplificar el factor común, sin cambiar signos sin decirlo. Con otras letras (`t^2 + s^2 = 4`), `y` es la dependiente si aparece; si no, se dice cuál se toma. Se compara con `idiff` de SymPy; los términos que mezclan `x` e `y` (`sin(x*y)`) se resuelven sin pasos, con una nota. |
+| **Ecuación diferencial** | Ecuaciones diferenciales ordinarias escritas con `y'` o `dy/dx` (`y' = 2*x*y`), con condiciones iniciales opcionales detrás de una coma (`y' = 2*x*y, y(0) = 3`). Una sola operación que reconoce el tipo y explica por qué. **Separables**, `y' = g(x)*h(y)`: separar las variables (`(1/y) dy = 2*x dx`), integrar cada lado con el paso a paso de **Integrar** (fracciones parciales incluidas), escribir `log(Abs(u))` y juntar las dos constantes en una, y **despejar `y`** deshaciendo cada función con su inversa, con la constante renombrada a la vista (`2*C` y `±exp(C)` siguen siendo una constante, `C`). Las **soluciones constantes** (`h(y) = 0`, también familias como `y = pi*k + pi/2`) se dicen aparte, y si salen de la general con algún `C`. **Reducibles a separables**, `y' = F(a*x + b*y + c)`: el cambio `u = a*x + b*y + c`, la separable en `u` y la vuelta a `y`. Con una condición inicial, se sustituye, se despeja `C` (descartando el signo que no la cumple) y se da la solución particular. Al final, la **comprobación**: se deriva la solución y se sustituye en la ecuación. Si no se puede despejar `y`, la solución queda en forma implícita. Cada solución se comprueba con SymPy (`checkodesol`); los demás tipos, por ahora, los resuelve `dsolve` sin pasos, con una nota. |
 
 **Estrategias de límites** (`calculo/lim_estrategias/`):
 
@@ -164,6 +165,7 @@ El menú **Idioma / Language** cambia toda la calculadora entre **español** e *
 | `Ctrl+Shift+X` | Extremos e intervalos de crecimiento |
 | `Ctrl+Shift+T` | Polinomio de Taylor |
 | `Ctrl+J` | Derivada implícita |
+| `Ctrl+Shift+R` | Ecuación diferencial |
 | `Ctrl+R` | Resolver ecuación o inecuación |
 | `Ctrl+G` | Resolver sistema por Gauss-Jordan |
 | `Ctrl+M` | Matriz inversa por cofactores |
@@ -248,6 +250,8 @@ Diagnóstico: La integral impropia converge.
 **Polinomio de Taylor**: escriba `exp(x)`, pulse `Ctrl+Shift+T`, orden `3`, punto `0`. Resultado: `P_3(x) = 1 + x + x^2/2 + x^3/6`.
 
 **Derivada implícita**: escriba `x^3 + y^3 = 6*x*y` y pulse `Ctrl+J`. Resultado: `dy/dx = (2*y - x^2)/(y^2 - 2*x)`.
+
+**Ecuación diferencial**: escriba `y' = 2*x*y, y(0) = 3` y pulse `Ctrl+Shift+R`. Resultado: `y = 3*exp(x^2)`, con la separación de variables, las dos integrales, el despeje de `y` y el valor de `C`.
 
 **Inecuación**: escriba `x^2 - 4 <= 0` y pulse `Ctrl+R`. Resultado: `-2 <= x <= 2, es decir, [-2, 2]`, con los puntos críticos y la tabla de signos:
 ```

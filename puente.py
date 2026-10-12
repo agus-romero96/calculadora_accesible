@@ -35,6 +35,7 @@ from algebra.resolucion import MotorEcuaciones
 from calculo.router import RouterMatematico
 from calculo.calculo import Calculo
 from calculo.extremos import MotorExtremos
+from calculo.edo import MotorEdo
 from calculo.implicita import MotorImplicita
 from calculo.rectas import MotorRectas
 from calculo.taylor import MotorTaylor
@@ -101,6 +102,8 @@ REGISTRO: List[Operacion] = [
               menu="calculo", etiqueta=N_("Polinomio de Ta&ylor"), atajo="Ctrl+Shift+T", verbo=N_("desarrollar")),
     Operacion("implicita", N_("Derivada implícita"), "derivada_implicita", "expresion", N_("la derivada implícita"),
               menu="calculo", etiqueta=N_("Derivada &implícita"), atajo="Ctrl+J"),
+    Operacion("edo", N_("Ecuación diferencial"), "ecuacion_diferencial", "expresion", N_("la ecuación diferencial"),
+              menu="calculo", etiqueta=N_("Ecuación di&ferencial"), atajo="Ctrl+Shift+R"),
 
     Operacion("ecuacion", N_("Ecuación o inecuación"), "ecuacion", "expresion", N_("la ecuación"),
               menu="algebra", etiqueta=N_("&Resolver ecuación o inecuación"), atajo="Ctrl+R"),
@@ -192,6 +195,7 @@ class CoreMatematico:
         self.extremos_motor = MotorExtremos(self.parser_comun)
         self.taylor_motor = MotorTaylor(self.parser_comun)
         self.implicita_motor = MotorImplicita(self.parser_comun)
+        self.edo_motor = MotorEdo(self.parser_comun)
 
     def _expresion(self, texto: str) -> Optional[Any]:
         """La entrada interpretada (para exportarla en LaTeX/MathML), o None si no se puede."""
@@ -330,6 +334,20 @@ class CoreMatematico:
             parametros=parametros, expresion=res.ecuacion,
         )
 
+    def ecuacion_diferencial(self, entrada: str) -> ResultadoOperacion:
+        """
+        Ecuación diferencial ordinaria (con condiciones iniciales opcionales): el valor es la lista
+        de soluciones (Eq(y, ...) o implícitas); el planteamiento, la ecuación y las condiciones.
+        """
+        res = self.edo_motor.resolver(entrada)
+        parametros = {} if res.es_error else {"variable": str(res.x), "dependiente": str(res.y)}
+        if res.metodo:
+            parametros["metodo"] = res.metodo
+        return ResultadoOperacion(
+            operacion="edo", entrada=entrada, texto=res.texto, valor=res.soluciones or None, es_error=res.es_error,
+            parametros=parametros, planteamiento=res.planteamiento or None,
+        )
+
     def ecuacion(self, entrada: str) -> ResultadoOperacion:
         """Ecuación o inecuación de una variable: el valor es el conjunto solución (FiniteSet, Interval...)."""
         res = self.ecuaciones.resolver(entrada)
@@ -394,6 +412,9 @@ class CoreMatematico:
 
     def DerivadaImplicita(self, entrada):
         return self.derivada_implicita(entrada).texto
+
+    def EcuacionDiferencial(self, entrada):
+        return self.ecuacion_diferencial(entrada).texto
 
     def ResolverEcuacion(self, entrada):
         return self.ecuacion(entrada).texto

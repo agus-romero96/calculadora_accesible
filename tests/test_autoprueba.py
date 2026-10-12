@@ -7,4 +7,4 @@ def test_autoprueba_desde_codigo_fuente(tmp_path):
     assert autoprueba.ejecutar(str(informe)) == 0
     contenido = informe.read_text(encoding="utf-8")
     assert "FAIL" not in contenido
-    assert contenido.rstrip().endswith("18/18 correctas")
+    assert contenido.rstrip().endswith("20/20 correctas")
