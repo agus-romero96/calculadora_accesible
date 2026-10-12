@@ -8,6 +8,14 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Añadido
 
+- **Variación de parámetros y ecuaciones de Cauchy-Euler** (tareas 9 y 10 de la 1.7.0):
+  - **Variación de parámetros** (orden 2), cuando `g(x)` no tiene la forma de los coeficientes indeterminados (`tan(x)`, `1/cos(x)`, `exp(x)/x`, `1/sin(2*x)`): `y1`, `y2` y sus derivadas; `f`, que es `g` dividida entre lo que multiplica a `y''`; el **wronskiano** `W = y1*y2' - y2*y1'` con su cuenta (y la identidad `sin(u)^2 + cos(u)^2 = 1` si aparece); `u1' = -y2*f/W` y `u2' = y1*f/W` con sus cuentas; sus integrales con el paso a paso de **Integrar** (los logaritmos con valor absoluto); y `y_p = u1*y1 + u2*y2`, sin constantes porque darían términos de `y_h`.
+  - **Cauchy-Euler**, `a_n*x^n*y^(n) + ... + a_1*x*y' + a_0*y = g(x)`: se prueba `y = x^r` (para `x > 0`), con cada derivada como `r*(r - 1)*x^(r - 2)`; la **ecuación indicial** sin operar (`r*(r - 1) - 2 = 0`) y operada; sus raíces con los mismos pasos que la característica; y lo que aporta cada una: `x^r`, `x^r*log(x)` si se repite, `x^a*cos(b*log(x))` y `x^a*sin(b*log(x))` si es compleja. Si hay `g(x)`, variación de parámetros (dividiendo entre `a_2*x^2`).
+  - La comprobación interna de cada solución deriva `log(Abs(u))` como `log(u)` (la misma derivada) antes de recurrir a `checkodesol`: con el valor absoluto, SymPy se quedaba más de un minuto simplificando `y'' + y = tan(x)`.
+  - Si una integral de una ecuación diferencial no se puede explicar paso a paso, ahora se dice con una nota (antes el aviso de **Integrar** se perdía).
+  - Los factores negativos de un producto van entre paréntesis (`sin(x)*(-sin(x))`).
+  - Pruebas: 13 más en `tests/test_edo.py`.
+
 - **Ecuaciones diferenciales lineales de orden superior con coeficientes constantes** (tareas 7 y 8 de la 1.7.0), `a_n*y^(n) + ... + a_1*y' + a_0*y = g(x)` con los `a_k` números:
   - **Ecuación característica**: se prueba `y = exp(r*x)` (cada derivada multiplica por `r`), se divide entre `exp(r*x)` y queda el polinomio en `r`.
   - **Sus raíces**: de segundo grado, con `a`, `b`, `c`, el discriminante `D = b^2 - 4*a*c` con su cuenta y la fórmula: dos reales, una doble o un par complejo (`sqrt(-16) = sqrt(16)*i = 4*i`, `r = -1 ± 2*i`); de grado 3 o más, factorizando con los pasos de **Factorizar** y cada factor igualado a 0. Se llama `D` al discriminante, sin letra griega.

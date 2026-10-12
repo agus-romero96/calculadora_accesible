@@ -170,7 +170,14 @@ USER MANUAL: ACCESSIBLE SCIENTIFIC CALCULATOR
      (polynomials, exponentials, sines and cosines), a y_p with
      its form is tried (times x if it is already in the
      homogeneous solution), substituted, the coefficients are
-     matched and the system is solved step by step. Other types are solved by SymPy,
+     matched and the system is solved step by step. If g(x) is
+     of another kind, such as tan(x) or 1/cos(x), second-order
+     equations use variation of parameters: the Wronskian W,
+     u1' = -y2*f/W, u2' = y1*f/W and their integrals.
+     Cauchy-Euler: "x^2*y'' - 2*x*y' + 2*y = 0". Trying y = x^r
+     (for x > 0) gives the indicial equation; its roots give x^r,
+     x^r*log(x) or x^a*cos(b*log(x)) and x^a*sin(b*log(x)). If
+     there is a g(x), variation of parameters is used. Other types are solved by SymPy,
      without steps, with a note.
    - Limit: Type 'sin(x)/x'. Press Ctrl+L.
      Variable: x. Approaches: 0.

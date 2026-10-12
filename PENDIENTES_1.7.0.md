@@ -27,10 +27,10 @@ Una tarea terminada se tacha (`~~...~~`) y se anota el commit.
 
 ### Orden superior, lineales
 
-7. ~~**Coeficientes constantes, homogéneas** (orden `n`) — ecuación característica, sus raíces (con los pasos de **Resolver ecuación**) y la solución según sean reales distintas, repetidas o complejas conjugadas.~~ — **completada** (`_OrdenSuperior` en `calculo/edo.py`; con las condiciones iniciales de orden `n`)
-8. ~~**No homogéneas: coeficientes indeterminados** — la forma de la solución particular según `g(x)` (polinomios, exponenciales, senos y cosenos, sus productos), la corrección por `x^k` si coincide con la homogénea, y el sistema de coeficientes.~~ — **completada** (`_OrdenSuperior.particular`; el sistema, por sustitución con sus pasos)
-9. **No homogéneas: variación de parámetros** — el wronskiano (con los pasos del **Determinante**), `u1'`, `u2'` y sus integrales.
-10. **Cauchy-Euler** — `a*x^2*y'' + b*x*y' + c*y = 0` (y no homogéneas), con `y = x^m` y la ecuación indicial.
+7. ~~**Coeficientes constantes, homogéneas** (orden `n`) — ecuación característica, sus raíces (con los pasos de **Resolver ecuación**) y la solución según sean reales distintas, repetidas o complejas conjugadas.~~ — **completada** (`_OrdenSuperior` en `calculo/edo.py`; con las condiciones iniciales de orden `n`; commit `a73240e`)
+8. ~~**No homogéneas: coeficientes indeterminados** — la forma de la solución particular según `g(x)` (polinomios, exponenciales, senos y cosenos, sus productos), la corrección por `x^k` si coincide con la homogénea, y el sistema de coeficientes.~~ — **completada** (`_OrdenSuperior.particular`; el sistema, por sustitución con sus pasos; commit `a73240e`)
+9. ~~**No homogéneas: variación de parámetros** — el wronskiano (con los pasos del **Determinante**), `u1'`, `u2'` y sus integrales.~~ — **completada** (`_OrdenSuperior.variacion`, orden 2; el wronskiano 2x2 con su cuenta)
+10. ~~**Cauchy-Euler** — `a*x^2*y'' + b*x*y' + c*y = 0` (y no homogéneas), con `y = x^m` y la ecuación indicial.~~ — **completada** (`_OrdenSuperior.indicial`; se usa `x^r`; las no homogéneas, por variación de parámetros)
 11. **Reducción de orden** — con una solución `y1` conocida, `y2 = u*y1`.
 
 ### Otros métodos

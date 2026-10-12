@@ -110,7 +110,7 @@ def entre_parentesis(expr: Any) -> str:
 def factor(expr: Any) -> str:
     """Un factor de un producto: entre paréntesis solo si es una suma (2*x*y, (x + 1)*y)."""
     expr = sympy.sympify(expr)
-    compuesto = (expr.is_Add or (expr.is_Number and expr < 0)
+    compuesto = (expr.is_Add or (expr.is_Number and expr < 0) or expr.could_extract_minus_sign()
                  or ((expr.is_Mul or expr.is_Pow or expr.is_Rational) and sympy.fraction(expr)[1] != 1))
     return f"({texto(expr)})" if compuesto else texto(expr)
 
@@ -735,6 +735,8 @@ class MotorEdo:
                 if sympy.simplify(resto) != 0:
                     return False
                 continue
+            if s.lhs == edo.y and self._cumple(s.rhs, edo):
+                continue
             s = s.xreplace({edo.y: Y})
             try:
                 ok, _ = sympy.checkodesol(ode, s, solve_for_func=False)
@@ -743,6 +745,24 @@ class MotorEdo:
             if not ok:
                 return False
         return True
+
+    @staticmethod
+    def _cumple(valor: Any, edo: Edo) -> bool:
+        """
+        y = valor cumple la ecuación: se deriva y se sustituye. log(Abs(u)) se deriva como log(u) (es la
+        misma derivada): con el valor absoluto, checkodesol se quedaba atascado simplificando.
+        """
+        sin_abs = valor.replace(lambda e: isinstance(e, sympy.log) and isinstance(e.args[0], sympy.Abs),
+                                lambda e: sympy.log(e.args[0].args[0]))
+        cambios = {edo.y: sin_abs}
+        derivada = sin_abs
+        for d in edo.derivadas:
+            derivada = sympy.diff(derivada, edo.x)
+            cambios[d] = derivada
+        try:
+            return sympy.simplify((edo.izquierda - edo.derecha).xreplace(cambios)) == 0
+        except Exception:
+            return False
 
     def _con_sympy(self, ode: Any, edo: Edo, Y: Any, avisos: List[str]) -> Optional[List[Any]]:
         """La solución de dsolve, sin pasos (con las condiciones, si las hay)."""
@@ -779,9 +799,10 @@ class MotorEdo:
                              "orden de los términos que se dejan fuera."))
         avisos.append(tr("NOTA: por ahora hay explicación paso a paso para las ecuaciones de primer orden "
                          "separables, lineales, de Bernoulli, homogéneas, exactas (o con factor integrante) y "
-                         "reducibles a separables, y' = F(a*x + b*y + c); y para las lineales de orden superior con "
-                         "coeficientes constantes (homogéneas, o con g(x) hecha de polinomios, exponenciales, senos y "
-                         "cosenos). Esta ecuación la resuelve SymPy, sin pasos."))
+                         "reducibles a separables, y' = F(a*x + b*y + c); para las lineales de orden superior con "
+                         "coeficientes constantes y las de Cauchy-Euler (y las no homogéneas de orden 2, por "
+                         "coeficientes indeterminados o variación de parámetros). Esta ecuación la resuelve SymPy, sin "
+                         "pasos."))
         return soluciones
 
     # --- Textos ---
@@ -801,6 +822,7 @@ class MotorEdo:
         # Soluciones que valen con una condición (y = v^2 con v = sqrt(y) >= 0): el método las comprueba
         # por su cuenta y la comprobación dice dónde valen
         self._condiciones: Dict[Any, str] = {}
+        self._avisos = avisos
         pasos.append(PasoCalculo(
             tr("Planteamiento"),
             regla=tr("una ecuación diferencial relaciona una función {y}({x}) con sus derivadas. Resolverla es hallar "
@@ -1069,6 +1091,9 @@ class MotorEdo:
         if primitiva.has(sympy.Integral):
             raise SinExplicacion()
         pasos.extend(pasos_integral)
+        destino = getattr(self, "_avisos", None)
+        if destino is not None:
+            destino.extend(a for a in avisos if a not in destino)
         return primitiva
 
     @staticmethod
@@ -1827,47 +1852,88 @@ class _OrdenSuperior:
             return None
         return a, sympy.simplify(-resto)
 
+    def coeficientes_euler(self) -> Optional[Tuple[List[Any], Any]]:
+        """Cauchy-Euler: el coeficiente de y^(k) es a_k*x^k, con a_k un número: ([a_0, ..., a_n], g)."""
+        x = self.x
+        todo = sympy.expand(self.edo.izquierda - self.edo.derecha)
+        c = [todo.coeff(f) for f in self.funciones]
+        resto = sympy.expand(todo - sum(ck * f for ck, f in zip(c, self.funciones)))
+        if any(resto.has(f) for f in self.funciones):
+            return None
+        a = [sympy.simplify(ck / x ** k) for k, ck in enumerate(c)]
+        if any(not ak.is_number for ak in a) or a[-1] == 0 or all(ak == 0 for ak in a[1:-1]) and a[0] == 0:
+            return None
+        return a, sympy.simplify(-resto)
+
     def resolver(self) -> Optional[Tuple[List[Any], str]]:
+        euler = False
         datos = self.coeficientes()
         if datos is None:
-            return None
+            datos, euler = self.coeficientes_euler(), True
+            if datos is None:
+                return None
         a, g = datos
         n, x, y = len(a) - 1, self.x, self.y
-        lado = suma_lineal(a, self.funciones)
         homogenea = g == 0
-        self.pasos.append(PasoCalculo(
-            tr("Tipo de ecuación: lineal con coeficientes constantes"),
-            regla=tr("es lineal de orden {n} con coeficientes constantes si se puede escribir a_{n}*{yn} + ... + "
-                     "a_1*{yp} + a_0*{y} = g({x}), con los a_k números. Si g = 0 es homogénea; si no, la solución "
-                     "es {y} = {y}_h + {y}_p: la de la homogénea más una particular.", n=n, yn=self.funciones[-1],
-                     yp=self.funciones[1], y=y, x=x),
-            partes=tr("{ecuacion}; g({x}) = {g}.", ecuacion=f"{lado} = {texto(g)}", x=x, g=texto(g)),
-            queda=tr("homogénea") if homogenea else tr("no homogénea: {y} = {y}_h + {y}_p", y=y)))
+        if euler:
+            lado = suma_euler(a, self.funciones, x)
+            self.pasos.append(PasoCalculo(
+                tr("Tipo de ecuación: de Cauchy-Euler"),
+                regla=tr("es de Cauchy-Euler si cada derivada {yk} va multiplicada por un número por {x}^k: "
+                         "a_{n}*{x}^{n}*{yn} + ... + a_1*{x}*{yp} + a_0*{y} = g({x}). Se resuelve con {y} = {x}^r, "
+                         "para {x} > 0 (para {x} < 0 se cambia {x} por -{x}).", yk=f"{y}^(k)", x=x, n=n,
+                         yn=self.funciones[-1], yp=self.funciones[1], y=y),
+                partes=tr("{ecuacion}; g({x}) = {g}.", ecuacion=f"{lado} = {texto(g)}", x=x, g=texto(g)),
+                queda=tr("homogénea") if homogenea else tr("no homogénea: {y} = {y}_h + {y}_p", y=y)))
+        else:
+            lado = suma_lineal(a, self.funciones)
+            self.pasos.append(PasoCalculo(
+                tr("Tipo de ecuación: lineal con coeficientes constantes"),
+                regla=tr("es lineal de orden {n} con coeficientes constantes si se puede escribir a_{n}*{yn} + ... + "
+                         "a_1*{yp} + a_0*{y} = g({x}), con los a_k números. Si g = 0 es homogénea; si no, la solución "
+                         "es {y} = {y}_h + {y}_p: la de la homogénea más una particular.", n=n, yn=self.funciones[-1],
+                         yp=self.funciones[1], y=y, x=x),
+                partes=tr("{ecuacion}; g({x}) = {g}.", ecuacion=f"{lado} = {texto(g)}", x=x, g=texto(g)),
+                queda=tr("homogénea") if homogenea else tr("no homogénea: {y} = {y}_h + {y}_p", y=y)))
 
-        raices = self.caracteristica(a)
-        base = self.base(raices)
+        raices = self.indicial(a) if euler else self.caracteristica(a)
+        base = self.base(raices, euler)
         constantes = constantes_de(n)
         y_h = sum(c * f for c, f in zip(constantes, base))
-        lineas = [self._aporta(raiz, beta, m) for raiz, beta, m in raices]
+        lineas = [self._aporta(raiz, beta, m, euler) for raiz, beta, m in raices]
         nombre_h = y if homogenea else sympy.Symbol(f"{y}_h")
         lineas.append(tr("Cada función se multiplica por su constante y se suman: {y} = {solucion}.", y=nombre_h,
                          solucion=texto(y_h)))
+        if euler:
+            regla = tr("cada raíz r aporta funciones: una raíz real simple, {x}^r; una raíz que se repite m veces, "
+                       "{x}^r, {x}^r*log({x}), ..., {x}^r*log({x})^(m-1); un par complejo a ± b*i, "
+                       "{x}^a*cos(b*log({x})) y {x}^a*sin(b*log({x})). La solución es una combinación de todas, con "
+                       "{n} constantes.", x=x, n=n)
+        else:
+            regla = tr("cada raíz r aporta funciones: una raíz real simple, exp(r*{x}); una raíz que se repite m veces, "
+                       "exp(r*{x}), {x}*exp(r*{x}), ..., {x}^(m-1)*exp(r*{x}); un par complejo a ± b*i, "
+                       "exp(a*{x})*cos(b*{x}) y exp(a*{x})*sin(b*{x}). La solución es una combinación de todas, con "
+                       "{n} constantes.", x=x, n=n)
         self.pasos.append(PasoCalculo(
             tr("Solución de la homogénea") if not homogenea else tr("Solución general"),
-            regla=tr("cada raíz r aporta funciones: una raíz real simple, exp(r*{x}); una raíz que se repite m veces, "
-                     "exp(r*{x}), {x}*exp(r*{x}), ..., {x}^(m-1)*exp(r*{x}); un par complejo a ± b*i, "
-                     "exp(a*{x})*cos(b*{x}) y exp(a*{x})*sin(b*{x}). La solución es una combinación de todas, con {n} "
-                     "constantes.", x=x, n=n),
+            regla=regla,
             partes=tr("las raíces son {raices}.", raices="; ".join(
                 (_compleja(r_, b_) if b_ else texto(r_)) + (f" ({_veces(m)})" if m > 1 else "") for r_, b_, m in raices)),
             calculo=tuple(lineas),
             queda=f"{nombre_h} = {texto(y_h)}"))
         if homogenea:
-            return [sympy.Eq(y, y_h)], tr("lineal con coeficientes constantes (ecuación característica)")
+            return [sympy.Eq(y, y_h)], (tr("ecuación de Cauchy-Euler (y = x^r)") if euler else
+                                        tr("lineal con coeficientes constantes (ecuación característica)"))
 
-        y_p = self.particular(a, g, raices)
-        if y_p is None:
-            return None
+        y_p = None if euler else self.particular(a, g, raices)
+        if y_p is not None:
+            metodo = tr("lineal con coeficientes constantes, no homogénea (coeficientes indeterminados)")
+        else:
+            y_p = self.variacion(a, g, base, euler)
+            if y_p is None:
+                return None
+            metodo = (tr("ecuación de Cauchy-Euler, no homogénea (variación de parámetros)") if euler else
+                      tr("lineal con coeficientes constantes, no homogénea (variación de parámetros)"))
         solucion = y_h + y_p
         self.pasos.append(PasoCalculo(
             tr("Solución general"),
@@ -1875,8 +1941,7 @@ class _OrdenSuperior:
                      "{y}_p.", y=y),
             calculo=((f"{y} = {texto(y_h)} + {texto(y_p)}").replace("+ -", "- "),),
             queda=f"{y} = {texto(solucion)}"))
-        return [sympy.Eq(y, solucion)], tr("lineal con coeficientes constantes, no homogénea (coeficientes "
-                                           "indeterminados)")
+        return [sympy.Eq(y, solucion)], metodo
 
     # --- Ecuación característica y sus raíces ---
 
@@ -1896,10 +1961,46 @@ class _OrdenSuperior:
             partes=tr("la parte homogénea es {ecuacion}.", ecuacion=f"{suma_lineal(a, self.funciones)} = 0"),
             calculo=tuple(lineas),
             queda=f"{texto(p)} = 0"))
+        return self._raices(p, tr("Raíces de la ecuación característica"))
 
+    def indicial(self, a: List[Any]) -> List[Tuple[Any, Any, int]]:
+        """Cauchy-Euler: con y = x^r, x^k*y^(k) = r*(r - 1)*...*(r - k + 1)*x^r."""
+        r, x, y = self.r, self.x, self.y
+
+        def caida(k: int) -> str:  # r*(r - 1)*...*(r - k + 1)
+            return "*".join(entre_parentesis(r - j) for j in range(k))
+        derivadas = [f"{nombre_derivada(y, k)} = {caida(k)}*{x}^{entre_parentesis(r - k)}" for k in range(1, len(a))]
+        terminos = []
+        for k, ak in enumerate(a):
+            if ak == 0:
+                continue
+            cuerpo = caida(k) if k else "1"
+            valor = ak if not ak.could_extract_minus_sign() else -ak
+            termino = cuerpo if valor == 1 and k else (f"{texto(valor)}*{cuerpo}" if k else texto(valor))
+            signo = "-" if ak.could_extract_minus_sign() else "+"
+            terminos.append((signo, termino))
+        sin_operar = ("-" if terminos[-1][0] == "-" else "") + terminos[-1][1] + "".join(
+            f" {s} {t}" for s, t in reversed(terminos[:-1]))
+        p = sympy.expand(sum(ak * sympy.ff(r, k) for k, ak in enumerate(a)))
+        lineas = [tr("Probamos {y} = {x}^r: {derivadas}.", y=y, x=x, derivadas="; ".join(derivadas)),
+                  tr("Cada {x}^k*{yk} queda r*(r - 1)*...*{x}^r: al sustituir, todos los términos llevan {x}^r, y "
+                     "se divide entre {x}^r (no vale 0 para {x} > 0).", x=x, yk=f"{y}^(k)"),
+                  f"{sin_operar} = 0.",
+                  tr("Operamos: {p} = 0.", p=texto(p))]
+        self.pasos.append(PasoCalculo(
+            tr("Ecuación indicial"),
+            regla=tr("las soluciones de la homogénea son de la forma {x}^r: cada {x}^k*{yk} da un polinomio en r por "
+                     "{x}^r, y r tiene que cumplir la ecuación indicial.", x=x, yk=f"{y}^(k)"),
+            partes=tr("la parte homogénea es {ecuacion}.", ecuacion=f"{suma_euler(a, self.funciones, x)} = 0"),
+            calculo=tuple(lineas),
+            queda=f"{texto(p)} = 0"))
+        return self._raices(p, tr("Raíces de la ecuación indicial"))
+
+    def _raices(self, p: Any, titulo: str) -> List[Tuple[Any, Any, int]]:
+        r = self.r
         lineas: List[str] = []
         raices: List[Tuple[Any, Any, int]] = []
-        grado = len(a) - 1
+        grado = sympy.degree(p, r)
         if grado <= 2:
             raices = self._grado_menor(sympy.Poly(p, r), 1, lineas)
             raices.sort(key=lambda t: (t[1] != 0, t[0]))  # las reales, de menor a mayor
@@ -1917,7 +2018,7 @@ class _OrdenSuperior:
             for f, m in factores:
                 raices += self._grado_menor(sympy.Poly(f, r), m, lineas)
         self.pasos.append(PasoCalculo(
-            tr("Raíces de la ecuación característica"),
+            titulo,
             regla=tr("de primer grado, se despeja r; de segundo grado, la fórmula r = (-b ± sqrt(D))/(2*a) con el "
                      "discriminante D = b^2 - 4*a*c: si D > 0, dos raíces reales; si D = 0, una doble; si D < 0, dos "
                      "complejas conjugadas (sqrt(D) = sqrt(-D)*i). De grado mayor, se factoriza antes."),
@@ -1958,28 +2059,90 @@ class _OrdenSuperior:
                          menos_b=texto(-b), dos_a=entre_parentesis(2 * a), raices=_compleja(alfa, beta)))
         return [(alfa, beta, veces)]
 
-    def base(self, raices: List[Tuple[Any, Any, int]]) -> List[Any]:
+    def _funciones(self, raiz: Any, beta: Any, m: int, euler: bool) -> List[Any]:
+        """Lo que aporta una raíz: exp(r*x)... o, en Cauchy-Euler, x^r, x^r*log(x)..."""
         x = self.x
+        if euler:
+            potencia, angulo, repite = x ** raiz, beta * sympy.log(x), sympy.log(x)
+        else:
+            potencia, angulo, repite = sympy.exp(raiz * x), beta * x, x
         funciones = []
-        for raiz, beta, m in raices:
-            for k in range(m):
-                potencia = x ** k
-                if beta:
-                    funciones += [potencia * sympy.exp(raiz * x) * sympy.cos(beta * x),
-                                  potencia * sympy.exp(raiz * x) * sympy.sin(beta * x)]
-                else:
-                    funciones.append(potencia * sympy.exp(raiz * x))
+        for k in range(m):
+            if beta:
+                funciones += [repite ** k * potencia * sympy.cos(angulo), repite ** k * potencia * sympy.sin(angulo)]
+            else:
+                funciones.append(repite ** k * potencia)
         return funciones
 
-    def _aporta(self, raiz: Any, beta: Any, m: int) -> str:
-        x = self.x
-        if beta:
-            fs = [x ** k * sympy.exp(raiz * x) * trig(beta * x) for k in range(m) for trig in (sympy.cos, sympy.sin)]
-            return tr("r = {r} ({veces}): aporta {funciones}.", r=_compleja(raiz, beta), veces=_veces(m),
-                      funciones=", ".join(texto(f) for f in fs))
-        fs = [x ** k * sympy.exp(raiz * x) for k in range(m)]
-        return tr("r = {r} ({veces}): aporta {funciones}.", r=texto(raiz), veces=_veces(m),
-                  funciones=", ".join(texto(f) for f in fs))
+    def base(self, raices: List[Tuple[Any, Any, int]], euler: bool = False) -> List[Any]:
+        return [f for raiz, beta, m in raices for f in self._funciones(raiz, beta, m, euler)]
+
+    def _aporta(self, raiz: Any, beta: Any, m: int, euler: bool = False) -> str:
+        return tr("r = {r} ({veces}): aporta {funciones}.", r=_compleja(raiz, beta) if beta else texto(raiz),
+                  veces=_veces(m), funciones=", ".join(texto(f) for f in self._funciones(raiz, beta, m, euler)))
+
+    # --- Variación de parámetros ---
+
+    def variacion(self, a: List[Any], g: Any, base: List[Any], euler: bool) -> Optional[Any]:
+        """
+        y_p = u1*y1 + u2*y2 con u1' = -y2*f/W y u2' = y1*f/W, donde f es g dividida entre el coeficiente
+        de y'' y W = y1*y2' - y2*y1' es el wronskiano (orden 2).
+        """
+        if len(base) != 2:
+            return None
+        x, y = self.x, self.y
+        y1, y2 = base
+        principal = a[2] * x ** 2 if euler else a[2]
+        f = sympy.simplify(g / principal)
+        d1 = _mas_corta(sympy.diff(y1, x), sympy.simplify(sympy.diff(y1, x)))
+        d2 = _mas_corta(sympy.diff(y2, x), sympy.simplify(sympy.diff(y2, x)))
+        crudo = sympy.expand(y1 * d2 - y2 * d1)
+        W = sympy.simplify(crudo)
+        if W == 0:
+            return None
+        u1p = sympy.simplify(-y2 * f / W)
+        u2p = sympy.simplify(y1 * f / W)
+        lineas = [f"y1 = {texto(y1)}; y1' = {texto(d1)}.", f"y2 = {texto(y2)}; y2' = {texto(d2)}."]
+        if principal != 1:
+            lineas.append(tr("La ecuación se divide entre {p}, lo que multiplica a {ypp}: f = {g}/{pp} = {f}.",
+                             p=texto(principal), ypp=self.funciones[2], g=factor(g), pp=factor(principal), f=texto(f)))
+        else:
+            lineas.append(f"f = {texto(f)}.")
+        cuenta_w = f"{factor(y1)}*{factor(d2)} - {factor(y2)}*{factor(d1)}"
+        cadena = list(dict.fromkeys([cuenta_w, texto(crudo), texto(W)]))
+        lineas.append(tr("El wronskiano: W = y1*y2' - y2*y1' = {cuenta}.", cuenta=" = ".join(cadena)))
+        if crudo.has(sympy.sin) and crudo.has(sympy.cos) and not W.has(sympy.sin, sympy.cos):
+            lineas.append(tr("(sin(u)^2 + cos(u)^2 = 1.)"))
+        entre_w = f"/{factor(W)}" if W != 1 else ""
+        lineas.append(tr("u1' = -y2*f/W = {cuenta} = {valor}.", cuenta=f"-{factor(y2)}*{factor(f)}{entre_w}",
+                         valor=texto(u1p)))
+        lineas.append(tr("u2' = y1*f/W = {cuenta} = {valor}.", cuenta=f"{factor(y1)}*{factor(f)}{entre_w}",
+                         valor=texto(u2p)))
+        self.pasos.append(PasoCalculo(
+            tr("Variación de parámetros"),
+            regla=tr("se busca {y}_p = u1*y1 + u2*y2, con y1 e y2 las funciones de {y}_h y u1, u2 funciones por "
+                     "hallar. Las condiciones de clase dan u1' = -y2*f/W y u2' = y1*f/W, donde f es g dividida entre "
+                     "lo que multiplica a {ypp} y W = y1*y2' - y2*y1' es el wronskiano (no vale 0).", y=y,
+                     ypp=self.funciones[2]),
+            partes=tr("g({x}) = {g}.", x=x, g=texto(g)),
+            calculo=tuple(lineas),
+            queda=f"u1' = {texto(u1p)}; u2' = {texto(u2p)}"))
+        primitiva1 = self.motor._integrar(u1p, x, self.pasos)
+        primitiva2 = self.motor._integrar(u2p, x, self.pasos)
+        u1, u2 = _con_abs(primitiva1), _con_abs(primitiva2)
+        y_p = _mas_corta(sympy.simplify(u1 * y1 + u2 * y2), sympy.expand(u1 * y1 + u2 * y2), u1 * y1 + u2 * y2)
+        lineas = [f"u1 = ∫ {factor(u1p)} d{x} = {texto(primitiva1)}.", f"u2 = ∫ {factor(u2p)} d{x} = {texto(primitiva2)}."]
+        lineas += list(MotorEdo._lineas_abs(primitiva1, primitiva2))
+        lineas += [tr("No hace falta sumar constantes: darían términos que ya están en {y}_h.", y=y),
+                  f"{y}_p = u1*y1 + u2*y2 = {factor(u1)}*{factor(y1)} + {factor(u2)}*{factor(y2)} = {texto(y_p)}."
+                  .replace("+ -", "- ")]
+        self.pasos.append(PasoCalculo(
+            tr("Integrar u1' y u2'"),
+            regla=tr("u1 y u2 son las primitivas de u1' y u2' (los pasos de cada integral están arriba); con ellas, "
+                     "{y}_p = u1*y1 + u2*y2.", y=y),
+            calculo=tuple(lineas),
+            queda=f"{y}_p = {texto(y_p)}"))
+        return y_p
 
     # --- Coeficientes indeterminados ---
 
@@ -2158,6 +2321,11 @@ class _OrdenSuperior:
                 solucion=texto(particular)),),
             queda=f"{y} = {texto(particular)}"))
         return particular
+
+
+def suma_euler(a: List[Any], funciones: List[Any], x: Any) -> str:
+    """'x^2*y'' - 3*x*y' + 4*y': los coeficientes a_k*x^k de Cauchy-Euler."""
+    return suma_lineal([ak * x ** k for k, ak in enumerate(a)], funciones)
 
 
 def suma_lineal(a: List[Any], funciones: List[Any]) -> str:

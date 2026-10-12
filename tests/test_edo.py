@@ -30,7 +30,10 @@ def cumple(res):
     Y = ecuacion.atoms(sympy.core.function.AppliedUndef).pop()
     for s in res.valor:
         if s.lhs == y:
-            ok, resto = sympy.checkodesol(ecuacion.doit(), sympy.Eq(Y, s.rhs.xreplace({y: Y})), solve_for_func=False)
+            # log(Abs(u)) tiene la misma derivada que log(u); con el valor absoluto, checkodesol se atasca
+            valor = s.rhs.replace(lambda e: isinstance(e, sympy.log) and isinstance(e.args[0], sympy.Abs),
+                                  lambda e: sympy.log(e.args[0].args[0]))
+            ok, resto = sympy.checkodesol(ecuacion.doit(), sympy.Eq(Y, valor.xreplace({y: Y})), solve_for_func=False)
             assert ok, (s, resto)
 
 
@@ -463,6 +466,78 @@ def test_coeficientes_indeterminados_paso_a_paso(core):
     assert "Queda: y_p = x*(A*cos(x) + B*sin(x))" in resonancia
     varios = core.ecuacion_diferencial("y'' + 3*y' + 2*y = 4*x + exp(2*x) + cos(x)").texto
     assert "Volvemos atrás: F = 1 - 3*G = 1 - 3*(3/10) = 1/10." in varios
+
+
+VARIACION = [
+    ("y'' + y = 1/cos(x)", "y = x*sin(x) + log(Abs(cos(x)))*cos(x) + C1*cos(x) + C2*sin(x)"),
+    ("y'' + y = tan(x)", None),
+    ("y'' - 2*y' + y = exp(x)/x", "y = x*(log(Abs(x)) - 1)*exp(x) + C1*exp(x) + C2*x*exp(x)"),
+    ("y'' + 4*y = 1/sin(2*x)", None),
+]
+
+
+@pytest.mark.parametrize("entrada, resultado", VARIACION, ids=[c[0] for c in VARIACION])
+def test_variacion_de_parametros(core, entrada, resultado):
+    res = core.ecuacion_diferencial(entrada)
+    if resultado:
+        assert res.texto.splitlines()[0] == f"RESULTADO: {resultado}", res.texto
+    assert "Método: lineal con coeficientes constantes, no homogénea (variación de parámetros)" in res.texto
+    assert "AVISO" not in res.texto
+    cumple(res)
+    nombres = titulos(res.texto)
+    for paso in ("Solución de la homogénea.", "Variación de parámetros.", "Integrar u1' y u2'.", "Solución general.",
+                 "Comprobación."):
+        assert paso in nombres
+
+
+def test_variacion_paso_a_paso(core):
+    texto = core.ecuacion_diferencial("y'' + y = 1/cos(x)").texto
+    assert "y1 = cos(x); y1' = -sin(x)." in texto
+    assert ("El wronskiano: W = y1*y2' - y2*y1' = cos(x)*cos(x) - sin(x)*(-sin(x)) = sin(x)^2 + cos(x)^2 = 1."
+            in texto)
+    assert "u1' = -y2*f/W = -sin(x)*(1/cos(x)) = -tan(x)." in texto
+    assert "u1 = ∫ (-tan(x)) dx = log(cos(x))." in texto
+    assert "Así, log(cos(x)) se escribe log(Abs(cos(x)))." in texto
+    assert "No hace falta sumar constantes: darían términos que ya están en y_h." in texto
+
+
+EULER = [
+    ("x^2*y'' - 2*x*y' + 2*y = 0", "y = C1*x + C2*x^2"),
+    ("x^2*y'' + x*y' - y = 0", "y = C1/x + C2*x"),
+    ("x^2*y'' - x*y' + y = 0", "y = C1*x + C2*x*log(x)"),
+    ("x^2*y'' + x*y' + 4*y = 0", "y = C1*cos(2*log(x)) + C2*sin(2*log(x))"),
+    ("x^2*y'' - 3*x*y' + 4*y = 0", "y = C1*x^2 + C2*x^2*log(x)"),
+    ("x^2*y'' - 2*y = x^3", "y = x^3/4 + C1/x + C2*x^2"),
+    ("x^2*y'' - 2*x*y' + 2*y = x^3, y(1) = 1, y'(1) = 0", "y = x*(x^2 - 4*x + 5)/2"),
+]
+
+
+@pytest.mark.parametrize("entrada, resultado", EULER, ids=[c[0] for c in EULER])
+def test_cauchy_euler(core, entrada, resultado):
+    res = core.ecuacion_diferencial(entrada)
+    assert res.texto.splitlines()[0] == f"RESULTADO: {resultado}", res.texto
+    assert "Método: ecuación de Cauchy-Euler" in res.texto
+    assert "AVISO" not in res.texto and "NOTA" not in res.texto
+    if "," not in entrada:
+        cumple(res)
+    nombres = titulos(res.texto)
+    for paso in ("Tipo de ecuación: de Cauchy-Euler.", "Ecuación indicial.", "Raíces de la ecuación indicial.",
+                 "Comprobación."):
+        assert paso in nombres
+
+
+def test_cauchy_euler_paso_a_paso(core):
+    texto = core.ecuacion_diferencial("x^2*y'' - 2*y = x^3").texto
+    assert "Probamos y = x^r: y' = r*x^(r - 1); y'' = r*(r - 1)*x^(r - 2)." in texto
+    assert "r*(r - 1) - 2 = 0." in texto
+    assert "Operamos: r^2 - r - 2 = 0." in texto
+    assert "r = -1 (simple): aporta 1/x." in texto
+    assert "La ecuación se divide entre x^2, lo que multiplica a y'': f = x^3/x^2 = x." in texto
+    assert "El wronskiano: W = y1*y2' - y2*y1' = (1/x)*2*x - x^2*(-1/x^2) = 3." in texto
+    doble = core.ecuacion_diferencial("x^2*y'' - x*y' + y = 0").texto
+    assert "r = 1 (doble): aporta x, x*log(x)." in doble
+    compleja = core.ecuacion_diferencial("x^2*y'' + x*y' + 4*y = 0").texto
+    assert "r = ±2*i (simple): aporta cos(2*log(x)), sin(2*log(x))." in compleja
 
 
 def test_implicita_y_familia_de_constantes(core):
