@@ -697,7 +697,7 @@ RICCATI_CLAIRAUT_REDUCIBLES = [
     ("y = x*y' + y'^2", "y = C^2 + C*x; y = -x^2/4", "ecuación de Clairaut"),
     ("y = x*y' - y'^3", "y = -C^3 + C*x; y = 2*sqrt(3)*x^(3/2)/9; y = -2*sqrt(3)*x^(3/2)/9", "ecuación de Clairaut"),
     ("y = x*y' + sqrt(1 + y'^2)", "y = C*x + sqrt(1 + C^2)", "ecuación de Clairaut"),
-    ("y'' = y'^2", "y = C2 - log(Abs(x + C1))", "reducible de orden (p = y')"),
+    ("y'' = y'^2", "y = C2 - log(Abs(x + C1)); y = C2", "reducible de orden (p = y')"),
     ("x*y'' = y'", "y = C1*x^2/2 + C2", "reducible de orden (p = y')"),
     ("y*y'' = y'^2", "y = C2*exp(C1*x)", "reducible de orden (p = y')"),
     ("y*y'' = y'^2, y(0) = 1, y'(0) = 2", "y = exp(2*x)", "reducible de orden (p = y')"),
