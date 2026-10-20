@@ -121,7 +121,8 @@ class ParserMatematico:
             "cos": sympy.cos,
             "tan": sympy.tan,
             "sqrt": sympy.sqrt,
-            "abs": sympy.Abs,
+            # Abs evalúa incluso argumentos sin evaluar (abs(x/x) perdería x != 0).
+            "abs": lambda arg: sympy.Abs(arg, evaluate=False),
 
             # Escalón y delta (ecuaciones diferenciales con la transformada de Laplace)
             "heaviside": sympy.Heaviside,

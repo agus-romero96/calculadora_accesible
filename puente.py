@@ -15,6 +15,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import sympy
+from dominios import textos_restricciones
 
 from i18n import N_, idioma_actual
 
@@ -228,6 +229,7 @@ class CoreMatematico:
             valor=dto.resultado if dto.es_exitoso else None, es_error=not dto.es_exitoso,
             expresion=dto.expresion_original if dto.es_exitoso else None,
             planteamiento=_legible(dto.expresion_original) if dto.es_exitoso else None,
+            parametros={"restricciones": "; ".join(textos_restricciones(dto.restricciones))} if dto.restricciones else {},
         )
 
     def evaluar(self, expresion: str) -> ResultadoOperacion:
@@ -351,9 +353,12 @@ class CoreMatematico:
     def ecuacion(self, entrada: str) -> ResultadoOperacion:
         """Ecuación o inecuación de una variable: el valor es el conjunto solución (FiniteSet, Interval...)."""
         res = self.ecuaciones.resolver(entrada)
+        parametros = {"variable": str(res.variable)} if res.variable is not None else {}
+        if res.restricciones:
+            parametros["restricciones"] = "; ".join(textos_restricciones(res.restricciones))
         return ResultadoOperacion(
             operacion="ecuacion", entrada=entrada, texto=res.texto, valor=res.conjunto, es_error=res.es_error,
-            parametros={"variable": str(res.variable)} if res.variable is not None else {},
+            parametros=parametros,
             expresion=res.planteamiento, planteamiento=res.planteamiento,
         )
 
