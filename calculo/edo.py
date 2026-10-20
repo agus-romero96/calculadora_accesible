@@ -331,6 +331,7 @@ class Despeje:
         self.variables = list(variables)
         self.constantes = constantes
         self.lineas: List[str] = []
+        self.restricciones: List[Any] = []
 
     def _renombrar(self, expr: Any) -> Any:
         return _renombrar(expr, self.variables, self.lineas) if self.constantes else expr
@@ -410,12 +411,9 @@ class Despeje:
             return self._logaritmo(izq.args[0], der)
         if isinstance(izq, sympy.Abs):
             dentro = izq.args[0]
+            self.restricciones.append(sympy.Ge(der, 0))
             self.lineas.append(tr("Quitamos el valor absoluto: {dentro} = {derecha} o {dentro} = -({derecha}).",
                                   dentro=texto(dentro), derecha=texto(der)))
-            if self.constantes and der.has(C):
-                self.lineas.append(tr("Como C es cualquier constante, ±C también lo es: basta {ecuacion}.",
-                                      ecuacion=self._igualdad(dentro, der)))
-                return [(dentro, der)]
             return [(dentro, der), (dentro, -der)]
         inversas = {sympy.atan: sympy.tan, sympy.asin: sympy.sin, sympy.acos: sympy.cos,
                     sympy.tan: sympy.atan, sympy.sin: sympy.asin, sympy.cos: sympy.acos}
@@ -462,6 +460,8 @@ class Despeje:
                                   "signos: {base} = ±{valor}.", inverso=texto(inverso), exponente=texto(exponente),
                                   base=texto(base), valor=factor(nueva)))
             return [(base, nueva), (base, -nueva)]
+        if exponente.q % 2 == 0:
+            self.restricciones.append(sympy.Ge(der, 0))
         if exponente == sympy.Rational(1, 2):
             self.lineas.append(tr("Elevamos al cuadrado los dos lados (deshace la raíz cuadrada): {ecuacion}.",
                                   ecuacion=self._igualdad(base, nueva)))
@@ -476,7 +476,7 @@ class Despeje:
         interior = dentro.args[0] if valor_abs else dentro
         self.lineas.append(tr("Aplicamos la exponencial a los dos lados (exp deshace log): {ecuacion}.",
                               ecuacion=self._igualdad(dentro, sympy.exp(der))))
-        if not (self.constantes and der.has(C)):
+        if not (self.constantes and der.has(C) and not sympy.expand(der - C).has(C)):
             if valor_abs:
                 self.lineas.append(tr("Quitamos el valor absoluto: {dentro} = ±{valor}.", dentro=texto(interior),
                                       valor=entre_parentesis(sympy.exp(der))))
@@ -579,12 +579,37 @@ class MotorEdo:
         ecuacion, condiciones_txt = partes[0], partes[1:]
         escrita = re.sub(r"\s+", " ", ecuacion).strip()
         independiente = None
-        # d2y/dx2 y dy/dx -> y'' e y'
-        def derivada_leibniz(m):
+        def fijar_variable(variable):
             nonlocal independiente
-            independiente = m.group(3)
-            return f"{m.group(2)}" + "'" * int(m.group(1) or 1)
-        ecuacion = re.sub(r"d\s*\^?\s*(\d)?\s*([a-z])\s*/\s*d\s*([a-z])\s*(?:\^?\s*\d)?", derivada_leibniz, ecuacion)
+            if independiente is not None and independiente != variable:
+                raise ValueError(tr("Las derivadas deben usar la misma variable independiente."))
+            independiente = variable
+
+        # Se consume la notación completa antes de enviarla al parser algebraico.
+        def derivada_leibniz(m):
+            superior, dependiente, argumento, variable, inferior = m.groups()
+            n = int(superior or 1)
+            if n != int(inferior or 1) or n < 1:
+                raise ValueError(tr("Los órdenes del numerador y denominador de la derivada no coinciden."))
+            if argumento and argumento != variable:
+                raise ValueError(tr("El argumento de la función no coincide con la variable de derivación."))
+            fijar_variable(variable)
+            return dependiente + "'" * n
+        ecuacion = re.sub(
+            r"(?<![a-z_])d\s*\^?\s*(\d+)?\s*([a-z])(?:\(\s*([a-z])\s*\))?\s*/\s*d\s*([a-z])\s*(?:\^?\s*(\d+))?",
+            derivada_leibniz, ecuacion)
+        def funcion_prima(m):
+            fijar_variable(m.group(3))
+            return m.group(1) + m.group(2)
+        ecuacion = re.sub(r"([a-z])\s*('+)[ ]*\(\s*([a-z])\s*\)", funcion_prima, ecuacion)
+        def funcion(m):
+            fijar_variable(m.group(2))
+            return m.group(1)
+        ecuacion = re.sub(r"(?<![a-z_])([a-z])\s*\(\s*([a-z])\s*\)", funcion, ecuacion)
+        if re.search(r"'\s*\(", ecuacion):
+            raise ValueError(tr("No se reconoce la notación de la derivada."))
+        if re.search(r"\bd\s*\^?\s*\d*[a-z]\s*(?:\(|/)", ecuacion):
+            raise ValueError(tr("No se reconoce la notación de la derivada."))
         con_primas = set(re.findall(r"([a-z])\s*'", ecuacion))
         diferencial = None
         if not con_primas:
@@ -619,6 +644,8 @@ class MotorEdo:
             orden = max(orden, n)
             return _marcador(dependiente, n)
         ecuacion = re.sub(rf"{dependiente}\s*('+)", prima, ecuacion)
+        if "'" in ecuacion:
+            raise ValueError(tr("No se reconoce la notación de la derivada."))
         izq_txt, der_txt = ecuacion.split("=")
         if not izq_txt.strip() or not der_txt.strip():
             raise ValueError(tr("Falta uno de los dos lados de la {tipo}.", tipo=tr("ecuación")))
@@ -734,6 +761,21 @@ class MotorEdo:
             if soluciones is None:
                 return ResultadoEdo(tr("Error de Validación: {error}", error=tr(
                     "no se encontró una solución en forma cerrada para esta ecuación.")), es_error=True)
+
+        # La salida de respaldo también debe superar la comprobación independiente.
+        if not self._comprobadas(ode, soluciones, edo, Y):
+            return ResultadoEdo(tr("No se pudo verificar la solución en la EDO original."), es_error=True)
+        for solucion in soluciones:
+            if solucion.lhs != y or solucion.has(sympy.Order):
+                continue
+            if not all(sympy.simplify(sympy.diff(solucion.rhs, x, c.orden).subs(x, c.punto) - c.valor) == 0
+                       for c in edo.condiciones):
+                return ResultadoEdo(tr("La solución no satisface las condiciones iniciales."), es_error=True)
+            restricciones = self._dominio_solucion(solucion, edo)
+            if restricciones:
+                avisos.append(tr("Dominio de {solucion}: en intervalos donde {restricciones}.",
+                                 solucion=self._solucion_texto(solucion),
+                                 restricciones="; ".join(texto(r) for r in restricciones)))
 
         valores = "; ".join(self._solucion_texto(s) for s in soluciones)
         if any(s.has(K) for s in soluciones):
@@ -857,7 +899,31 @@ class MotorEdo:
 
     def _comprobadas(self, ode: Any, soluciones: List[Any], edo: Edo, Y: Any) -> bool:
         for s in soluciones:
-            if s in getattr(self, "_condiciones", {}) or s in getattr(self, "_por_tramos", set()):
+            if s in getattr(self, "_por_tramos", set()):
+                continue
+            if s in getattr(self, "_restricciones", {}):
+                cambios = {edo.y: s.rhs}
+                cambios.update({d: sympy.diff(s.rhs, edo.x, n)
+                                for n, d in enumerate(edo.derivadas, 1)})
+                residuo = (edo.izquierda - edo.derecha).xreplace(cambios)
+                supuestos = sympy.And(*[sympy.Q.nonnegative(r.lhs - r.rhs)
+                                        for r in self._restricciones[s]])
+                residuo = sympy.refine(residuo, supuestos)
+                # La simplificación puede escribir |x-2| cuando la condición
+                # guardada es 1-x/2 >= 0. Se demuestra la proporcionalidad.
+                cambios_abs = {}
+                for absoluto in residuo.atoms(sympy.Abs):
+                    for restriccion in self._restricciones[s]:
+                        base = restriccion.lhs - restriccion.rhs
+                        razon = sympy.simplify(absoluto.args[0] / base)
+                        if razon.is_positive:
+                            cambios_abs[absoluto] = absoluto.args[0]
+                        elif razon.is_negative:
+                            cambios_abs[absoluto] = -absoluto.args[0]
+                if sympy.simplify(residuo.xreplace(cambios_abs)) != 0:
+                    return False
+                continue
+            if s in getattr(self, "_condiciones", {}):
                 continue
             if s.lhs != edo.y and edo.orden == 1:
                 # Implícita, F(x, y) = 0: y' = -F_x/F_y (derivación implícita) cumple la ecuación
@@ -893,7 +959,15 @@ class MotorEdo:
             derivada = sympy.diff(derivada, edo.x)
             cambios[d] = derivada
         try:
-            return sympy.simplify((edo.izquierda - edo.derecha).xreplace(cambios)) == 0
+            residuo = (edo.izquierda - edo.derecha).xreplace(cambios)
+            if sympy.simplify(residuo) == 0:
+                return True
+            # exp de un exponente real es positivo, también fuera del caso
+            # aditivo que SymPy simplifica automáticamente.
+            cambios_log = {log: log.args[0].args[0] for log in residuo.atoms(sympy.log)
+                           if log.args[0].func == sympy.exp
+                           and log.args[0].args[0].is_real is not False}
+            return sympy.simplify(residuo.xreplace(cambios_log)) == 0
         except Exception:
             return False
 
@@ -942,6 +1016,37 @@ class MotorEdo:
 
     # --- Textos ---
 
+    def _dominio_solucion(self, solucion: Any, edo: Edo) -> List[Any]:
+        """Restricciones reales antes de simplificar la sustitución en la EDO.
+
+        Se expresan como condiciones, sin inventar extremos de intervalos con
+        constantes simbólicas. Incluyen la solución y todos los lados originales.
+        """
+        cambios = {edo.y: solucion.rhs}
+        cambios.update({d: sympy.diff(solucion.rhs, edo.x, n)
+                        for n, d in enumerate(edo.derivadas, 1)})
+        restricciones = list(getattr(self, "_restricciones", {}).get(solucion, []))
+        for expr in (solucion.rhs, edo.izquierda, edo.derecha, *cambios.values()):
+            for nodo in sympy.preorder_traversal(expr):
+                condicion = None
+                if nodo.func == sympy.log:
+                    argumento = nodo.args[0].xreplace(cambios)
+                    condicion = (sympy.Ne(argumento.args[0], 0) if argumento.func == sympy.Abs
+                                 else sympy.Gt(argumento, 0))
+                elif nodo.is_Pow and nodo.exp.is_Rational:
+                    base = nodo.base.xreplace(cambios)
+                    if nodo.exp.q % 2 == 0:
+                        condicion = sympy.Gt(base, 0) if nodo.exp < 0 else sympy.Ge(base, 0)
+                    elif nodo.exp < 0:
+                        condicion = sympy.Ne(base, 0)
+                elif nodo.func in (sympy.tan, sympy.sec):
+                    condicion = sympy.Ne(sympy.cos(nodo.args[0].xreplace(cambios)), 0)
+                elif nodo.func in (sympy.cot, sympy.csc):
+                    condicion = sympy.Ne(sympy.sin(nodo.args[0].xreplace(cambios)), 0)
+                if condicion is not None and condicion != sympy.true and condicion not in restricciones:
+                    restricciones.append(condicion)
+        return restricciones
+
     @staticmethod
     def _solucion_texto(s: Any) -> str:
         return f"{texto(s.lhs)} = {texto(s.rhs)}"
@@ -954,6 +1059,8 @@ class MotorEdo:
 
     def _explicar(self, edo: Edo, pasos: List[PasoCalculo], avisos: List[str]) -> Tuple[List[Any], str]:
         x, y = edo.x, edo.y
+        self._edo_actual = edo
+        self._restricciones = {}
         # Soluciones que valen con una condición (y = v^2 con v = sqrt(y) >= 0): el método las comprueba
         # por su cuenta y la comprobación dice dónde valen
         self._condiciones: Dict[Any, str] = {}
@@ -990,7 +1097,22 @@ class MotorEdo:
                     reducidas = self._reducir_orden(edo, pasos, avisos)
                     if reducidas is not None:
                         if edo.condiciones:
-                            reducidas = [sympy.Eq(y, orden_superior.condiciones(reducidas[0].rhs, edo.condiciones))]
+                            particulares = []
+                            for rama in reducidas:
+                                inicio_condiciones = len(pasos)
+                                try:
+                                    valor = orden_superior.condiciones(rama.rhs, edo.condiciones)
+                                except (SinExplicacion, ValueError):
+                                    del pasos[inicio_condiciones:]
+                                    continue
+                                if all(sympy.simplify(sympy.diff(valor, x, c.orden).subs(x, c.punto) - c.valor) == 0
+                                       for c in edo.condiciones):
+                                    particulares.append(sympy.Eq(y, valor))
+                                else:
+                                    del pasos[inicio_condiciones:]
+                            if not particulares:
+                                raise SinExplicacion()
+                            reducidas = particulares
                         self._comprobacion(edo, reducidas, pasos)
                         return reducidas, tr("reducible de orden (p = y')")
                 raise SinExplicacion()
@@ -1157,9 +1279,11 @@ class MotorEdo:
         primitiva_y = self._integrar(izq_int, y, pasos)
         primitiva_x = self._integrar(g, x, pasos)
         izq, der = _con_abs(primitiva_y), _con_abs(primitiva_x)
+        # Los logaritmos que ya estaban en la EDO conservan su dominio original.
+        izq = izq.xreplace({_con_abs(log): log for log in h.atoms(sympy.log)})
         lineas = [f"∫ {factor(izq_int)} d{y} = {texto(primitiva_y)}.",
                   f"∫ {factor(g)} d{x} = {texto(primitiva_x)}."]
-        lineas += self._lineas_abs(primitiva_y, primitiva_x)
+        lineas += self._lineas_abs(primitiva_y, primitiva_x, protegidos=h.atoms(sympy.log))
         lineas.append(tr("Las constantes de integración de los dos lados se juntan en una sola, C, en el lado de {x}.",
                          x=x))
         pasos.append(PasoCalculo(
@@ -1176,7 +1300,10 @@ class MotorEdo:
         except SinExplicacion:
             explicitas = None
         if explicitas:
-            explicitas = [self._simplificada(s, despeje.lineas) for s in explicitas]
+            # Una reparametrización C -> -C debe transformar también las
+            # restricciones. Aquí se conserva C si el despeje impuso alguna.
+            explicitas = [self._simplificada(s, despeje.lineas, renombrar=not despeje.restricciones)
+                          for s in explicitas]
             if len(explicitas) == 1 and despeje.lineas[-1] == tr("Queda {ecuacion}.",
                                                                  ecuacion=f"{y} = {texto(explicitas[0])}"):
                 despeje.lineas.pop()  # lo dice el Queda: del paso
@@ -1189,6 +1316,16 @@ class MotorEdo:
                 calculo=tuple(despeje.lineas),
                 queda="; ".join(f"{y} = {texto(s)}" for s in explicitas)))
             soluciones = [sympy.Eq(y, s) for s in explicitas]
+            for solucion in soluciones:
+                restricciones = [r.subs(y, solucion.rhs) for r in despeje.restricciones]
+                if restricciones:
+                    self._restricciones[solucion] = restricciones
+                    self._condiciones[solucion] = tr("donde {restricciones}",
+                                                   restricciones="; ".join(texto(r) for r in restricciones))
+            if h == sympy.sqrt(y):
+                avisos.append(tr("En y = 0 puede fallar la unicidad: también pueden existir soluciones que "
+                                 "empalman un tramo constante con una rama no constante. Las fórmulas "
+                                 "indicadas se validan en sus propios intervalos."))
         else:
             avisos.append(tr("NOTA: la solución queda en forma implícita (sin despejar {y}).", y=y))
             soluciones = [sympy.Eq(izq, der + C)]
@@ -1267,12 +1404,12 @@ class MotorEdo:
         return primitiva
 
     @staticmethod
-    def _lineas_abs(*primitivas: Any) -> Tuple[str, ...]:
+    def _lineas_abs(*primitivas: Any, protegidos=()) -> Tuple[str, ...]:
         """Por qué log(y) pasa a log(Abs(y)): una línea para todos los logaritmos que cambian."""
         cambios = []
         for primitiva in primitivas:
             for log in sorted(primitiva.atoms(sympy.log), key=texto):
-                if _con_abs(log) != log:
+                if log not in protegidos and _con_abs(log) != log:
                     cambios.append(tr("{antes} se escribe {despues}", antes=texto(log), despues=texto(_con_abs(log))))
         if not cambios:
             return ()
@@ -1280,12 +1417,12 @@ class MotorEdo:
                    "Así, {cambios}.", cambios="; ".join(cambios)),)
 
     @staticmethod
-    def _simplificada(s: Any, lineas: List[str]) -> Any:
+    def _simplificada(s: Any, lineas: List[str], renombrar: bool = True) -> Any:
         simple = sympy.simplify(s)
         if len(texto(simple)) < len(texto(s)) and texto(simple) != texto(s):
             lineas.append(tr("Simplificamos: {antes} = {despues}.", antes=texto(s), despues=texto(simple)))
             s = simple
-        if s.has(C):
+        if renombrar and s.has(C):
             # -C*exp(x)/(1 - C*exp(x)): con -C en lugar de C (otra constante cualquiera) quedan menos signos
             signos = lambda e: texto(e).count("-") + texto(e).count("(-")
             # 1/(-x - C) se escribe -1/(x + C)
@@ -1514,6 +1651,8 @@ class MotorEdo:
                         return None
                     self._condiciones[solucion] = tr("donde {v} >= 0 (v = {yk} no puede ser negativa)",
                                                      v=texto(s.rhs), yk=texto(y_k))
+                    if k == sympy.Rational(1, 2):
+                        self._restricciones[solucion] = [sympy.Ge(s.rhs, 0)]
                 soluciones.append(solucion)
             lineas.extend(despeje.lineas)
         pasos.append(PasoCalculo(
@@ -1953,6 +2092,7 @@ class MotorEdo:
                 queda=f"{texto(ecuacion[0])} = {texto(ecuacion[1])}"))
             sub = Edo(ecuacion[0], ecuacion[1], x, p, [pp], 1, escrita=f"{texto(ecuacion[0])} = {texto(ecuacion[1])}")
             soluciones_p, _ = self._explicar(sub, pasos, avisos)
+            self._edo_actual = edo
             generales = [s for s in soluciones_p if s.lhs == p and s.has(C)]  # sin las constantes, p = 0...
             if len(generales) != 1:
                 return None
@@ -1965,7 +2105,13 @@ class MotorEdo:
                 calculo=(tr("La constante C de p pasa a llamarse C1."),
                          f"{y} = ∫ {factor(valor_p)} d{x} = {texto(primitiva)} + C2.") + self._lineas_abs(primitiva),
                 queda=f"{y} = {texto(solucion)}"))
-            return [sympy.Eq(y, solucion)]
+            soluciones = [sympy.Eq(y, solucion)]
+            for rama in soluciones_p:
+                if rama.lhs == p and not rama.has(C):
+                    curva = sympy.Eq(y, sympy.integrate(rama.rhs, x) + C2)
+                    if self._cumple(curva.rhs, edo) and curva not in soluciones:
+                        soluciones.append(curva)
+            return soluciones
         if not todo.has(x):
             cambio = {yp: p, ypp: p * pp}
             ecuacion = (edo.izquierda.xreplace(cambio), edo.derecha.xreplace(cambio))
@@ -1979,25 +2125,32 @@ class MotorEdo:
                 queda=f"{texto(ecuacion[0])} = {texto(ecuacion[1])}"))
             sub = Edo(ecuacion[0], ecuacion[1], y, p, [pp], 1, escrita=f"{texto(ecuacion[0])} = {texto(ecuacion[1])}")
             soluciones_p, _ = self._explicar(sub, pasos, avisos)
+            self._edo_actual = edo
             explicitas = [s for s in soluciones_p if s.lhs == p and s.has(C)]
-            if len(explicitas) != 1:
+            if not explicitas:
                 return None
-            valor_p = explicitas[0].rhs.xreplace({C: C1})
-            pasos.append(PasoCalculo(
-                tr("Volver a {y}", y=y),
-                regla=tr("p es {yp}: queda {yp} = p({y}), una ecuación separable en {x} e {y}.", y=y, yp=yp, x=x),
-                calculo=(tr("La constante C de p pasa a llamarse C1."),),
-                queda=f"{yp} = {texto(valor_p)}"))
-            soluciones = self._separable(valor_p, x, y, pasos, avisos)
-            if soluciones is None:
-                return None
-            soluciones = [sympy.Eq(s.lhs, s.rhs.xreplace({C: C2})) for s in soluciones if s.has(C)]
-            if len(soluciones) != 1 or soluciones[0].lhs != y:
-                return None
-            pasos.append(PasoCalculo(
-                tr("Solución general"),
-                regla=tr("la constante C de esta última integración pasa a llamarse C2: la solución tiene dos."),
-                queda=f"{y} = {texto(soluciones[0].rhs)}"))
+            soluciones = []
+            for rama in explicitas:
+                valor_p = rama.rhs.xreplace({C: C1})
+                pasos.append(PasoCalculo(
+                    tr("Volver a {y}", y=y),
+                    regla=tr("p es {yp}: queda {yp} = p({y}), una ecuación separable en {x} e {y}.",
+                             y=y, yp=yp, x=x),
+                    calculo=(tr("La constante C de p pasa a llamarse C1."),),
+                    queda=f"{yp} = {texto(valor_p)}"))
+                nuevas = self._separable(valor_p, x, y, pasos, avisos)
+                if nuevas is None:
+                    return None
+                for candidata in nuevas:
+                    solucion = sympy.Eq(candidata.lhs, candidata.rhs.xreplace({C: C2}))
+                    if solucion not in soluciones:
+                        soluciones.append(solucion)
+            # La sustitucion p*dp/dy presupone una rama no constante de y.
+            equilibrio = todo.subs({yp: 0, ypp: 0})
+            for raiz in _raices_reales(equilibrio, y, x):
+                constante = sympy.Eq(y, raiz)
+                if self._cumple(raiz, edo) and self._incluida(raiz, soluciones, y) is None:
+                    soluciones.append(constante)
             return soluciones
         return None
 
@@ -2083,8 +2236,8 @@ class MotorEdo:
         particulares = []
         for s in soluciones:
             if not s.has(C):
-                if s.lhs == y and sympy.simplify(s.rhs - y0) == 0:
-                    lineas.append(tr("La solución constante {y} = {r} cumple {y}({x0}) = {y0}.", y=y, r=texto(s.rhs),
+                if s.lhs == y and sympy.simplify(s.rhs.subs(x, x0) - y0) == 0:
+                    lineas.append(tr("La solución {y} = {r} cumple {y}({x0}) = {y0}.", y=y, r=texto(s.rhs),
                                      x0=texto(x0), y0=texto(y0)))
                     particulares.append(s)
                 continue
@@ -2115,6 +2268,22 @@ class MotorEdo:
                     lineas.append(tr("Con C = {c}, {solucion} no cumple la condición: se descarta.", c=texto(v),
                                      solucion=self._solucion_texto(particular)))
                     continue
+                restricciones = [r.subs(C, v) for r in self._restricciones.get(s, [])]
+                if any(sympy.simplify(r.subs(x, x0)) != sympy.true for r in restricciones):
+                    lineas.append(tr("Con C = {c} no se cumplen las restricciones de dominio: se descarta.", c=texto(v)))
+                    continue
+                edo = self._edo_actual
+                cambios = {y: particular.rhs}
+                cambios.update({d: sympy.diff(particular.rhs, x, n)
+                                for n, d in enumerate(edo.derivadas, 1)})
+                residuo = (edo.izquierda - edo.derecha).xreplace(cambios).subs(x, x0)
+                if sympy.simplify(residuo) != 0:
+                    lineas.append(tr("Con C = {c} no se cumple la EDO en el punto inicial: se descarta.", c=texto(v)))
+                    continue
+                if restricciones:
+                    self._restricciones[particular] = restricciones
+                    self._condiciones[particular] = tr("donde {restricciones}",
+                                                     restricciones="; ".join(texto(r) for r in restricciones))
                 lineas.append(tr("Con C = {c}: {solucion}.", c=texto(v), solucion=self._solucion_texto(particular)))
                 particulares.append(particular)
         if not particulares:
