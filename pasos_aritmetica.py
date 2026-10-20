@@ -14,7 +14,9 @@ SymPy, y los pasos solo se muestran si llegan a él.
 from __future__ import annotations
 
 import ast
+import io
 import re
+import tokenize
 from dataclasses import dataclass
 from functools import reduce
 from typing import Any, List, Optional, Tuple
@@ -79,7 +81,7 @@ def _a_nodo(n: ast.AST) -> Any:
         return _a_nodo(n.operand)
     if isinstance(n, ast.UnaryOp) and isinstance(n.op, ast.USub):
         dentro = _a_nodo(n.operand)
-        if isinstance(dentro, Valor) and dentro.valor.is_Number:
+        if isinstance(dentro, Valor) and dentro.valor.is_number:
             return Valor(-dentro.valor, f"-{dentro.escrito}" if dentro.escrito else None)
         return Neg(dentro)
     if isinstance(n, ast.BinOp):
@@ -102,11 +104,21 @@ def _a_nodo(n: ast.AST) -> Any:
 def leer_cuenta(entrada: str) -> Any:
     """El árbol de la cuenta tal como se escribió (SinExplicacion si no es una cuenta numérica)."""
     t = entrada.strip().lower().replace("^", "**").replace("√", "sqrt").replace("π", "pi").replace("×", "*")
-    t = re.sub(r"(?<![a-z_])(\d+(?:\.\d+)?)\s*(?=[a-z(])", r"\1*", t)  # 2pi, 2(3 + 4)
-    t = re.sub(r"\)\s*(?=[\d(a-z])", ")*", t)                        # (2)(3), (2)3
     try:
+        # Los tokens distinguen el número 10 del nombre log10 y conservan 1e-3.
+        tokens = []
+        anterior = None
+        for token in tokenize.generate_tokens(io.StringIO(t).readline):
+            if anterior is not None and (
+                (anterior.type == tokenize.NUMBER and (token.type == tokenize.NAME or token.string == "("))
+                or (anterior.string == ")" and (token.type in (tokenize.NUMBER, tokenize.NAME) or token.string == "("))
+            ):
+                tokens.append((tokenize.OP, "*"))
+            tokens.append((token.type, token.string))
+            anterior = token
+        t = tokenize.untokenize(tokens)
         return _a_nodo(ast.parse(t, mode="eval").body)
-    except (SyntaxError, ValueError, RecursionError) as e:
+    except (SyntaxError, ValueError, RecursionError, tokenize.TokenError) as e:
         raise SinExplicacion() from e
 
 
@@ -162,8 +174,10 @@ def escribir(n: Any, padre: float = 0, derecha: bool = False, op_padre: str = ""
 def _operaciones(n: Any) -> int:
     if isinstance(n, Op):
         return 1 + _operaciones(n.izq) + _operaciones(n.der)
-    if isinstance(n, (Neg, Fun)):
+    if isinstance(n, Fun):
         return 1 + _operaciones(n.arg)
+    if isinstance(n, Neg):
+        return _operaciones(n.arg)
     return 0
 
 
@@ -220,7 +234,7 @@ def _fraccion(x: Any) -> Tuple[Any, Any]:
     return sympy.Integer(x.p), sympy.Integer(x.q)
 
 
-def _signo(a: Any, b: Any, resultado: Any) -> Optional[str]:
+def _signo(a: Any, b: Any, resultado: Any, dividiendo: bool = False) -> Optional[str]:
     """La regla de los signos, si hay algún negativo: 'menos por más da menos'."""
     if not (a.is_negative or b.is_negative) or not (a.is_real and b.is_real):
         return None
@@ -228,6 +242,9 @@ def _signo(a: Any, b: Any, resultado: Any) -> Optional[str]:
         return None  # 0 por (o entre) cualquier número da 0: el 0 no tiene signo
 
     nombre = {True: tr("menos"), False: tr("más")}
+    if dividiendo:
+        return tr("Signos: {a} entre {b} da {c}.", a=nombre[bool(a.is_negative)], b=nombre[bool(b.is_negative)],
+                  c=nombre[bool(resultado.is_negative)])
     return tr("Signos: {a} por {b} da {c}.", a=nombre[bool(a.is_negative)], b=nombre[bool(b.is_negative)],
               c=nombre[bool(resultado.is_negative)])
 
@@ -321,28 +338,39 @@ def operar(nodo: Any) -> Tuple[Any, str, str, List[str]]:
             resultado = sympy.simplify(resultado)
             cuentas = [f"{ta}/{tb} = {texto(resultado)}."]
             regla = tr("se divide; si no es un número exacto, el cociente se deja indicado y se simplifica.")
-        signo = _signo(a, b, resultado) if a.is_number and b.is_number else None
+        signo = _signo(a, b, resultado, dividiendo=True) if a.is_number and b.is_number else None
         if signo:
             cuentas.append(signo)
         return resultado, N_("División"), regla, cuentas
 
     # Potencia
+    if a == 0 and b.is_negative:
+        raise ValueError(tr("No se puede dividir entre 0."))
     resultado = sympy.simplify(a ** b)
+    if resultado.is_real is False:
+        raise SinExplicacion()  # las reglas del explicador solo describen operaciones reales
     if b.is_Integer and b == 0:
         regla = tr("cualquier número distinto de 0 elevado a 0 vale 1.")
         cuentas = [f"{ta}^{tb} = 1."]
+    elif b.is_Integer and b == 1:
+        regla = tr("cualquier número elevado a 1 es él mismo: a^1 = a.")
+        cuentas = [f"{ta}^1 = {texto(resultado)}."]
     elif b.is_Integer and 2 <= b <= 6 and a.is_number:
         regla = tr("una potencia con exponente natural n es la base multiplicada por sí misma n veces.")
         cuentas = [f"{ta}^{tb} = {'*'.join([entre_parentesis(a)] * int(b))} = {texto(resultado)}."]
+    elif b.is_Integer and b > 6:
+        regla = tr("una potencia con exponente natural n es la base multiplicada por sí misma n veces.")
+        cuentas = [f"{ta}^{tb} = {texto(resultado)}."]
     elif b.is_Integer and b < 0:
         regla = tr("un exponente negativo es el inverso de la potencia positiva: a^(-n) = 1/a^n.")
-        cuentas = [f"{ta}^{tb} = 1/{entre_parentesis(a)}^{-b} = {texto(resultado)}."]
+        inv = entre_parentesis(a) if b == -1 else f"{entre_parentesis(a)}^{-b}"
+        cuentas = [f"{ta}^{tb} = 1/{inv} = {texto(resultado)}."]
     elif b.is_Rational and not b.is_Integer:
         regla = tr("un exponente fraccionario p/q es una raíz: a^(p/q) es la raíz q-ésima de a, elevada a p "
                    "(a^(1/2) es la raíz cuadrada).")
         cuentas = [f"{ta}^{tb} = {texto(resultado)}."]
     else:
-        regla = tr("una potencia con exponente natural n es la base multiplicada por sí misma n veces.")
+        regla = tr("si el exponente es irracional, la potencia se deja indicada y al final se aproxima con decimales.")
         cuentas = [f"{ta}^{tb} = {texto(resultado)}."]
     return resultado, N_("Potencia"), regla, cuentas
 
@@ -351,12 +379,18 @@ def _operar_funcion(nodo: Fun) -> Tuple[Any, str, str, List[str]]:
     v = nodo.arg.valor
     resultado = sympy.simplify(FUNCIONES[nodo.nombre](v))
     escrito = f"{nodo.nombre}({escribir(nodo.arg)})"
+    if resultado.has(sympy.zoo, sympy.nan, sympy.oo, -sympy.oo):
+        raise ValueError(tr("La función {funcion} no está definida en {valor}.",
+                            funcion=nodo.nombre, valor=escribir(nodo.arg)))
+    if resultado.is_real is False:
+        raise SinExplicacion()  # el resultado final lo valida Aritmetica.evaluar
     if nodo.nombre == "sqrt":
         regla = tr("la raíz cuadrada de a es el número positivo cuyo cuadrado es a. Si a = c^2*k, entonces "
                    "sqrt(a) = c*sqrt(k).")
         if resultado.is_Rational:
-            cuentas = [tr("{f} = {r}, porque {r}^2 = {v}.", f=escrito, r=texto(resultado),
-                          v=texto(v)) if resultado >= 0 else f"{escrito} = {texto(resultado)}."]
+            r_cuadrado = texto(resultado) if resultado.is_Integer else f"({texto(resultado)})"
+            cuentas = [tr("{f} = {r}, porque {rc}^2 = {v}.", f=escrito, r=texto(resultado),
+                          rc=r_cuadrado, v=texto(v)) if resultado >= 0 else f"{escrito} = {texto(resultado)}."]
         else:
             c, resto = resultado.as_coeff_Mul()
             if c != 1 and resto.is_Pow:
@@ -368,7 +402,8 @@ def _operar_funcion(nodo: Fun) -> Tuple[Any, str, str, List[str]]:
     if nodo.nombre == "abs":
         regla = tr("el valor absoluto es la distancia a 0: el número sin su signo.")
         return resultado, N_("Valor absoluto"), regla, [f"{escrito} = {texto(resultado)}."]
-    sin_valor = resultado.has(FUNCIONES[nodo.nombre](sympy.Symbol("z")).func) if nodo.nombre != "log10" else False
+    sin_valor = (resultado.has(sympy.log) if nodo.nombre == "log10"
+                 else resultado.has(FUNCIONES[nodo.nombre](sympy.Symbol("z")).func))
     if sin_valor:
         regla = tr("algunas funciones solo tienen valor exacto sencillo en puntos concretos (sin(pi/2) = 1, log(1) = 0...); "
                    "en los demás, el valor se deja indicado y al final se aproxima con decimales.")
@@ -496,7 +531,7 @@ def _desarrollo(termino: Any) -> Tuple[Any, str]:
         return sympy.expand(termino), tr("cubo de un binomio: (a + b)^3 = a^3 + 3*a^2*b + 3*a*b^2 + b^3")
     factores = sympy.Mul.make_args(termino)
     sumas = [f for f in factores if f.is_Add]
-    if len(sumas) == 2 and len(factores) == 2 and len(_terminos(sympy.expand(termino))) == 2:
+    if len(sumas) == 2 and len(factores) == 2 and all(len(s.args) == 2 for s in sumas) and len(_terminos(sympy.expand(termino))) == 2:
         return sympy.expand(termino), tr("suma por diferencia: (a + b)*(a - b) = a^2 - b^2")
     return sympy.expand(termino), tr("propiedad distributiva: cada término de un paréntesis multiplica a cada término del otro")
 
@@ -524,10 +559,16 @@ def _agrupar(terminos: List[Any]) -> List[str]:
 class ExplicadorSimplificar:
     def explicar(self, crudo: Any, expr: Any, resultado: Any) -> List[PasoCalculo]:
         """Pasos de simplificar crudo (tal como lo leyó el parser) hasta resultado (el de SymPy)."""
-        variables = sorted(expr.free_symbols, key=lambda s: s.name)
+        variables = sorted(crudo.free_symbols | expr.free_symbols, key=lambda s: s.name)
         num, den = sympy.fraction(sympy.together(expr))
+        num_c, den_c = sympy.fraction(limpiar(crudo))
+        es_fraccion = (
+            any(den.has(v) for v in variables)
+            or any(den_c.has(v) for v in variables)
+            or (den_c != 1 and bool(variables) and sympy.gcd(sympy.expand(num_c.doit()), sympy.expand(den_c.doit())) != 1)
+        )
         pasos: List[PasoCalculo] = []
-        if any(den.has(v) for v in variables):
+        if es_fraccion:
             actual = self._racional(crudo, expr, num, den, pasos)
         else:
             actual = self._polinomio(crudo, expr, pasos)
@@ -557,8 +598,12 @@ class ExplicadorSimplificar:
     def _polinomio(self, crudo: Any, expr: Any, pasos: List[PasoCalculo]) -> Any:
         desarrollados, lineas, reglas, identidades = [], [], [], []
         for t in (limpiar(t) for t in sympy.Add.make_args(crudo)):
-            expandido, regla = _desarrollo(t.doit())
-            if texto(expandido) != texto(t) and t.has(sympy.Add) and not t.has(sympy.Function):
+            tiene_parentesis = (t.is_Mul and any(a.is_Add or (a.is_Pow and a.base.is_Add) for a in t.args)) or (
+                t.is_Pow and t.base.is_Add
+            )
+            # doit() puede distribuir antes de reconocer los paréntesis originales.
+            expandido, regla = _desarrollo(t if tiene_parentesis else t.doit())
+            if texto(expandido) != texto(t) and tiene_parentesis:
                 lineas.append(f"{texto(t)} = {suma_texto(_por_grado(_terminos(expandido)))}.")
                 if regla not in reglas:
                     reglas.append(regla)
@@ -581,7 +626,7 @@ class ExplicadorSimplificar:
                 calculo=tuple(lineas),
                 queda=suma_texto(desarrollados)))
         agrupar = _agrupar(desarrollados)
-        actual = sympy.expand(expr) if expr.is_polynomial() else expr
+        actual = sympy.expand(expr) if (expr.is_polynomial() or lineas) else expr
         if agrupar:
             pasos.append(PasoCalculo(
                 tr("Agrupar términos semejantes"),
@@ -593,8 +638,12 @@ class ExplicadorSimplificar:
         return actual
 
     def _racional(self, crudo: Any, expr: Any, num: Any, den: Any, pasos: List[PasoCalculo]) -> Any:
-        den = sympy.factor(den)
         sumandos = [t.doit() for t in sympy.Add.make_args(crudo)]
+        if len(sumandos) == 1:
+            num_c, den_c = sympy.fraction(limpiar(crudo))
+            if den_c != 1:
+                num, den = num_c.doit(), den_c.doit()
+        den = sympy.factor(den)
         if len(sumandos) > 1:
             # El mínimo común múltiplo de los denominadores (together los multiplicaría todos)
             den = sympy.factor(reduce(sympy.lcm, [sympy.fraction(sympy.together(s))[1] for s in sumandos]))
@@ -626,16 +675,17 @@ class ExplicadorSimplificar:
                 calculo=tuple(calculo),
                 queda=f"{entre_parentesis(sympy.expand(num))}/{entre_parentesis(den)}"))
         num = sympy.expand(num)
+        den_exp = sympy.expand(den)
         num_f, den_f = sympy.factor(num), den
-        comun = sympy.gcd(num, sympy.expand(den))
-        cancelada = sympy.factor(sympy.cancel(junta)) if not sympy.gcd(num, sympy.expand(den)).is_number else junta
-        if not comun.is_number:
+        comun = sympy.gcd(num, den_exp)
+        cancelada = sympy.factor(sympy.cancel(junta)) if (num != 0 and comun != 1) else junta
+        if num != 0 and comun != 1:
             ceros = sympy.solve(comun, list(comun.free_symbols)[0]) if len(comun.free_symbols) == 1 else []
             calculo = []
             if texto(num_f) != texto(num):
                 calculo.append(tr("Factorizamos el numerador: {antes} = {despues}.", antes=texto(num), despues=texto(num_f)))
-            if texto(den_f) != texto(den):
-                calculo.append(tr("Factorizamos el denominador: {antes} = {despues}.", antes=texto(den), despues=texto(den_f)))
+            if len(sumandos) == 1 and texto(den_f) != texto(den_exp):
+                calculo.append(tr("Factorizamos el denominador: {antes} = {despues}.", antes=texto(den_exp), despues=texto(den_f)))
             calculo.append(tr("El factor común es {factor}; lo cancelamos: {resultado}.", factor=texto(comun),
                               resultado=texto(cancelada)))
             if ceros:
@@ -646,7 +696,8 @@ class ExplicadorSimplificar:
                 tr("Factorizar y cancelar"),
                 regla=tr("un factor que multiplica arriba y abajo se puede cancelar (a*c)/(b*c) = a/b, siempre que no "
                          "valga 0. Para verlo, se factorizan el numerador y el denominador."),
-                partes=tr("el numerador es {num} y el denominador es {den}.", num=texto(num), den=texto(den)),
+                partes=tr("el numerador es {num} y el denominador es {den}.", num=texto(num),
+                          den=texto(den_exp if len(sumandos) == 1 else den)),
                 calculo=tuple(calculo),
                 queda=texto(cancelada)))
         return cancelada
@@ -729,7 +780,9 @@ class ExplicadorFactorizar:
                                  cociente=texto(sympy.simplify(t / comun))) for t in terminos)
                         + (tr("Queda {comun}*({nucleo}).", comun=entre_parentesis(comun), nucleo=texto(nucleo)),),
                 queda=f"{entre_parentesis(comun)}*({texto(nucleo)})"))
-            return comun * self._factorizar(nucleo, 0)
+            # SymPy distribuye automáticamente 2*(x + 1) si se evalúa este producto.
+            factores = sympy.Mul.make_args(self._factorizar(nucleo, 0))
+            return sympy.Mul(comun, *factores, evaluate=False)
         return self._factorizar(expandida, 0)
 
     def _factorizar(self, p: Any, nivel: int) -> Any:
@@ -820,18 +873,21 @@ class ExplicadorFactorizar:
         else:
             factores = [a + b, a ** 2 - a * b + b ** 2]
             regla = tr("una suma de cubos se factoriza así: a^3 + b^3 = (a + b)*(a^2 - a*b + b^2).")
+        es_grado_2 = len(p.free_symbols) == 1 and sympy.degree(factores[1], list(p.free_symbols)[0]) == 2
+        calculo = [tr("a^2 = {a2}, a*b = {ab} y b^2 = {b2}.", a2=texto(a ** 2), ab=texto(a * b), b2=texto(b ** 2)),
+                   tr("Sustituimos: ({f1})*({f2}).", f1=texto(factores[0]), f2=texto(factores[1]))]
+        if es_grado_2:
+            calculo.append(tr("El segundo factor no se factoriza en los racionales: su discriminante, b^2 - 4*a*c, es negativo."))
+            # El factor cuadrático no se descompone: solo se sigue con el lineal
+            self._sin_seguir.add(sympy.expand(factores[1]))
         self.casos.append(CUBOS)
         self.pasos.append(PasoCalculo(
             tr("Suma o diferencia de cubos en {expresion}", expresion=texto(p)),
             regla=regla,
             partes=tr("{t1} = {a3} y {t2} = {b3}, así que a = {ta} y b = {tb}.", t1=texto(primero), a3=_potencia_texto(a, 3),
                       t2=texto(-segundo if resta else segundo), b3=_potencia_texto(b, 3), ta=texto(a), tb=texto(b)),
-            calculo=(tr("a^2 = {a2}, a*b = {ab} y b^2 = {b2}.", a2=texto(a ** 2), ab=texto(a * b), b2=texto(b ** 2)),
-                     tr("Sustituimos: ({f1})*({f2}).", f1=texto(factores[0]), f2=texto(factores[1])),
-                     tr("El segundo factor no se factoriza en los racionales: su discriminante, b^2 - 4*a*c, es negativo.")),
+            calculo=tuple(calculo),
             queda=f"({texto(factores[0])})*({texto(factores[1])})"))
-        # El factor cuadrático no se descompone: solo se sigue con el lineal
-        self._sin_seguir.add(sympy.expand(factores[1]))
         return factores
 
     def _cuadratico(self, p: Any, x: Any) -> Optional[List[Any]]:
@@ -983,6 +1039,13 @@ class ExplicadorFactorizar:
                                     for i, c in enumerate(coefs[:-1])) + f" + {entre_parentesis(coefs[-1])}"
             valores = [c * r ** (len(coefs) - 1 - i) for i, c in enumerate(coefs)]
             evaluacion += f" = {suma_texto([v for v in valores if v != 0])}"
+            factor_lin = x - r
+            extra = ()
+            if r.q != 1 and all((b % r.q) == 0 for b in bajados[:-1]):
+                factor_lin = sympy.expand(r.q * (x - r))
+                cociente = sympy.expand(cociente / r.q)
+                extra = (tr("Pasamos el factor {q} a ({f_frac}) para quitar las fracciones: ({f_lin})*({coc}).",
+                            q=r.q, f_frac=texto(x - r), f_lin=texto(factor_lin), coc=texto(cociente)),)
             self.casos.append(RUFFINI)
             self.pasos.append(PasoCalculo(
                 tr("Raíz y Ruffini en {expresion}", expresion=texto(p)),
@@ -997,7 +1060,8 @@ class ExplicadorFactorizar:
                          tr("Ruffini con {r}: bajamos {primero}.", r=texto(r), primero=texto(coefs[0])))
                         + tuple(fila)
                         + (tr("El resto es {resto} y el cociente es {cociente}.", resto=texto(bajados[-1]),
-                              cociente=texto(cociente)),),
-                queda=f"({texto(x - r)})*({texto(cociente)})"))
-            return [x - r, cociente]
+                              cociente=texto(sympy.Poly(bajados[:-1], x).as_expr())),)
+                        + extra,
+                queda=f"({texto(factor_lin)})*({texto(cociente)})"))
+            return [factor_lin, cociente]
         return None

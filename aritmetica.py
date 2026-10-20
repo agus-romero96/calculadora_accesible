@@ -76,6 +76,11 @@ class Aritmetica:
 
             # "Evaluar" significa: ejecutar aritmética exacta primero
             exacto = sympy.simplify(expr)
+            if exacto.has(sympy.zoo, sympy.nan, sympy.oo, -sympy.oo):
+                return self._error(N_("Evaluación Numérica"), expr, tr("No se puede dividir entre 0."))
+            if exacto.is_real is False:
+                return self._error(N_("Evaluación Numérica"), expr, tr("El resultado no es un número real."))
+
             advertencias: List[str] = []
             try:
                 pasos = ExplicadorEvaluar().explicar(expresion, exacto)
@@ -170,6 +175,9 @@ class Aritmetica:
                 if sympy.expand(obtenido - expr) != 0:
                     raise SinExplicacion()
                 pasos = list(explicador.pasos)
+                if (pasos and sympy.expand(obtenido) != obtenido
+                        and sympy.expand(obtenido - resultado) == 0):
+                    resultado = obtenido
                 if pasos and sympy.expand(obtenido) != obtenido:  # sin factores no hay nada que comprobar
                     pasos.append(PasoCalculo(
                         tr("Comprobación"),
@@ -182,7 +190,7 @@ class Aritmetica:
                 pasos = []
                 advertencias.append(tr(SIN_PASOS))
 
-            if resultado == expr or sympy.expand(resultado) == resultado and not resultado.is_Mul:
+            if sympy.expand(resultado) == resultado:
                 advertencias.append(tr("No se encontraron factores más simples en los racionales (Q)."))
                 estrategia = IRREDUCIBLE
             else:

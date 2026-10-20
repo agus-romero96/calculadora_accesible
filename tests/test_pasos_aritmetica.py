@@ -192,3 +192,109 @@ def test_evaluar_sigue_dando_el_valor_de_sympy(core):
         dto = core.aritmetica.evaluar(expresion)
         exacto = sympy.simplify(core.parser_comun.parsear(expresion))
         assert abs(complex(sympy.N(dto.resultado - exacto))) < 1e-9, expresion
+
+
+@pytest.mark.parametrize("expresion, esperado, explicacion", [
+    ("-6/2", -3, "Signos: menos entre más da menos."),
+    ("sqrt(4/9)", sympy.Rational(2, 3), "sqrt(4/9) = 2/3, porque (2/3)^2 = 4/9."),
+    ("log10(2)", sympy.log(2)/sympy.log(10), "log10(2) no tiene un valor exacto sencillo"),
+    ("log10(100)", 2, "log10(100) = 2 (valor exacto conocido)."),
+    ("2^(-1)", sympy.Rational(1, 2), "2^(-1) = 1/2 = 1/2."),
+    ("5^1", 5, "5^1 = 5."),
+    ("1e-3", sympy.Rational(1, 1000), "0.001"),
+])
+def test_regresiones_evaluar_pasos(core, expresion, esperado, explicacion):
+    dto = core.aritmetica.evaluar(expresion)
+    assert dto.es_exitoso
+    assert abs(float(dto.resultado - esperado)) < 1e-15
+    salida = core.Evaluar(expresion)
+    assert explicacion in salida
+    assert "No se pudo explicar" not in salida
+
+
+@pytest.mark.parametrize("expresion, esperado", [
+    ("(x-1)/(x-1)", "1"),
+    ("(2*x+2)/(2*x+4)", "(x+1)/(x+2)"),
+    ("(2*x+4)/2", "x+2"),
+])
+def test_regresiones_cancelar_fracciones(core, expresion, esperado):
+    dto = core.aritmetica.simplificar(expresion)
+    assert dto.es_exitoso
+    assert sympy.simplify(dto.resultado - core.parser_comun.parsear(esperado)) == 0
+    assert "Factorizar y cancelar" in core.Simplificar(expresion)
+
+
+def test_producto_de_binomio_y_trinomio_no_es_suma_por_diferencia(core):
+    x = core.parser_comun.simbolo("x")
+    dto = core.aritmetica.simplificar("(x+1)*(x^2-x+1)")
+    assert sympy.expand(dto.resultado) == x**3 + 1
+    assert "suma por diferencia" not in core.Simplificar("(x+1)*(x^2-x+1)")
+
+
+@pytest.mark.parametrize("expresion, esperado", [
+    ("2*(sin(x)+1)", lambda x: 2*sympy.sin(x) + 2),
+    ("3*(cos(x)-2)", lambda x: 3*sympy.cos(x) - 6),
+    ("(sin(x)+1)^2", lambda x: sympy.sin(x)**2 + 2*sympy.sin(x) + 1),
+])
+def test_distributiva_con_funciones(core, expresion, esperado):
+    x = core.parser_comun.simbolo("x")
+    dto = core.aritmetica.simplificar(expresion)
+    assert dto.es_exitoso
+    assert sympy.simplify(dto.resultado - esperado(x)) == 0
+    desarrollo = [p for p in dto.pasos if p.titulo == "Desarrollar"]
+    assert desarrollo
+    assert not any(p.titulo == "Aplicar identidades" for p in dto.pasos)
+
+
+def test_cubos_de_grado_seis_conservan_factorizacion_correcta(core):
+    x = core.parser_comun.simbolo("x")
+    esperado = (x**2 + 4)*(x**4 - 4*x**2 + 16)
+    propuesta_erronea = (x**2 + 4)*(x**2 - 2*x + 4)*(x**2 + 2*x + 4)
+    assert sympy.expand(esperado) == x**6 + 64
+    assert sympy.expand(propuesta_erronea) == x**6 + 8*x**4 + 32*x**2 + 64
+    dto = core.aritmetica.factorizar("x^6+64")
+    assert dto.es_exitoso
+    assert dto.resultado == esperado
+    assert sympy.expand(dto.resultado) == x**6 + 64
+    # Cada factor es irreducible sobre Q; no basta con que el producto sea equivalente.
+    assert all(sympy.Poly(f, x, domain=sympy.QQ).is_irreducible for f in dto.resultado.args)
+    cubos = next(p for p in dto.pasos if p.titulo.startswith("Suma o diferencia de cubos"))
+    assert not any("discriminante" in linea for linea in cubos.calculo)
+
+
+def test_factorizar_conserva_signo_de_los_pasos(core):
+    x = core.parser_comun.simbolo("x")
+    dto = core.aritmetica.factorizar("-x^2+4")
+    assert dto.resultado == (2-x)*(x+2)
+    assert sympy.expand(dto.resultado) == 4-x**2
+    assert "RESULTADO: (2 - x)*(x + 2)" in core.Factorizar("-x^2+4")
+
+
+def test_ruffini_reparte_factor_sin_cambiar_el_producto(core):
+    x = core.parser_comun.simbolo("x")
+    original = 6*x**3 + x**2 + 8*x - 5
+    lineal, cuadratico = 2*x-1, 3*x**2+2*x+5
+    assert sympy.expand(lineal*cuadratico) == original
+    dto = core.aritmetica.factorizar("6*x^3+x^2+8*x-5")
+    assert dto.es_exitoso
+    assert dto.resultado == lineal*cuadratico
+    assert sympy.expand(dto.resultado) == original
+    paso = next(p for p in dto.pasos if p.titulo.startswith("Raíz y Ruffini"))
+    assert any("El resto es 0 y el cociente es 6*x^2 + 4*x + 10." in linea for linea in paso.calculo)
+    assert any("Pasamos el factor 2" in linea for linea in paso.calculo)
+
+
+@pytest.mark.parametrize("expresion, esperado", [
+    ("12e-3", sympy.Rational(12, 1000)),
+    ("1.2e+3", 1200),
+    (".5e-2", sympy.Rational(1, 200)),
+    ("2pi", 2*sympy.pi),
+    ("2log10(100)", 4),
+    ("(2)(3)", 6),
+    ("(2)3", 6),
+])
+def test_lector_numerico_conserva_tokens(core, expresion, esperado):
+    dto = core.aritmetica.evaluar(expresion)
+    assert dto.es_exitoso
+    assert abs(float(dto.resultado - esperado)) < 1e-15
+    assert "No se pudo explicar" not in core.Evaluar(expresion)

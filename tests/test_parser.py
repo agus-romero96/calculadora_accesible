@@ -24,6 +24,11 @@ x, y = sp.symbols("x y", real=True)
     ("asin(x)", sp.asin(x)),
     ("ln(x)", sp.log(x)),
     ("e^x", sp.exp(x)),
+    ("log10(100)", 2),
+    ("2log10(100)", 4),
+    ("1e-3", sp.Rational(1, 1000)),
+    ("12e-3", sp.Rational(12, 1000)),
+    ("1.2e+3", 1200),
 ])
 def test_sintaxis_aceptada(texto, esperado):
     assert sp.simplify(p.parsear(texto) - esperado) == 0
@@ -56,6 +61,19 @@ def test_matrix_en_cualquier_caso(texto):
     ("sinx", "sin(x)"),
     ("xsinx", "x*sin(x)"),
     ("3+lnx", "ln(x)"),
+    ("sen(x)", "sin(x)"),
+    ("tg(x)", "tan(x)"),
+    ("arcsin(x)", "asin(x)"),
+    ("cosec(x)", "csc(x)"),
+    ("arcsinh(x)", "asinh(x)"),
+    ("arccosh(x)", "acosh(x)"),
+    ("arctanh(x)", "atanh(x)"),
+    ("arcsen(x)", "asin(x)"),
+    ("coseno(x)", "cos(x)"),
+    ("senh(x)", "sinh(x)"),
+    ("tgh(x)", "tanh(x)"),
+    ("senx", "sin(x)"),
+    ("xsen(x)", "x*sin(x)"),
 ])
 def test_funcion_mal_escrita_da_error_con_sugerencia(texto, sugerencia):
     with pytest.raises(ValueError) as exc:
@@ -63,10 +81,47 @@ def test_funcion_mal_escrita_da_error_con_sugerencia(texto, sugerencia):
     assert f"¿Quiso decir {sugerencia}?" in str(exc.value)
 
 
-@pytest.mark.parametrize("texto", ["", "   ", "sin(x", "2+"])
+@pytest.mark.parametrize("texto, esperado", [
+    ("2π", 2 * sp.pi),
+    ("√(4)", 2),
+    ("3×x", 3 * x),
+    ("2π×x", 2 * sp.pi * x),
+    ("√(x^2)", sp.Abs(x)),
+    ("√(√(16))", 2),
+])
+def test_simbolos_unicode(texto, esperado):
+    assert sp.simplify(p.parsear(texto).doit() - esperado) == 0
+
+
+@pytest.mark.parametrize("texto", ["", "   ", "sin(x", "2+", ")("])
 def test_entrada_invalida(texto):
     with pytest.raises(ValueError):
         p.parsear(texto)
+
+
+@pytest.mark.parametrize("texto", [")(", "sin(x))(", "((x)", "x)(x", "(x))((x)"])
+def test_parentesis_fuera_de_orden_da_error_claro(texto):
+    with pytest.raises(ValueError, match="Paréntesis desbalanceados"):
+        p.parsear(texto)
+
+
+def test_parser_conserva_denominador_original():
+    crudo = p.parsear("(x-1)/(x-1)")
+    assert crudo.free_symbols == {x}
+    num, den = sp.fraction(crudo)
+    assert sp.expand(num) == x-1
+    assert sp.expand(den) == x-1
+
+
+@pytest.mark.parametrize("texto, esperado", [
+    ("sin(x)", sp.sin(x)),
+    ("sinh(x)", sp.sinh(x)),
+    ("asinh(x)", sp.asinh(x)),
+    ("cosh(x)", sp.cosh(x)),
+    ("tanh(x)", sp.tanh(x)),
+])
+def test_alias_no_alteran_funciones_canonicas(texto, esperado):
+    assert p.parsear(texto).doit() == esperado
 
 
 # ---------------- Efecto de las variables reales en los motores ----------------

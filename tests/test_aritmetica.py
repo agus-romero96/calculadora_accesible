@@ -38,6 +38,34 @@ def test_evaluar_sintaxis_invalida(core):
     assert not core.aritmetica.evaluar("2+").es_exitoso
 
 
+@pytest.mark.parametrize("expr", ["sqrt(-4)", "asin(2)", "log(-1)"])
+def test_evaluar_no_real_da_error_claro(core, expr):
+    dto = core.aritmetica.evaluar(expr)
+    assert not dto.es_exitoso
+    assert "real" in dto.mensaje_error
+
+
+@pytest.mark.parametrize("expr", ["log(0)", "tan(pi/2)", "0^(-1)"])
+def test_evaluar_indefinido_da_error_claro(core, expr):
+    dto = core.aritmetica.evaluar(expr)
+    assert not dto.es_exitoso
+
+
+@pytest.mark.parametrize("expr, esperado", [
+    ("sqrt(-4)^2", -4),
+    ("sqrt(-4)*sqrt(-9)", -6),
+    ("(-1)^(1/2)*(-1)^(1/2)", -1),
+    ("abs(sqrt(-4))", 2),
+    ("log(-1)^2", -sp.pi**2),
+])
+def test_resultado_real_con_intermedios_complejos(core, expr, esperado):
+    dto = core.aritmetica.evaluar(expr)
+    assert dto.es_exitoso
+    assert abs(float(dto.resultado - esperado)) < 1e-15
+    # No se presentan reglas reales para justificar las operaciones complejas.
+    assert any("No se pudo explicar paso a paso" in aviso for aviso in dto.advertencias)
+
+
 # ---------------- Simplificar ----------------
 
 def test_simplificar_cancela_factor_comun(core):
@@ -56,6 +84,8 @@ def test_simplificar_cancela_factor_comun(core):
     ("3*x^2+6*x+3", "Trinomio cuadrado perfecto"),  # con factor común numérico
     ("x^3-8", "Suma/diferencia de cubos"),  # regresión: antes fallaba con excepción
     ("x^3+27", "Suma/diferencia de cubos"),
+    ("(x+1)*(x+2)", "Trinomio x^2 + bx + c"),  # regresión: antes se marcaba como Irreducible
+    ("(x+1)^2", "Trinomio cuadrado perfecto"),
 ])
 def test_factorizar_reconoce_caso(core, expr, caso):
     dto = core.aritmetica.factorizar(expr)
@@ -84,3 +114,19 @@ def test_factorizar_extrae_factor_comun_real(core):
     assert dto.pasos[0].titulo == "Sacar factor común"
     assert dto.estrategia == "Diferencia de cuadrados"
     assert sp.expand(dto.resultado - (2 * x**2 - 18)) == 0
+
+
+@pytest.mark.parametrize("expr, coeficiente, lineal, expandida", [
+    ("2*x+2", 2, x+1, 2*x+2),
+    ("2*(x+1)", 2, x+1, 2*x+2),
+    ("-2*x-2", 2, -x-1, -2*x-2),
+    ("3*x+6", 3, x+2, 3*x+6),
+])
+def test_factor_comun_conserva_producto(core, expr, coeficiente, lineal, expandida):
+    dto = core.aritmetica.factorizar(expr)
+    assert dto.es_exitoso
+    assert dto.resultado.is_Mul
+    assert dto.resultado.args == (coeficiente, lineal)
+    assert sp.expand(dto.resultado) == expandida
+    assert dto.estrategia == "Factor común"
+    assert not any("No se encontraron factores" in aviso for aviso in dto.advertencias)

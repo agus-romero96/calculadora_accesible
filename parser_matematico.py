@@ -25,13 +25,40 @@ FUNCIONES_CONOCIDAS = (
 )
 
 
+# Nombres alternativos o en español -> nombre canónico de la calculadora.
+# Orden: de más largo a más corto, para que "arcsin" y "cosec" se detecten antes que "sin" y "cos".
+ALIAS_FUNCIONES = (
+    ("arcsinh", "asinh"), ("arccosh", "acosh"), ("arctanh", "atanh"),
+    ("arcsin", "asin"), ("arccos", "acos"), ("arctan", "atan"), ("arccot", "acot"),
+    ("arcsen", "asin"), ("arctg", "atan"), ("cosec", "csc"),
+    ("coseno", "cos"), ("tangente", "tan"), ("seno", "sin"),
+    ("senh", "sinh"), ("tgh", "tanh"), ("sen", "sin"), ("tg", "tan"),
+)
+
+
 def _contiene_funcion(nombre: str):
-    """Devuelve (antes, funcion, despues) si el nombre contiene una función conocida."""
+    """Devuelve (antes, funcion_canonica, despues) si el nombre contiene una función conocida o alias."""
+    for alias, canonica in ALIAS_FUNCIONES:
+        i = nombre.find(alias)
+        if i != -1:
+            return nombre[:i], canonica, nombre[i + len(alias):]
     for f in FUNCIONES_CONOCIDAS:
         i = nombre.find(f)
         if i != -1:
             return nombre[:i], f, nombre[i + len(f):]
     return None
+
+
+def _parentesis_balanceados(txt: str) -> bool:
+    nivel = 0
+    for c in txt:
+        if c == "(":
+            nivel += 1
+        elif c == ")":
+            nivel -= 1
+            if nivel < 0:
+                return False
+    return nivel == 0
 
 
 def _se_puede_partir(nombre: str) -> bool:
@@ -113,10 +140,11 @@ class ParserMatematico:
         if not expresion or not expresion.strip():
             raise ValueError(tr("La expresión está vacía."))
 
-        if expresion.count("(") != expresion.count(")"):
+        if not _parentesis_balanceados(expresion):
             raise ValueError(tr("Paréntesis desbalanceados."))
 
-        txt = expresion.lower().strip()
+        txt = (expresion.lower().strip()
+               .replace("√", "sqrt").replace("π", "pi").replace("×", "*"))
 
         try:
             resultado = parse_expr(
@@ -181,7 +209,7 @@ class ParserMatematico:
 
         antes, funcion, despues = partes
         if args is not None and not despues:
-            # xsin(x) -> x*sin(x)
+            # xsin(x) -> x*sin(x); sen(x) -> sin(x)
             sugerencia = f"{'*'.join(antes)}*{funcion}({args})" if antes else f"{funcion}({args})"
         elif args is None and despues and not antes:
             # sinx -> sin(x)

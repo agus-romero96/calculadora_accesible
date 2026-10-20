@@ -6,6 +6,15 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Sin publicar]
 
+### Corregido
+
+- **Evaluación numérica con resultados complejos o no finitos**: se rechaza el resultado final antes de intentar formatearlo como decimal. Si hay valores intermedios complejos pero el resultado final es real, como en `sqrt(-4)^2 = -4`, se conserva ese resultado y se avisa cuando no se puede explicar con las reglas aritméticas reales.
+- **Representación y clasificación de las factorizaciones**: `2*x + 2` conserva `2*(x + 1)` y su factor común; las expresiones ya factorizadas, como `(x + 1)*(x + 2)` y `(x + 1)^2`, dejan de marcarse como irreducibles. El resultado conserva los signos de los factores explicados. En Ruffini, el traslado de un factor numérico para quitar fracciones se explica sin cambiar el producto.
+- **Suma de cubos de grado 6**: se conserva la factorización correcta de `x^6 + 64`, `(x^2 + 4)*(x^4 - 4*x^2 + 16)`, y se evita justificar un factor de grado 4 con un discriminante cuadrático. Se corrige también la propuesta de factorización errónea del informe histórico de auditoría.
+- **Pasos de simplificación**: se explica la cancelación de factores, incluidos los numéricos, en fracciones como `(x - 1)/(x - 1)` y `(2*x + 2)/(2*x + 4)`. La distributiva con funciones, como `2*(sin(x) + 1)`, se distingue de las identidades; `(x + 1)*(x^2 - x + 1)` deja de explicarse como suma por diferencia. La conservación general de las restricciones del dominio queda pendiente.
+- **Lectura de expresiones y mensajes del parser**: `π`, `√` y `×` se normalizan antes de interpretar la entrada; se comprueba el orden de los paréntesis y se sugieren los nombres canónicos para `sen`, `tg`, `arcsin` y otros nombres alternativos, evitando que se interpreten como productos de letras. El lector del paso a paso conserva `log10(2)`, la notación científica (`1e-3`) y la multiplicación implícita.
+- **Detalles de las explicaciones aritméticas**: la regla de signos de una división dice «entre»; las raíces de fracciones escriben `(2/3)^2` con paréntesis; se distinguen los exponentes 1, negativos e irracionales y se ajusta el recuento de operaciones con signo menos. Los textos nuevos se incluyen en los catálogos español e inglés y se añaden pruebas de regresión con comprobaciones simbólicas y numéricas.
+
 ## [1.7.0] - 2026-10-11
 
 Versión de las ecuaciones diferenciales: una sola operación (menú Cálculo, `Ctrl+Shift+R`) que reconoce el tipo de la ecuación y la resuelve paso a paso con el método de clase, en catorce casos: separables (y reducibles a separables), lineales de primer orden, homogéneas, exactas y con factor integrante, Bernoulli, Riccati, Clairaut, reducibles de orden, lineales de orden superior con coeficientes constantes (coeficientes indeterminados y variación de parámetros), Cauchy-Euler, reducción de orden, transformada de Laplace (con escalón y delta), sistemas lineales `X' = A*X` y series de potencias; con condiciones iniciales y la comprobación de cada solución.
