@@ -77,10 +77,23 @@ def dominio_funciones_originales(variable: Any, *expresiones: Any) -> Any:
                 if valor.is_real is not True or valor.is_finite is not True:
                     return S.EmptySet
             elif nodo.is_Function or nodo.is_Pow:
-                if (nodo.is_Pow and nodo.exp.is_Rational is not True
-                        and not (nodo.base.is_positive is True and nodo.exp.is_real is True)):
-                    raise NotImplementedError("Potencia sin dominio real validado")
-                permitido = continuous_domain(nodo.doit(), variable, S.Reals)
+                evaluado = nodo.doit()
+                if nodo.is_Pow:
+                    # Solo se normaliza una copia del exponente. El recorrido sigue
+                    # usando el árbol original, incluidas sus divisiones y funciones.
+                    exponente = decimales_exactos(nodo.exp).doit()
+                    if (exponente.is_Rational is not True
+                            and not (nodo.base.is_positive is True and exponente.is_real is True)):
+                        raise NotImplementedError("Potencia sin dominio real validado")
+                    evaluado = sympy.Pow(nodo.base.doit(), exponente)
+                    if exponente.is_Rational and exponente.q != 1:
+                        # Pow usa la rama compleja principal, no real_root:
+                        # incluso con denominador impar, las bases negativas
+                        # no tienen potencia real para un racional no entero.
+                        condicion = (sympy.Gt(nodo.base.doit(), 0) if exponente < 0
+                                     else sympy.Ge(nodo.base.doit(), 0))
+                        dominio = dominio.intersect(sympy.solveset(condicion, variable, domain=S.Reals))
+                permitido = continuous_domain(evaluado, variable, S.Reals)
                 if permitido.has(sympy.ConditionSet):
                     raise NotImplementedError("Dominio sin determinar")
                 dominio = dominio.intersect(permitido)

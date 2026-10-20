@@ -232,3 +232,70 @@ def test_potencia_simbolica_cancelada_no_se_acepta_sin_validar(core):
     res = core.ecuacion("x^x/x^x=1")
     assert res.es_error
     assert "No se puede validar el dominio real" in res.texto
+
+
+@pytest.mark.parametrize("base, derecho, solucion", [
+    ("x", "2", 4), ("(x-1)", "2", 5),
+])
+@pytest.mark.parametrize("potencia", ["sqrt({base})", "{base}^(1/2)", "{base}^0.5"])
+def test_raices_equivalentes_api_publica(core, base, derecho, solucion, potencia):
+    res = core.ecuacion(f"{potencia.format(base=base)}={derecho}")
+    assert not res.es_error, res.texto
+    assert res.valor == sp.FiniteSet(solucion)
+
+
+@pytest.mark.parametrize("exponente", ["(-1/2)", "(-0.5)"])
+def test_raiz_inversa_equivalente_api_publica(core, exponente):
+    res = core.ecuacion(f"(x-1)^{exponente}=1")
+    assert not res.es_error, res.texto
+    assert res.valor == sp.FiniteSet(2)
+
+
+@pytest.mark.parametrize("entrada, esperado", [
+    ("sqrt(x)^0=1", sp.Interval(0, sp.oo)),
+    ("(x^(1/2))^0=1", sp.Interval(0, sp.oo)),
+    ("(x^0.5)^0=1", sp.Interval(0, sp.oo)),
+    ("((x-1)^(1/2))^0=1", sp.Interval(1, sp.oo)),
+    ("((x-1)^(-1/2))^0=1", sp.Interval.open(1, sp.oo)),
+    ("((x-1)^(-0.5))^0=1", sp.Interval.open(1, sp.oo)),
+    ("x^(1/2+0/(x-4))=2", S.EmptySet),
+    ("(x^(1/2+0/x))^0=1", sp.Interval.open(0, sp.oo)),
+    ("(x^(1/2+log(x)/log(x)-1))^0=1",
+     sp.Union(sp.Interval.open(0, 1), sp.Interval.open(1, sp.oo))),
+    ("x^(2/3)=4", sp.FiniteSet(8)),
+    ("x^(-2/3)=1", sp.FiniteSet(1)),
+    ("x^(2/3)/x^(2/3)=1", sp.Interval.open(0, sp.oo)),
+    ("(x^(2/3))^3=x^2", sp.Interval(0, sp.oo)),
+    ("(x^(1/3))^0=1", sp.Interval(0, sp.oo)),
+])
+def test_dominio_potencias_racionales_originales(core, entrada, esperado):
+    # Oráculos explícitos: no se calculan con las rutinas de dominio.
+    res = core.ecuacion(entrada)
+    assert not res.es_error, res.texto
+    assert res.valor == esperado
+
+
+def test_potencia_principal_no_es_raiz_real_impar():
+    # Sustitución independiente del parser y del verificador de producción.
+    potencia = sp.Pow(-8, sp.Rational(2, 3))
+    assert potencia.is_real is False
+    assert potencia != 4
+    assert sp.real_root(-8, 3)**2 == 4
+
+
+@pytest.mark.parametrize("entrada, esperado", [
+    ("sqrt(x)", sp.Interval(0, sp.oo)),
+    ("x^(1/2)", sp.Interval(0, sp.oo)),
+    ("x^0.5", sp.Interval(0, sp.oo)),
+    ("(x-1)^(1/2)", sp.Interval(1, sp.oo)),
+    ("(x-1)^(-1/2)", sp.Interval.open(1, sp.oo)),
+    ("x^(2/3)", sp.Interval(0, sp.oo)),
+    ("x^(-2/3)", sp.Interval.open(0, sp.oo)),
+])
+def test_dominio_exponente_crudo_no_modifica_arbol(entrada, esperado):
+    from dominios import dominio_funciones_originales
+
+    crudo = p.parsear(entrada)
+    antes = sp.srepr(crudo)
+    assert dominio_funciones_originales(x, crudo) == esperado
+    assert sp.srepr(crudo) == antes
