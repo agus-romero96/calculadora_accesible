@@ -8,12 +8,13 @@ Todo parte de un ResultadoOperacion (puente.py): texto accesible, valor SymPy y
 "planteamiento" (el problema sin evaluar: Derivative, Integral, Limit...), de modo
 que LaTeX y MathML muestran "planteamiento = resultado" como en un libro.
 
-El HTML con MathML es el formato más accesible: NVDA (con MathCAT) y JAWS pueden
-leer y explorar las fórmulas, y cualquier navegador lo abre.
+El HTML incluye MathML y texto alternativo. La lectura y exploración efectivas
+con NVDA, MathCAT o JAWS requieren validación manual en esos entornos.
 """
 import html
 import json
 import re
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import Any, List, Optional
 
@@ -24,7 +25,7 @@ from algebra.resolucion import describir_conjunto
 from calculo import edo
 from calculo.extremos import lineas_resultado
 from calculo.rectas import ecuacion_recta
-from calculo.taylor import nombre_polinomio, taylor_latex, taylor_texto
+from calculo.taylor import nombre_polinomio, taylor_latex, taylor_texto, _coeficientes
 from calculo.calculo import humanizar_integral
 from calculo.router import humanizar_limite
 from i18n import N_, idioma_actual, tr
@@ -52,11 +53,78 @@ def _es_lista(valor: Any) -> bool:
     return isinstance(valor, (list, tuple))
 
 
+def _cabecera(res: ResultadoOperacion) -> List[str]:
+    lineas = []
+    for linea in res.texto.strip().splitlines():
+        if re.fullmatch(r"[=\-]{3,}", linea.strip()) or linea.strip() in ("PASO A PASO:", "STEP BY STEP:"):
+            break
+        lineas.append(linea.strip())
+    return lineas
+
+
+def _sin_encabezado(linea: str) -> str:
+    # El idioma del registro puede ser distinto del idioma actual de la aplicación.
+    return re.sub(r"^(?:(?:RESULTADO|RESULT):\s*)+", "", linea.strip(), flags=re.I)
+
+
+def _resultado_textual(res: ResultadoOperacion) -> str:
+    lineas = _cabecera(res)
+    if not lineas:
+        return ""
+    primero = _sin_encabezado(lineas[0])
+    return primero if primero else "; ".join(l for l in lineas[1:] if l)
+
+
+def _condiciones(res: ResultadoOperacion) -> List[str]:
+    """Conserva las salvedades del informe, también en historiales sin objetos SymPy.
+
+    Los motores sitúan avisos y condiciones antes de la línea de separación;
+    aritmética y cálculo usan además una sección de advertencias con viñetas.
+    Solo se omiten notas conocidas sobre el procedimiento de explicación.
+    """
+    base = _resultado_base(res)
+    cabecera = _cabecera(res)
+    candidatos = cabecera[1:]
+    if cabecera and not _sin_encabezado(cabecera[0]):
+        # El resultado ocupa varias líneas antes de los avisos. No se deben
+        # confundir esas filas con condiciones (ni sus aproximaciones decimales).
+        if _son_rectas(res):
+            candidatos = candidatos[2:]
+        elif res.operacion == "extremos" and isinstance(res.valor, dict):
+            candidatos = candidatos[len(lineas_resultado(res.valor, _variable(res))):]
+        elif isinstance(res.valor, sympy.MatrixBase):
+            candidatos = candidatos[res.valor.rows:]
+    en_avisos = False
+    for linea in res.texto.splitlines():
+        limpia = linea.strip()
+        if limpia in ("ADVERTENCIAS:", "WARNINGS:", "Advertencias:", "Warnings:", "[!] AVISOS:", "[!] WARNINGS:"):
+            en_avisos = True
+        elif en_avisos and limpia.startswith("- "):
+            candidatos.append(limpia[2:])
+        elif en_avisos and limpia:
+            en_avisos = False
+    restriccion = res.parametros.get("restricciones")
+    if restriccion:
+        candidatos.append(f"{tr('Restricciones del dominio')}: {restriccion}")
+    informativas = ("Se verifican las derivadas bilaterales", "Two-sided derivatives are verified",
+                    "Cociente incremental:", "Difference quotient:", "NOTA: hay explicación paso a paso",
+                    "NOTE: there is a step-by-step explanation")
+    return list(dict.fromkeys(l for l in candidatos if l and l.replace(" ", "") not in base.replace(" ", "")
+                              and not l.startswith(informativas)))
+
+
 def resultado_corto(res: ResultadoOperacion) -> str:
+    base = _resultado_base(res)
+    return "; ".join([base] + _condiciones(res)) if not res.es_error else ""
+
+
+def _resultado_base(res: ResultadoOperacion) -> str:
     """El resultado en una sola línea, para copiar o como texto alternativo."""
     valor = res.valor
     if res.es_error:
         return ""
+    if valor is None:
+        return _resultado_textual(res)
     if res.operacion == "limite":
         return humanizar_limite(valor)
     if res.operacion == "integral_definida":
@@ -74,9 +142,6 @@ def resultado_corto(res: ResultadoOperacion) -> str:
     if _son_rectas(res):
         tangente, normal = (ecuacion_recta(eq, _variable(res)) for eq in valor)
         return tr("tangente: {t}; normal: {n}", t=tangente, n=normal)
-    if valor is None:
-        # Sin valor (p. ej. sistema indeterminado): primera línea del informe
-        return res.texto.strip().splitlines()[0] if res.texto.strip() else ""
     if _es_lista(valor):
         return ", ".join(f"{eq.lhs} = {eq.rhs}" for eq in valor)
     if valor == sympy.EmptySet:
@@ -108,12 +173,13 @@ def resumen(res: ResultadoOperacion) -> str:
     elif isinstance(valor, sympy.MatrixBase) and valor.rows > 1:
         lineas = ["[ " + ", ".join(str(e) for e in fila) + " ]" for fila in valor.tolist()]
     else:
-        lineas = [resultado_corto(res)]
+        lineas = [_resultado_base(res)]
     texto = [tr("RESULTADO: {valor}", valor=lineas[0])] if len(lineas) == 1 else [tr("RESULTADO:")] + lineas
     texto.append(tr("Operación: {operacion}", operacion=nombre_operacion(res)))
     texto.append(f"{tr('Entrada')}: {res.entrada.strip().replace(chr(10), '; ')}")
     # El método de un sistema clásico ya lo dice el nombre de la operación (el de una ecuación diferencial, no)
     texto += _parametros_legibles(res, excluir={"metodo"} if res.operacion == "sistema_clasico" else ())
+    texto += [l for l in _condiciones(res) if l not in texto]
     return "\n".join(texto)
 
 
@@ -196,17 +262,29 @@ def _latex_extremos(res: ResultadoOperacion) -> str:
     for nombre, lista in ((tr("Máximo local"), v["maximos"]), (tr("Mínimo local"), v["minimos"])):
         for c, fc in lista:
             lineas.append(texto_latex(nombre + ": ") + f"f\\left({sympy.latex(c)}\\right) = {sympy.latex(fc)}")
+    if not v["maximos"] and not v["minimos"]:
+        lineas.append(texto_latex(tr("Sin extremos locales interiores") if v.get("solo_interiores") else tr("Sin extremos locales")))
     lineas.append(texto_latex(tr("Creciente en") + " ") + intervalos(v["crece"]))
     lineas.append(texto_latex(tr("Decreciente en") + " ") + intervalos(v["decrece"]))
-    return r" \\ ".join(lineas)
+    return r"\begin{aligned} " + r" \\ ".join(lineas) + r" \end{aligned}"
 
 
 def latex(res: ResultadoOperacion) -> str:
+    formula = _latex_formula(res)
+    condiciones = _condiciones(res) if not res.es_error else []
+    if not condiciones:
+        return formula
+    return (r"\begin{gathered} " + formula + r" \\ " + r" \\ ".join(
+        r"\text{" + _escapar_latex(c) + "}" for c in condiciones) + r" \end{gathered}")
+
+
+def _latex_formula(res: ResultadoOperacion) -> str:
     """'planteamiento = resultado' en LaTeX (sin delimitadores $)."""
     if res.operacion == "extremos" and isinstance(res.valor, dict) and not res.es_error:
         return _latex_extremos(res)
     if res.operacion == "implicita" and res.valor is not None and not res.es_error:
-        y, x = res.parametros.get("dependiente", "y"), res.parametros.get("variable", "x")
+        y = sympy.latex(sympy.Symbol(res.parametros.get("dependiente", "y")))
+        x = sympy.latex(_variable(res))
         return rf"\frac{{d{y}}}{{d{x}}} = " + sympy.latex(res.valor)
     if res.operacion == "taylor" and res.valor is not None and not res.es_error:
         try:
@@ -225,7 +303,7 @@ def latex(res: ResultadoOperacion) -> str:
     elif _es_lista(valor):
         texto_valor = r",\quad ".join(sympy.latex(eq) for eq in valor)
     if texto_valor is None:
-        texto_valor = r"\text{" + _escapar_latex(resultado_corto(res)) + "}"
+        texto_valor = r"\text{" + _escapar_latex(_resultado_base(res)) + "}"
 
     p = res.planteamiento
     if p is None or (not _es_lista(p) and p == valor):
@@ -241,18 +319,37 @@ def _sin_mfenced(mathml: str) -> str:
     Sustituye <mfenced> (que los navegadores actuales ya no dibujan) por
     <mrow><mo>(</mo>...<mo>)</mo></mrow>, la forma de MathML Core.
     """
-    pila: List[str] = []
+    raiz = ET.fromstring(_entidades_numericas(mathml))
 
-    def reemplazar(m):
-        if m.group(0).startswith("</"):
-            return f"<mo>{pila.pop()}</mo></mrow>"
-        attrs = m.group(1) or ""
-        abre = re.search(r'open="([^"]*)"', attrs)
-        cierra = re.search(r'close="([^"]*)"', attrs)
-        pila.append(html.escape(cierra.group(1) if cierra else ")"))
-        return f"<mrow><mo>{html.escape(abre.group(1) if abre else '(')}</mo>"
+    def transformar(nodo):
+        for hijo in list(nodo):
+            transformar(hijo)
+        if nodo.tag.rsplit("}", 1)[-1] != "mfenced":
+            return
+        prefijo = nodo.tag[:-len("mfenced")]
+        abre = nodo.attrib.pop("open", "(")
+        cierra = nodo.attrib.pop("close", ")")
+        separadores = "".join(nodo.attrib.pop("separators", ",").split())
+        hijos = list(nodo)
+        nodo[:] = []
+        nodo.tag = prefijo + "mrow"
 
-    return re.sub(r"<mfenced([^>]*)>|</mfenced>", reemplazar, mathml)
+        def operador(padre, cadena, atributo):
+            if cadena:
+                ET.SubElement(padre, prefijo + "mo", {atributo: "true"}).text = cadena
+
+        # Expansión de MathML 3, sección 3.3.8: el grupo interior conserva
+        # los argumentos y el papel de los operadores como separadores.
+        operador(nodo, abre, "fence")
+        grupo = ET.SubElement(nodo, prefijo + "mrow") if len(hijos) > 1 else nodo
+        for i, hijo in enumerate(hijos):
+            if i and separadores:
+                operador(grupo, separadores[min(i - 1, len(separadores) - 1)], "separator")
+            grupo.append(hijo)
+        operador(nodo, cierra, "fence")
+
+    transformar(raiz)
+    return ET.tostring(raiz, encoding="unicode")
 
 
 def _entidades_numericas(marcado: str) -> str:
@@ -276,11 +373,63 @@ def _mathml_de(expr: Any) -> str:
     return _entidades_numericas(_sin_mfenced(marcado))
 
 
+def _mathml_taylor(res: ResultadoOperacion) -> str:
+    x, x0 = _variable(res), _punto_taylor(res)
+    n = int(res.parametros["orden"])
+    variable = _mathml_de(x)
+    if x0 == 0:
+        base = variable
+    else:
+        signo, centro = ("+", -x0) if x0.could_extract_minus_sign() else ("-", x0)
+        base = f"<mrow><mo>(</mo>{variable}<mo>{signo}</mo>{_mathml_de(centro)}<mo>)</mo></mrow>"
+    terminos = []
+    for k, c in _coeficientes(res.valor, x, x0):
+        negativo = c.could_extract_minus_sign()
+        a = -c if negativo else c
+        if terminos or negativo:
+            terminos.append("<mo>-</mo>" if negativo else "<mo>+</mo>")
+        if k == 0:
+            cuerpo = _mathml_de(a)
+        else:
+            potencia = base if k == 1 else f"<msup>{base}<mn>{k}</mn></msup>"
+            cuerpo = potencia if a == 1 else f"<mrow>{_mathml_de(a)}<mo>&#x2062;</mo>{potencia}</mrow>"
+        terminos.append(cuerpo)
+    nombre = f"<msub><mi>P</mi><mn>{n}</mn></msub><mo>(</mo>{variable}<mo>)</mo>"
+    return f"<mrow>{nombre}<mo>=</mo>{''.join(terminos) or '<mn>0</mn>'}</mrow>"
+
+
+def _mathml_extremos(res: ResultadoOperacion) -> str:
+    v, x = res.valor, _variable(res)
+    filas = []
+
+    def fila(etiqueta, formula):
+        filas.append(f"<mtr><mtd><mtext>{html.escape(etiqueta)}: </mtext>{formula}</mtd></mtr>")
+
+    fila(tr("Puntos críticos"), _mathml_de(sympy.FiniteSet(*v["criticos"])))
+    for etiqueta, lista in ((tr("Máximo local"), v["maximos"]), (tr("Mínimo local"), v["minimos"])):
+        for c, fc in lista:
+            fila(etiqueta, f"{_mathml_de(x)}<mo>=</mo>{_mathml_de(c)}<mo>;</mo>"
+                 f"<mi>f</mi><mo>(</mo>{_mathml_de(c)}<mo>)</mo><mo>=</mo>{_mathml_de(fc)}")
+    if not v["maximos"] and not v["minimos"]:
+        fila(tr("Sin extremos locales interiores") if v.get("solo_interiores") else tr("Sin extremos locales"), "")
+    fila(tr("Creciente en"), _mathml_de(v["crece"]))
+    fila(tr("Decreciente en"), _mathml_de(v["decrece"]))
+    return "<mtable>" + "".join(filas) + "</mtable>"
+
+
 def mathml(res: ResultadoOperacion) -> str:
     """'planteamiento = resultado' como un elemento <math> (MathML de presentación)."""
     valor = _valor_simbolico(res)
-    if valor is None:
-        derecha = f"<mtext>{html.escape(resultado_corto(res))}</mtext>"
+    if res.operacion == "taylor" and valor is not None:
+        derecha = _mathml_taylor(res)
+    elif res.operacion == "implicita" and valor is not None:
+        dependiente = html.escape(str(res.parametros.get("dependiente", "y")))
+        derecha = (f"<mfrac><mrow><mi>d</mi><mi>{dependiente}</mi></mrow>"
+                   f"<mrow><mi>d</mi>{_mathml_de(_variable(res))}</mrow></mfrac><mo>=</mo>{_mathml_de(valor)}")
+    elif res.operacion == "extremos" and isinstance(res.valor, dict) and not res.es_error:
+        derecha = _mathml_extremos(res)
+    elif valor is None:
+        derecha = f"<mtext>{html.escape(_resultado_base(res))}</mtext>"
     elif _son_rectas(res):
         derecha = "<mo>,</mo>".join(f"<mrow><mtext>{html.escape(nombre)}: </mtext>{_mathml_de(eq)}</mrow>"
                                     for nombre, eq in zip(_nombres_rectas(), valor))
@@ -293,7 +442,7 @@ def mathml(res: ResultadoOperacion) -> str:
         if res.mas_constante:
             derecha = f"<mrow>{derecha}<mo>+</mo><mi>C</mi></mrow>"
 
-    p = res.planteamiento
+    p = None if res.es_error else res.planteamiento
     if p is None or (not _es_lista(p) and p == valor):
         cuerpo = derecha
     elif _es_lista(p):
@@ -302,7 +451,13 @@ def mathml(res: ResultadoOperacion) -> str:
                   f"<mo>&#x27F9;</mo>{derecha}")
     else:
         cuerpo = f"{_mathml_de(p)}{_signo_igual(res)[1]}{derecha}"
-    alt = html.escape(f"{res.entrada}: {resultado_corto(res)}", quote=True)
+    condiciones = _condiciones(res) if not res.es_error else []
+    if condiciones:
+        filas = [f"<mtr><mtd><mrow>{cuerpo}</mrow></mtd></mtr>"]
+        filas += [f"<mtr><mtd><mtext>{html.escape(c)}</mtext></mtd></mtr>" for c in condiciones]
+        cuerpo = "<mtable>" + "".join(filas) + "</mtable>"
+    entrada_lineal = res.entrada.replace("\n", "; ")
+    alt = html.escape(f"{entrada_lineal}: {resultado_corto(res)}", quote=True)
     return (f'<math xmlns="http://www.w3.org/1998/Math/MathML" display="block" alttext="{alt}">'
             f"<mrow>{cuerpo}</mrow></math>")
 
@@ -347,10 +502,12 @@ def _titulo_historial() -> str:
 
 def _texto_bloque(res: ResultadoOperacion, numero: Optional[int] = None) -> str:
     if numero is None:
-        return res.texto.rstrip()
+        return "\n".join([tr("Operación: {operacion}", operacion=nombre_operacion(res)),
+                          f"{tr('Entrada')}: {res.entrada}", *_parametros_legibles(res), "", res.texto.rstrip()])
     titulo = _titulo(res, numero)
     entrada = res.entrada.replace("\n", "; ")
-    return "\n".join([titulo, "-" * len(titulo), f"{tr('Entrada')}: {entrada}", "", res.texto.rstrip()])
+    return "\n".join([titulo, "-" * len(titulo), f"{tr('Entrada')}: {entrada}",
+                      *_parametros_legibles(res), "", res.texto.rstrip()])
 
 
 def a_texto(res: ResultadoOperacion) -> str:
@@ -366,16 +523,22 @@ def historial_a_texto(lista: List[ResultadoOperacion]) -> str:
 
 # --- Markdown ---
 
+def _codigo_markdown(texto: str, bloque: bool = False) -> str:
+    longitud = max((len(s) for s in re.findall(r"`+", texto)), default=0) + 1
+    cerca = "`" * max(3 if bloque else 1, longitud)
+    return f"{cerca}text\n{texto}\n{cerca}" if bloque else f"{cerca} {texto} {cerca}"
+
+
 def _markdown_bloque(res: ResultadoOperacion, titulo: str, nivel: int) -> List[str]:
     h, h2 = "#" * nivel, "#" * (nivel + 1)
-    lineas = [f"{h} {titulo}", "", f"**{tr('Entrada')}:**", "", "```text", res.entrada, "```", ""]
+    lineas = [f"{h} {titulo}", "", f"**{tr('Entrada')}:**", "", _codigo_markdown(res.entrada, True), ""]
     for p in _parametros_legibles(res):
-        lineas.append(f"- {p}")
+        lineas.append(f"- {_codigo_markdown(p)}")
     if res.parametros:
         lineas.append("")
     if not res.es_error:
-        lineas += [f"**{tr('Resultado')}:** `{resultado_corto(res)}`", "", "$$", latex(res), "$$", ""]
-    lineas += [f"{h2} {tr('Explicación paso a paso')}", "", "```text", res.texto.rstrip(), "```", ""]
+        lineas += [f"**{tr('Resultado')}:** {_codigo_markdown(resultado_corto(res))}", "", "$$", latex(res), "$$", ""]
+    lineas += [f"{h2} {tr('Explicación paso a paso')}", "", _codigo_markdown(res.texto.rstrip(), True), ""]
     return lineas
 
 
@@ -395,7 +558,7 @@ def historial_a_markdown(lista: List[ResultadoOperacion]) -> str:
 def _latex_bloque(res: ResultadoOperacion, titulo: str, seccion: str, subseccion: str) -> List[str]:
     lineas = [
         "\\" + seccion + "*{" + _escapar_latex(titulo) + "}",
-        r"\textbf{" + _escapar_latex(tr("Entrada")) + r":} \verb|" + res.entrada.replace("|", "/").replace("\n", "; ") + "|",
+        r"\textbf{" + _escapar_latex(tr("Entrada")) + r":} \texttt{" + _escapar_latex(res.entrada.replace("\n", "; ")) + "}",
         "",
     ]
     for p in _parametros_legibles(res):
@@ -404,7 +567,11 @@ def _latex_bloque(res: ResultadoOperacion, titulo: str, seccion: str, subseccion
         lineas += ["\\" + subseccion + "*{" + _escapar_latex(tr("Resultado")) + "}",
                    r"\begin{equation*}", latex(res), r"\end{equation*}"]
     lineas += ["\\" + subseccion + "*{" + _escapar_latex(tr("Explicación paso a paso")) + "}",
-               r"\begin{verbatim}", res.texto.rstrip(), r"\end{verbatim}"]
+               r"\begin{flushleft}\ttfamily"]
+    # Un párrafo por línea evita que un '[' de la siguiente fila se interprete
+    # como el argumento opcional de un salto de línea LaTeX.
+    lineas += [r"\strut " + _escapar_latex(l) + r"\par" for l in res.texto.rstrip().splitlines()]
+    lineas.append(r"\end{flushleft}")
     return lineas
 
 

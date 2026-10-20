@@ -86,7 +86,7 @@ Disponible en **español e inglés** (interfaz, explicaciones y ayuda). Los resu
 
 Formatos de exportación:
 
-- **HTML con fórmulas MathML** (recomendado): una página accesible que se abre en cualquier navegador. Los lectores de pantalla (NVDA con MathCAT, JAWS) pueden leer **y explorar** las fórmulas término a término.
+- **HTML con fórmulas MathML** (recomendado): incluye fórmulas estructuradas y texto alternativo. La lectura y exploración efectivas con NVDA y MathCAT o con JAWS dependen de las versiones del lector, sus complementos y el navegador, y requieren validación manual. Las pruebas automáticas comprueban el XML y sus datos, sin demostrar esa compatibilidad.
 - **Texto plano**: el informe tal cual.
 - **Markdown**: con la fórmula en `$$…$$`, ideal para apuntes o GitHub.
 - **Documento LaTeX**: listo para compilar con XeLaTeX o LuaLaTeX.
@@ -144,7 +144,7 @@ El menú **Idioma / Language** cambia toda la calculadora entre **español** e *
 - **Diálogos de desambiguación**: si una expresión tiene varias variables (`x*y`), se pregunta respecto a cuál derivar o integrar en una lista navegable con flechas.
 - **Ayuda integrada (F1)**: un manual pensado para lectores de pantalla se muestra en el cuadro de resultados.
 - **La ventana nunca se congela**: los cálculos se ejecutan en un proceso aparte. Si uno tarda más de medio segundo, se abre el diálogo **"Calculando"** (NVDA lo anuncia), que muestra el tiempo transcurrido y tiene un botón **Cancelar** que detiene el cálculo de inmediato y libera el procesador.
-- **Fórmulas accesibles fuera de la calculadora**: la exportación a HTML con MathML permite leer y explorar las fórmulas con el lector de pantalla en el navegador.
+- **Fórmulas fuera de la calculadora**: la exportación a HTML conserva MathML y texto alternativo; su lectura y exploración con un lector de pantalla deben verificarse manualmente en el navegador utilizado.
 - **Ejecutable sin consola**: la versión compilada no abre una ventana de consola que interfiera con NVDA.
 
 ---

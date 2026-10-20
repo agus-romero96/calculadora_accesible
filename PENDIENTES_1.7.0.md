@@ -49,3 +49,9 @@ Una tarea terminada se tacha (`~~...~~`) y se anota el commit.
 
 - ~~Fusionar la rama con `main`.~~ Hecho (avance rápido a `05fd206`).
 - Compilar el ejecutable con `compilar.py` (autoprueba del `.exe`, con un caso de ecuación diferencial).
+
+## Seguimiento de la auditoría de exportación (fase 6)
+
+- Validar manualmente HTML y MathML con NVDA y MathCAT, y con JAWS, anotando versiones, navegador y lectura de conjuntos, intervalos, matrices, Taylor y extremos. Las pruebas automáticas comprueban XML, datos y funciones de copia con wx sustituido; no demuestran compatibilidad real con esos lectores ni con el portapapeles del sistema.
+- Compilar los documentos de regresión con XeLaTeX o LuaLaTeX. Estos motores no están instalados en el entorno de la auditoría; se verifican los entornos y el escapado automáticamente.
+- Revisar en una fase de sistemas la entrada Gauss `x = x` y `y = y`: actualmente devuelve `Error procesando el sistema: ... bad operand type for unary -: 'BooleanTrue'`. Es un defecto del tratamiento de ecuaciones tautológicas anterior a la exportación; no se modifica su algoritmo en esta fase.
