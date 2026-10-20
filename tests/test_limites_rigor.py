@@ -8,7 +8,7 @@ from calculo.lim_estrategias.general import signo_cerca
 
 
 @pytest.mark.parametrize("expr,tend,valor", [
-    ("sqrt(x)+1", "4", "3"), ("(sqrt(x)-1)/(x+1)", "0", "-1"),
+    ("sqrt(x)+1", "4", "3"), ("(sqrt(x)-1)/(x+1)", "0+", "-1"),
     ("sin(x)", "0", "0"), ("tan(x)", "0", "0"),
     ("1-cos(x)", "0", "0"),
     ("x^3", "2", "8"),

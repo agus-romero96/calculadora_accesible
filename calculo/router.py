@@ -6,7 +6,7 @@ from sympy import Symbol, S
 
 from calculo.pasos import PasoCalculo, texto_paso
 from dominios import dominio_funciones_originales
-from i18n import tr
+from i18n import N_, tr
 from .lim_estrategias.trigonometria import LimitesTrigNotables
 from .lim_estrategias.racionalizacion import RacionalizacionRaices
 from .lim_estrategias.infinito import LimiteRacionalInfinito
@@ -15,6 +15,7 @@ from .lim_estrategias.simplificacion import SimplificacionCancelacion
 from .lim_estrategias._base import ESTADO_NO_CONCLUYENTE, ResultadoEstrategia, limite_seguro
 from .lim_estrategias.general import LimiteGeneral, contiene_entorno_lateral
 
+CONVENCION_BILATERAL = N_("Sin lado indicado, se calcula el límite bilateral real: se requieren ambos lados.")
 
 def humanizar_limite(val: Any) -> str:
     """Traduce el valor de limite_seguro() a texto claro para lector de pantalla."""
@@ -67,18 +68,26 @@ class RouterMatematico:
         except Exception as e:
             return ResultadoRouter(tr("Error en los datos del límite:") + f"\n{e}", es_error=True)
 
-        if dir_ in ("+", "-"):
-            valido = self._lado_real(original, var, punto, dir_)
-            if valido is not True:
-                resultado = (tr("No existe el límite lateral real") if valido is False
-                             else tr("No concluyente"))
+        bilateral = dir_ is None and punto.is_finite is True
+        lados = ("-", "+") if bilateral else ((dir_,) if dir_ in ("+", "-") else ())
+        estados = {lado: self._lado_real(original, var, punto, lado) for lado in lados}
+        if any(valido is not True for valido in estados.values()):
+            falta_dominio = any(valido is False for valido in estados.values())
+            resultado = (tr("No existe el límite bilateral real") if bilateral else
+                         tr("No existe el límite lateral real")) if falta_dominio else tr("No concluyente")
+            encabezado = tr("Límite de {expresion} cuando {variable} -> {punto}",
+                            expresion=expresion, variable=var, punto=f"{punto}{dir_ or ''}")
+            lineas = [tr("RESULTADO: {valor}", valor=resultado), encabezado]
+            if bilateral:
+                lineas.append(tr(CONVENCION_BILATERAL))
+            for lado, valido in estados.items():
+                if valido is True:
+                    continue
                 motivo = (tr("La función original no está definida en un entorno real por el lado solicitado.")
                           if valido is False else
                           tr("No se puede verificar que la función original esté definida en un entorno real por el lado solicitado."))
-                encabezado = tr("Límite de {expresion} cuando {variable} -> {punto}",
-                                expresion=expresion, variable=var, punto=f"{punto}{dir_}")
-                return ResultadoRouter(tr("RESULTADO: {valor}", valor=resultado)
-                                       + f"\n{encabezado}\n{motivo}")
+                lineas.append(f"{motivo} ({var} -> {punto}{lado})")
+            return ResultadoRouter("\n".join(lineas))
 
         # Solo después de validar el árbol original se permite cancelar o evaluar.
         try:
@@ -113,7 +122,7 @@ class RouterMatematico:
         try:
             with sp.evaluate(False):
                 local = original.xreplace({var: punto + h if lado == "+" else punto - h})
-            dominio = dominio_funciones_originales(h, local)
+            dominio = dominio_funciones_originales(h, local, dominio_inicial=sp.Interval.open(0, 1))
             if contiene_entorno_lateral(dominio, S.Zero, "+"):
                 return True
             cercano = dominio.intersect(sp.Interval.open(0, sp.oo))
@@ -183,6 +192,8 @@ class RouterMatematico:
         s = dir_ if dir_ else ""
         txt = [tr("RESULTADO: {valor}", valor=humanizar_limite(res.resultado)), "=" * 30]
         txt.append(tr("Límite de {expresion} cuando {variable} -> {punto}", expresion=expr_in, variable=var, punto=f"{punto}{s}"))
+        if dir_ is None and punto.is_finite is True:
+            txt.append(tr(CONVENCION_BILATERAL))
         txt.append("\n" + tr("MÉTODO: {metodo}", metodo=tr(res.nombre_estrategia)))
         if res.explicacion:
             txt.append(tr(res.explicacion))

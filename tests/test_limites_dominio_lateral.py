@@ -74,3 +74,67 @@ def test_dominio_sin_entorno_certificado_no_se_declara_valido(core):
     assert res.valor is None
     assert res.texto.startswith("RESULTADO: No concluyente\n")
     assert "No se puede verificar" in res.texto
+
+
+@pytest.mark.parametrize("expr,lado_ausente", [
+    ("sqrt(x)", "-"), ("log(x)", "-"), ("sqrt(-x)", "+"),
+    ("asin(1+x)", "+"), ("sqrt(x)/sqrt(x)", "-"), ("0*log(x)", "-"),
+])
+def test_bilateral_exige_dominio_original_por_ambos_lados(core, expr, lado_ausente):
+    res = core.limite(expr, "x", "0")
+    assert res.valor is None
+    assert res.texto.startswith("RESULTADO: No existe el límite bilateral real\n")
+    assert "se calcula el límite bilateral real: se requieren ambos lados" in res.texto
+    assert "La función original no está definida en un entorno real" in res.texto
+    assert "(x -> 0" + lado_ausente + ")" in res.texto
+    assert "PASO A PASO:" not in res.texto
+
+
+@pytest.mark.parametrize("expr,valor", [
+    ("sqrt(x^2)", sp.S.Zero), ("1/x^2", sp.oo),
+    ("sqrt(1+x)", sp.S.One), ("sin(x)/x", sp.S.One),
+])
+def test_bilateral_con_dominio_en_ambos_lados_se_conserva(core, expr, valor):
+    res = core.limite(expr, "x", "0")
+    assert res.valor == valor
+    assert "se calcula el límite bilateral real: se requieren ambos lados" in res.texto
+
+
+def test_bilateral_con_dominio_no_certificado_es_inconcluyente(core):
+    res = core.limite("tan(1/x)", "x", "0")
+    assert res.valor is None
+    assert res.texto.startswith("RESULTADO: No concluyente\n")
+    assert "No se puede verificar" in res.texto
+    assert "La función original no está definida" not in res.texto
+    assert "se calcula el límite bilateral real: se requieren ambos lados" in res.texto
+
+
+@pytest.mark.parametrize("estados,resultado", [
+    ((None, True), "No concluyente"), ((True, None), "No concluyente"),
+    ((None, False), "No existe el límite bilateral real"),
+    ((False, None), "No existe el límite bilateral real"),
+])
+def test_bilateral_distingue_ausencia_de_incertidumbre_y_no_consulta_motor(core, monkeypatch, estados, resultado):
+    import calculo.router as modulo
+
+    consultados = []
+    def validar(original, var, punto, lado):
+        consultados.append(lado)
+        return estados[0 if lado == "-" else 1]
+
+    llamadas_motor = []
+    def registrar(*args, **kwargs):
+        llamadas_motor.append(True)
+        return False
+
+    monkeypatch.setattr(core.router, "_lado_real", validar)
+    for estrategia in core.router.estrategias:
+        monkeypatch.setattr(estrategia, "puede_resolver", registrar)
+    monkeypatch.setattr(modulo, "limite_seguro", registrar)
+    res = core.limite("x", "x", "0")
+    assert consultados == ["-", "+"]
+    assert not llamadas_motor
+    assert res.valor is None
+    assert res.texto.startswith("RESULTADO: " + resultado + "\n")
+    assert "No se puede verificar" in res.texto
+    assert ("La función original no está definida" in res.texto) == (False in estados)
