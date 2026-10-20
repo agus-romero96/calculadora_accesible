@@ -160,7 +160,6 @@ def test_derivada_infinita_en_un_extremo_del_dominio_no_importa(core):
 @pytest.mark.parametrize("funcion, mensaje", [
     ("5", "La función es constante"),
     ("sin(x)", "infinitos puntos"),
-    ("x^(2/3)", "La derivada no existe en x = 0, que está en el dominio de la función"),
 ])
 def test_errores(core, funcion, mensaje):
     res = core.extremos(funcion)

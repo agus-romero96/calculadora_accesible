@@ -7,7 +7,7 @@ calculo/pasos.py (Regla, En este caso, las cuentas y Queda):
      Derivar (como Derivada de orden N: si se hace demasiado larga, solo los resultados).
   3. Un paso por término: f^(k)(x0) con sus cuentas, k! desarrollado, el coeficiente
      f^(k)(x0)/k! y el término. Si f^(k)(x0) = 0, el término no aparece.
-  4. La suma de los términos, en potencias de (x - x0), comparada con series() de SymPy.
+  4. La suma de los términos, en potencias de (x - x0), tras verificar derivadas bilaterales.
 """
 from __future__ import annotations
 
@@ -19,6 +19,7 @@ from sympy import S
 
 from calculo.calculo import MAX_PASOS_DERIVADA, MAX_PASOS_ENESIMA, Calculo
 from calculo.derivadas import ExplicadorDerivada
+from calculo.derivabilidad import dominio_original, derivada_bilateral, avisar_potencias
 from calculo.pasos import PasoCalculo, entre_parentesis, texto, texto_paso
 from calculo.rectas import cuentas_sustitucion
 from i18n import tr
@@ -129,8 +130,10 @@ class MotorTaylor:
 
     def resolver(self, expresion: str, variable: Optional[str], orden: Any, punto: str) -> ResultadoTaylor:
         try:
-            expr = self.parser.parsear(expresion).doit()
+            original = self.parser.parsear(expresion)
+            expr = original.doit()
             x, avisos = self.calculo._resolver_variable(expr, variable, "DERIVADA")
+            avisar_potencias(original, avisos)
             try:
                 n = int(orden)
             except (TypeError, ValueError):
@@ -142,6 +145,18 @@ class MotorTaylor:
             x0 = self.parser.parsear(punto).doit()
             if x0.free_symbols or not x0.is_real or not x0.is_finite:
                 raise ValueError(tr("El punto debe ser un número real (ej: 1, -2, pi/4)."))
+            dominio = dominio_original(original, x)
+            if dominio.contains(x0) is not S.true:
+                raise ValueError(tr("f({variable}) no está definida en {variable} = {valor} dentro del dominio real original.", variable=x, valor=texto(x0)))
+            anterior = expr
+            valor = sympy.simplify(expr.subs(x, x0))
+            for k in range(1, n + 1):
+                valor = derivada_bilateral(original if k == 1 else anterior, anterior, x, x0, valor)
+                anterior = sympy.diff(anterior, x)
+                simbolico = sympy.simplify(anterior.subs(x, x0))
+                if sympy.simplify(simbolico - valor) != 0:
+                    raise ValueError(tr("No concluyente: la expresión simbólica no representa la derivada en el punto."))
+            avisos.append(tr("Se verifican las derivadas bilaterales hasta el orden solicitado. Esto no demuestra la convergencia de una serie de Taylor."))
             return self._explicar(expr, x, n, x0, avisos)
         except ValueError as e:
             return ResultadoTaylor(tr("Error de Validación: {error}", error=str(e)), es_error=True)
@@ -233,20 +248,14 @@ class MotorTaylor:
                 queda=queda))
 
         polinomio = sympy.Add(*[valor for valor, _ in terminos]) if terminos else S.Zero
-        verdad = sympy.series(expr, x, x0, n + 1).removeO()
         resultado_txt = suma_terminos([t for _, t in terminos])
-        if sympy.simplify(sympy.expand(polinomio - verdad)) != 0:
-            avisos.append(tr("AVISO: la explicación no llegó al resultado de SymPy; se muestra el resultado sin pasos."))
-            polinomio, pasos = sympy.expand(verdad), []
-            resultado_txt = taylor_texto(polinomio, x, x0)
-        else:
-            pasos.append(PasoCalculo(
-                tr("Sumar los términos"),
-                regla=tr("el polinomio de Taylor es la suma de todos los términos, de menor a mayor orden."),
-                partes=tr("términos distintos de 0: {terminos}.", terminos="; ".join(t for _, t in terminos)
-                          or tr("ninguno")),
-                calculo=(f"{nombre_polinomio(n, x)} = {resultado_txt}.",),
-                queda=f"{nombre_polinomio(n, x)} = {resultado_txt}"))
+        pasos.append(PasoCalculo(
+            tr("Sumar los términos"),
+            regla=tr("el polinomio de Taylor es la suma de todos los términos, de menor a mayor orden."),
+            partes=tr("términos distintos de 0: {terminos}.", terminos="; ".join(t for _, t in terminos)
+                      or tr("ninguno")),
+            calculo=(f"{nombre_polinomio(n, x)} = {resultado_txt}.",),
+            queda=f"{nombre_polinomio(n, x)} = {resultado_txt}"))
 
         lineas = [tr("RESULTADO: {valor}", valor=f"{nombre_polinomio(n, x)} = {resultado_txt}")] + avisos + [
             "=" * 30,
