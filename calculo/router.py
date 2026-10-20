@@ -5,6 +5,7 @@ import sympy as sp
 from sympy import Symbol, S
 
 from calculo.pasos import PasoCalculo, texto_paso
+from dominios import dominio_funciones_originales
 from i18n import tr
 from .lim_estrategias.trigonometria import LimitesTrigNotables
 from .lim_estrategias.racionalizacion import RacionalizacionRaices
@@ -12,7 +13,7 @@ from .lim_estrategias.infinito import LimiteRacionalInfinito
 from .lim_estrategias.continuidad import ContinuidadComposicion
 from .lim_estrategias.simplificacion import SimplificacionCancelacion
 from .lim_estrategias._base import ESTADO_NO_CONCLUYENTE, ResultadoEstrategia, limite_seguro
-from .lim_estrategias.general import LimiteGeneral
+from .lim_estrategias.general import LimiteGeneral, contiene_entorno_lateral
 
 
 def humanizar_limite(val: Any) -> str:
@@ -60,13 +61,30 @@ class RouterMatematico:
 
     def calcular(self, expresion: str, variable: Optional[str] = None, tendencia: str = "0") -> ResultadoRouter:
         try:
-            # El parser no evalúa (evaluate=False): doit() quita formas como sqrt(x + 1) - 1*1
-            expr = self.parser.parsear(expresion).doit()
-            var = self._resolver_var(expr, variable)
+            original = self.parser.parsear(expresion)
+            var = self._resolver_var(original, variable)
             punto, dir_ = self._parsear_tendencia(tendencia)
         except Exception as e:
             return ResultadoRouter(tr("Error en los datos del límite:") + f"\n{e}", es_error=True)
 
+        if dir_ in ("+", "-"):
+            valido = self._lado_real(original, var, punto, dir_)
+            if valido is not True:
+                resultado = (tr("No existe el límite lateral real") if valido is False
+                             else tr("No concluyente"))
+                motivo = (tr("La función original no está definida en un entorno real por el lado solicitado.")
+                          if valido is False else
+                          tr("No se puede verificar que la función original esté definida en un entorno real por el lado solicitado."))
+                encabezado = tr("Límite de {expresion} cuando {variable} -> {punto}",
+                                expresion=expresion, variable=var, punto=f"{punto}{dir_}")
+                return ResultadoRouter(tr("RESULTADO: {valor}", valor=resultado)
+                                       + f"\n{encabezado}\n{motivo}")
+
+        # Solo después de validar el árbol original se permite cancelar o evaluar.
+        try:
+            expr = original.doit()
+        except Exception as e:
+            return ResultadoRouter(tr("Error en los datos del límite:") + f"\n{e}", es_error=True)
         for est in self.estrategias:
             try:
                 if not est.puede_resolver(expr, var, punto, dir=dir_):
@@ -79,6 +97,33 @@ class RouterMatematico:
                 return ResultadoRouter(self._render_estrategia(expresion, var, punto, dir_, res), res.resultado)
 
         return self._modo_general(expresion, expr, var, punto, dir_)
+
+    @staticmethod
+    def _lado_real(original: Any, var: Any, punto: Any, lado: str) -> Optional[bool]:
+        """True: entorno demostrado; False: no hay dominio cercano; None: sin certificar.
+
+        Escribimos x = punto ± h con h positivo. Esto conserva las tendencias
+        simbólicas y permite verificar potencias como x^x por el lado positivo.
+        El recorrido de dominios inspecciona todos los nodos sin cancelarlos,
+        usando continuous_domain y las restricciones de las potencias principales.
+        """
+        if punto.is_real is not True or punto.is_finite is not True:
+            return None
+        h = sp.Dummy("distancia", positive=True)
+        try:
+            with sp.evaluate(False):
+                local = original.xreplace({var: punto + h if lado == "+" else punto - h})
+            dominio = dominio_funciones_originales(h, local)
+            if contiene_entorno_lateral(dominio, S.Zero, "+"):
+                return True
+            cercano = dominio.intersect(sp.Interval.open(0, sp.oo))
+            if cercano.closure.contains(S.Zero) is S.false:
+                return False
+        except Exception:
+            # Un dominio no soportado o una comparación indeterminada nunca
+            # autorizan a usar un límite de la continuación compleja de SymPy.
+            pass
+        return None
 
     # -------------------------
     # Modo general: lo que no resuelve ninguna estrategia
