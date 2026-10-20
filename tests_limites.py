@@ -131,8 +131,8 @@ def construir_casos() -> List[Caso]:
         Caso(rac, "x/(sqrt(x**2+1)-x)", "oo", MRAC, sp.oo),
         Caso(rac, "(sqrt(1+x)-sqrt(1-x))/x", "0", MRAC, sp.Integer(1)),
         Caso(rac, "(sqrt(1+x)-sqrt(1-x))/(2*x)", "0", MRAC, sp.Rational(1, 2)),
-        Caso(rac, "(sqrt(1+x)-1)/(sqrt(1+x)+1)", "0", MRAC, sp.Integer(0)),
-        Caso(rac, "(sqrt(9+x)-3)/(sqrt(9+x)+3)", "0", MRAC, sp.Integer(0)),
+        Caso(rac, "(sqrt(1+x)-1)/(sqrt(1+x)+1)", "0", "sustitución directa", sp.Integer(0)),
+        Caso(rac, "(sqrt(9+x)-3)/(sqrt(9+x)+3)", "0", "sustitución directa", sp.Integer(0)),
         Caso(rac, "(sqrt(1+x)-1)/(x/(sqrt(1+x)+1))", "0", MRAC, sp.Integer(1)),
         Caso(rac, "(sqrt(16+x)-4)/(x)", "0", MRAC, sp.Rational(1, 8)),
         Caso(rac, "(sqrt(x+25)-5)/(x)", "0", MRAC, sp.Rational(1, 10)),
@@ -153,16 +153,16 @@ def construir_casos() -> List[Caso]:
         Caso(inf, "(x**3)/(x**2+1)", "-oo", MINF, -sp.oo),  # k impar
         Caso(inf, "(-2*x**3)/(x**2+1)", "oo", MINF, -sp.oo),
         Caso(inf, "(-2*x**3)/(x**2+1)", "-oo", MINF, sp.oo),
-        Caso(inf, "(7*x**5)/(2*x**2)", "oo", MINF, sp.oo),
-        Caso(inf, "(7*x**5)/(2*x**2)", "-oo", MINF, -sp.oo),
-        Caso(inf, "(x**2)/(x**2)", "oo", MINF, sp.Integer(1)),
+        Caso(inf, "(7*x**5)/(2*x**2)", "oo", "término de mayor grado", sp.oo),
+        Caso(inf, "(7*x**5)/(2*x**2)", "-oo", "término de mayor grado", -sp.oo),
+        Caso(inf, "(x**2)/(x**2)", "oo", "funciones conocidas", sp.Integer(1)),
         Caso(inf, "(x**2+1)/(x**2)", "oo", MINF, sp.Integer(1)),
         Caso(inf, "(2*x**2-3*x+1)/(x**2+10)", "oo", MINF, sp.Integer(2)),
         Caso(inf, "(x+1)/(x**2+1)", "oo", MINF, sp.Integer(0)),
         Caso(inf, "(x**6 + x)/(2*x**6 - 9)", "oo", MINF, sp.Rational(1, 2)),
         Caso(inf, "(x**6 - x)/(2*x**6 - 9)", "-oo", MINF, sp.Rational(1, 2)),
-        Caso(inf, "(x**5)/(x**2)", "-oo", MINF, -sp.oo),
-        Caso(inf, "(-x**5)/(x**2)", "-oo", MINF, sp.oo),
+        Caso(inf, "(x**5)/(x**2)", "-oo", "término de mayor grado", -sp.oo),
+        Caso(inf, "(-x**5)/(x**2)", "-oo", "término de mayor grado", sp.oo),
     ]
 
     # ===== Extras fallback (5) =====

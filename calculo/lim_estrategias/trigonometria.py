@@ -206,6 +206,8 @@ class LimitesTrigNotables(Estrategia):
           - u(x) -> 0 cuando x -> punto (mismo dir)
           - lim R existe y se evalúa
         """
+        if cuenta(expr, var, punto) is not None:
+            return False, None, None, None
         expr_s = self._prep(expr)
         num, _ = expr_s.as_numer_denom()
 
@@ -239,6 +241,8 @@ class LimitesTrigNotables(Estrategia):
           expr = ((1 - cos(u))/u^2) * R
         => R = expr * u^2 / (1 - cos(u))
         """
+        if cuenta(expr, var, punto) is not None:
+            return False, None, None, None
         expr_s = self._prep(expr)
         num, _ = expr_s.as_numer_denom()
 

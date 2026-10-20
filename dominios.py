@@ -60,16 +60,18 @@ def dominio_real(restricciones: Tuple[Any, ...], variable: Any) -> Any:
     return dominio
 
 
-def dominio_funciones_originales(variable: Any, *expresiones: Any) -> Any:
+def dominio_funciones_originales(variable: Any, *expresiones: Any, dominio_inicial: Any = S.Reals) -> Any:
     """Interseca dominios continuos de cada nodo, antes de cualquier cancelación.
 
     Es conservador: las funciones que continuous_domain no soporta se rechazan,
     en vez de interpretar la falta de restricciones como dominio real completo.
     Recorrer los hijos evita perder restricciones en 0*f(x), f(x)/f(x) o f(x)^0.
+    Un intervalo inicial permite certificar dominios locales sin resolver todas
+    las singularidades periódicas sobre la recta real completa.
     """
     from sympy.calculus.util import continuous_domain
 
-    dominio = S.Reals
+    dominio = dominio_inicial
     for expr in expresiones:
         for nodo in sympy.preorder_traversal(expr):
             if not nodo.free_symbols:
@@ -84,7 +86,15 @@ def dominio_funciones_originales(variable: Any, *expresiones: Any) -> Any:
                     exponente = decimales_exactos(nodo.exp).doit()
                     if (exponente.is_Rational is not True
                             and not (nodo.base.is_positive is True and exponente.is_real is True)):
-                        raise NotImplementedError("Potencia sin dominio real validado")
+                        if dominio_inicial == S.Reals or exponente.is_real is not True:
+                            raise NotImplementedError("Potencia sin dominio real validado")
+                        # En un dominio local basta certificar bases positivas.
+                        # No se interpreta una base negativa con exponente
+                        # variable como una potencia real en todo un intervalo.
+                        permitido = sympy.solveset(sympy.Gt(nodo.base.doit(), 0), variable,
+                                                   domain=dominio_inicial)
+                        if permitido.has(sympy.ConditionSet) or permitido != dominio_inicial:
+                            raise NotImplementedError("Potencia sin dominio real validado")
                     evaluado = sympy.Pow(nodo.base.doit(), exponente)
                     if exponente.is_Rational and exponente.q != 1:
                         # Pow usa la rama compleja principal, no real_root:
@@ -92,8 +102,8 @@ def dominio_funciones_originales(variable: Any, *expresiones: Any) -> Any:
                         # no tienen potencia real para un racional no entero.
                         condicion = (sympy.Gt(nodo.base.doit(), 0) if exponente < 0
                                      else sympy.Ge(nodo.base.doit(), 0))
-                        dominio = dominio.intersect(sympy.solveset(condicion, variable, domain=S.Reals))
-                permitido = continuous_domain(evaluado, variable, S.Reals)
+                        dominio = dominio.intersect(sympy.solveset(condicion, variable, domain=dominio_inicial))
+                permitido = continuous_domain(evaluado, variable, dominio_inicial)
                 if permitido.has(sympy.ConditionSet):
                     raise NotImplementedError("Dominio sin determinar")
                 dominio = dominio.intersect(permitido)

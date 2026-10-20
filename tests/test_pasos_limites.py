@@ -77,7 +77,7 @@ def test_trigonometrico_explica_el_resto(core):
 def test_grados_en_infinito(core):
     texto = pasos(core, "(7*x**5)/(2*x**2)", "-oo")
     assert "x^3 tiene exponente impar: cuando x → -oo es negativo." in texto
-    assert "El coeficiente 7/2 es positivo, así que el límite es -oo." in texto
+    assert "Por el coeficiente 7/2: el límite es -oo." in texto
     texto = pasos(core, "(3*x**2+1)/(5*x**2-7)", "oo")
     assert "Cociente de los términos principales: (3*x^2)/(5*x^2) = 3/5." in texto
 
