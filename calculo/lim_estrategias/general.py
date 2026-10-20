@@ -22,11 +22,12 @@ from typing import Any, List, Optional, Tuple
 
 import sympy
 from sympy import S
+from sympy.calculus.util import continuous_domain
 
 from calculo.pasos import PasoCalculo, entre_parentesis, texto
 from i18n import N_, tr
 
-from ._base import es_punto_finito, limite_seguro
+from ._base import es_limite_evaluable, es_punto_finito, limite_seguro
 from ._pasos import (FORMA_CERO_CERO, FORMA_INF_INF, FORMA_K_CERO, cuenta, es_infinito, forma_del_cociente,
                      paso_evaluacion, paso_sustitucion, tendencia, valor_texto)
 
@@ -56,23 +57,44 @@ def equivalentes(a: Any, b: Any) -> bool:
 
 
 def signo_cerca(expr: Any, var: sympy.Symbol, punto: Any, lado: str) -> int:
-    """Signo de expr un poco a la izquierda ('-') o a la derecha ('+') del punto (0 si no se sabe)."""
-    for h in (1e-6, 1e-4):
-        try:
-            x0 = float(punto) + (h if lado == "+" else -h)
-            valor = complex(sympy.N(expr.subs(var, x0)))
-        except Exception:
-            continue
-        if abs(valor.imag) > 1e-9 or valor.real == 0:
-            continue
-        return 1 if valor.real > 0 else -1
+    """Signo del término dominante con una distancia positiva al punto; sin muestreo."""
+    h = sympy.Dummy("h", positive=True)
+    try:
+        local = expr.subs(var, punto + h if lado == "+" else punto - h)
+        dominante = local.as_leading_term(h)
+        if dominante.is_positive is True:
+            return 1
+        if dominante.is_negative is True:
+            return -1
+    except Exception:
+        pass
     return 0
+
+
+def contiene_entorno_lateral(dominio: Any, punto: Any, lado: str) -> bool:
+    """Certifica un intervalo abierto adyacente al punto, también en ±infinito."""
+    intervalos = dominio.args if isinstance(dominio, sympy.Union) else (dominio,)
+    for intervalo in intervalos:
+        if not isinstance(intervalo, sympy.Interval):
+            continue
+        a, b = intervalo.start, intervalo.end
+        if punto == S.Infinity and b == S.Infinity:
+            return True
+        if punto == S.NegativeInfinity and a == S.NegativeInfinity:
+            return True
+        if lado == "+" and (a <= punto) is S.true and (punto < b) is S.true:
+            return True
+        if lado == "-" and (a < punto) is S.true and (punto <= b) is S.true:
+            return True
+    return False
 
 
 class LimiteGeneral:
     def explicar(self, expr: Any, var: sympy.Symbol, punto: Any, dir_: Optional[str],
                  valor: Any) -> Optional[Tuple[List[PasoCalculo], str]]:
         """(pasos, técnica principal) que llegan a valor, o None si no se puede explicar."""
+        if isinstance(valor, sympy.Basic) and valor.has(sympy.AccumBounds):
+            return None
         self.pasos: List[PasoCalculo] = []
         try:
             tecnica, obtenido = self._limite(expr, var, punto, dir_, profundidad=0)
@@ -127,6 +149,10 @@ class LimiteGeneral:
         if den.has(var):
             num_lim = limite_seguro(num, var, punto, dir_)
             den_lim = limite_seguro(den, var, punto, dir_)
+            if not es_limite_evaluable(num_lim) or not es_limite_evaluable(den_lim):
+                # Un numerador oscilante no tiene un límite finito que podamos
+                # combinar con el del denominador mediante la regla del cociente.
+                raise SinExplicacion()
             forma = forma_del_cociente(num_lim, den_lim)
             if forma in (FORMA_CERO_CERO, FORMA_INF_INF):
                 return self._lhopital(expr, num, den, var, punto, dir_, profundidad)
@@ -155,6 +181,10 @@ class LimiteGeneral:
             return self._termino_principal(expr, var, punto)
 
         # 8) Funciones conocidas (exp(-x) en oo...)
+        if es_punto_finito(punto) and expr.is_Function and cuenta(expr.args[0], var, punto) is None:
+            # Una composición con indeterminación interna necesita sus propios
+            # pasos. Una frase que solo enuncia el resultado no la explica.
+            raise SinExplicacion()
         valor = limite_seguro(expr, var, punto, dir_)
         if valor is None or isinstance(valor, sympy.Limit):
             raise SinExplicacion()
@@ -234,9 +264,22 @@ class LimiteGeneral:
             forma = forma_del_cociente(limite_seguro(num, var, punto, dir_), limite_seguro(den, var, punto, dir_))
             if forma not in (FORMA_CERO_CERO, FORMA_INF_INF):
                 raise SinExplicacion()
+        if forma not in (FORMA_CERO_CERO, FORMA_INF_INF):
+            raise SinExplicacion()
         d_num, d_den = sympy.diff(num, var), sympy.diff(den, var)
         if d_den == 0:
             raise SinExplicacion()
+        # La forma indeterminada sola no basta: f y g deben ser derivables y
+        # g' no puede anularse en un entorno lateral perforado.
+        try:
+            dominio = (continuous_domain(d_num, var, S.Reals)
+                       .intersect(continuous_domain(d_den, var, S.Reals))
+                       .intersect(continuous_domain(1/d_den, var, S.Reals)))
+            lados = (dir_,) if dir_ in ("+", "-") else ("-", "+")
+            if not all(contiene_entorno_lateral(dominio, punto, lado) for lado in lados):
+                raise SinExplicacion()
+        except Exception as exc:
+            raise SinExplicacion() from exc
         nuevo = sympy.cancel(d_num / d_den) if (d_num / d_den).is_rational_function(var) else sympy.simplify(d_num / d_den)
         cociente = f"{entre_parentesis(d_num)}/{entre_parentesis(d_den)}"
         calculo = [tr("Derivamos el numerador: ({f})' = {derivada}.", f=texto(num), derivada=texto(d_num)),

@@ -72,7 +72,9 @@ def es_limite_evaluable(val: Any) -> bool:
     """True si val es un valor concreto (finito o ±oo): no None, nan, zoo ni Limit sin evaluar."""
     if val is None or val is sympy.nan or val is sympy.zoo:
         return False
-    return not isinstance(val, sympy.Limit)
+    return (not isinstance(val, (sympy.Limit, sympy.AccumBounds))
+            and not val.has(sympy.Limit, sympy.AccumBounds)
+            and (val.is_finite is True or val in (sympy.oo, -sympy.oo)))
 
 
 class Estrategia(ABC):

@@ -6,7 +6,8 @@ from sympy import S
 
 from calculo.pasos import PasoCalculo, entre_parentesis, texto
 from i18n import N_, tr
-from ._pasos import paso_evaluacion, paso_sustitucion, tendencia
+from ._pasos import (cuenta, paso_evaluacion, paso_sustitucion, tendencia,
+                     FORMA_CERO_CERO, FORMA_INF_MENOS_INF)
 from ._base import (
     Estrategia,
     ResultadoEstrategia,
@@ -35,6 +36,14 @@ class RacionalizacionRaices(Estrategia):
         return N_("Racionalización")
 
     def puede_resolver(self, expr, var, punto, **kwargs) -> bool:
+        if cuenta(expr, var, punto) is not None:
+            return False
+        _, forma = paso_sustitucion(expr, var, punto, kwargs.get("dir"))
+        if forma not in (FORMA_CERO_CERO, FORMA_INF_MENOS_INF):
+            bloques = self._find_blocks(expr)
+            if not any(paso_sustitucion(b, var, punto, kwargs.get("dir"))[1]
+                       == FORMA_INF_MENOS_INF for b in bloques):
+                return False
         expr_s = self._prep(expr)
 
         # Debe existir una raíz cuadrada en algún lugar
@@ -52,6 +61,8 @@ class RacionalizacionRaices(Estrategia):
         return bool(candidatos)
 
     def resolver(self, expr, var, punto, **kwargs) -> ResultadoEstrategia:
+        if not self.puede_resolver(expr, var, punto, **kwargs):
+            return ResultadoEstrategia(aplica=False)
         dir_ = kwargs.get("dir", None)
         expr_s = self._prep(expr)
 
@@ -173,7 +184,7 @@ class RacionalizacionRaices(Estrategia):
             transformada = f"{texto(otro)}*{entre_parentesis(conjugado)}/{entre_parentesis(lado_nuevo)}" if otro != 1                 else f"{entre_parentesis(conjugado)}/{entre_parentesis(lado_nuevo)}"
         calculo.append(tr("La expresión queda {expresion}.", expresion=transformada))
         if texto(nueva) != transformada:
-            calculo.append(tr("Simplificamos (se cancela el factor que producía la indeterminación): {expresion}.",
+            calculo.append(tr("Simplificamos la expresión transformada: {expresion}.",
                               expresion=texto(nueva)))
         paso = PasoCalculo(
             tr("Racionalizar con el conjugado"),
@@ -256,7 +267,7 @@ class RacionalizacionRaices(Estrategia):
           - y el resultado YA NO DEPENDE de la variable del límite (var).
         Esto permite parámetros (a, b, etc.) sin rechazar todo por free_symbols.
         """
-        if val is None:
+        if not self._es_limite_evaluable(val):
             return False
         if val is sympy.nan or val is sympy.zoo:
             return False

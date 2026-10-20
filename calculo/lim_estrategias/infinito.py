@@ -40,6 +40,9 @@ class LimiteRacionalInfinito(Estrategia):
 
         n, d = expr.as_numer_denom()
 
+        if not d.has(var):
+            return False
+
         # Guardas: deben ser polinomios en var y degree debe ser computable
         if not (n.is_polynomial(var) and d.is_polynomial(var)):
             return False

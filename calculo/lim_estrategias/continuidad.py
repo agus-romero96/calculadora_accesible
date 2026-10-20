@@ -7,6 +7,7 @@ from sympy import S
 from sympy.assumptions import Q, ask
 
 from .trigonometria import LimitesTrigNotables
+from .simplificacion import SimplificacionCancelacion
 from calculo.pasos import PasoCalculo, entre_parentesis, texto
 from i18n import N_, tr
 from ._pasos import cuenta, tendencia, valor_texto
@@ -51,10 +52,14 @@ class ContinuidadComposicion(Estrategia):
         outer, inner = self._extraer_compuesta(expr)
         if outer is None or inner is None:
             return False
+        if inner == var and cuenta(expr, var, punto) is not None:
+            return False
         # Las raíces llegan como potencia ("pow", 1/2): sqrt(u) se parsea como u**(1/2)
         return self._es_potencia(outer) or self._es_funcion_externa_conocida(outer)
 
     def resolver(self, expr, var, punto, **kwargs) -> ResultadoEstrategia:
+        if not self.puede_resolver(expr, var, punto, **kwargs):
+            return ResultadoEstrategia(aplica=False)
         dir_ = kwargs.get("dir", None)
 
         pasos: List[str] = []
@@ -125,6 +130,8 @@ class ContinuidadComposicion(Estrategia):
 
         resultado = sympy.simplify(resultado)
         pasos = self._pasos_interno(inner, var, punto, dir_, L)
+        if cuenta(inner, var, punto) is None and not pasos:
+            return ResultadoEstrategia(aplica=True, estado=ESTADO_NO_CONCLUYENTE)
         pasos.append(self._paso(outer, inner, var, punto, dir_, L, motivo, resultado, explicado=bool(pasos)))
 
         # 4) Estado coherente
@@ -147,6 +154,11 @@ class ContinuidadComposicion(Estrategia):
         """Pasos del límite de la función de dentro, si es un límite notable (exp(sin(x)/x): sin(x)/x → 1)."""
         if cuenta(inner, var, punto) is not None:
             return []  # se ve sustituyendo, en el mismo paso
+        cancelacion = SimplificacionCancelacion()
+        if cancelacion.puede_resolver(inner, var, punto, dir=dir_):
+            res = cancelacion.resolver(inner, var, punto, dir=dir_)
+            if res.estado != ESTADO_NO_CONCLUYENTE and res.resultado == L:
+                return list(res.pasos)
         try:
             if self._trig.puede_resolver(inner, var, punto, dir=dir_):
                 res = self._trig.resolver(inner, var, punto, dir=dir_)
@@ -346,6 +358,9 @@ class ContinuidadComposicion(Estrategia):
         """
         Retorna (ok, mensaje). Conservador.
         """
+        if not self._es_limite_evaluable(L) or L.is_finite is not True or L.is_real is not True:
+            return False, tr("La continuidad requiere un límite interno real y finito.")
+
         # 1) Potencias
         if self._es_potencia(outer):
             c = outer[1]
@@ -363,7 +378,9 @@ class ContinuidadComposicion(Estrategia):
                     if self._es_no_negativo(L):
                         return True, tr("Potencia racional ({c}) con denominador par: dominio real requiere L>=0, verificado.", c=c)
                     return False, tr("Potencia racional ({c}) con denominador par: no podemos garantizar L>=0.", c=c)
-                return True, tr("Potencia racional ({c}) con denominador impar: continua para L real.", c=c)
+                if L.is_nonnegative is True:
+                    return True, tr("Potencia racional continua en bases no negativas.")
+                return False, tr("No se garantiza continuidad real de esta potencia.")
 
             return False, tr("Potencia con exponente {c}: no podemos garantizar continuidad/dominio.", c=c)
 
@@ -379,7 +396,7 @@ class ContinuidadComposicion(Estrategia):
         if outer == sympy.tan:
             try:
                 c = sympy.cos(L)
-                if sympy.simplify(c) == 0:
+                if sympy.simplify(c).is_zero is not False:
                     return False, tr("tan NO es continua cuando cos(L)=0 (asíntota vertical).")
             except Exception:
                 pass

@@ -19,6 +19,8 @@ def humanizar_limite(val: Any) -> str:
     """Traduce el valor de limite_seguro() a texto claro para lector de pantalla."""
     if val is None:
         return tr("No concluyente")
+    if isinstance(val, sp.Basic) and val.has(sp.AccumBounds):
+        return tr("No existe (comportamiento oscilatorio)")
     if val == S.Infinity:
         return tr("+Infinito")
     if val == S.NegativeInfinity:
@@ -130,7 +132,7 @@ class RouterMatematico:
         if raw in ["-oo", "-inf"]:
             return S.NegativeInfinity, None
 
-        return self.parser.parsear(raw), d
+        return self.parser.parsear(raw).doit(), d
 
     def _render_estrategia(self, expr_in, var, punto, dir_, res):
         s = dir_ if dir_ else ""
