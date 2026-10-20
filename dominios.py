@@ -2,7 +2,8 @@
 
 Una cancelación conserva los valores en el dominio, pero no los puntos excluidos.
 Se recorren también los denominadores anidados y los términos multiplicados por 0.
-No se infiere aquí el dominio de funciones ni de potencias de exponente simbólico.
+Las restricciones de denominadores no bastan para validar funciones reales;
+dominio_funciones_originales realiza una comprobación conservadora adicional.
 """
 from typing import Any, Tuple
 
@@ -56,6 +57,33 @@ def dominio_real(restricciones: Tuple[Any, ...], variable: Any) -> Any:
             return S.EmptySet
         ceros = sympy.solveset(condicion.lhs - condicion.rhs, variable, domain=S.Reals)
         dominio = dominio - ceros
+    return dominio
+
+
+def dominio_funciones_originales(variable: Any, *expresiones: Any) -> Any:
+    """Interseca dominios continuos de cada nodo, antes de cualquier cancelación.
+
+    Es conservador: las funciones que continuous_domain no soporta se rechazan,
+    en vez de interpretar la falta de restricciones como dominio real completo.
+    Recorrer los hijos evita perder restricciones en 0*f(x), f(x)/f(x) o f(x)^0.
+    """
+    from sympy.calculus.util import continuous_domain
+
+    dominio = S.Reals
+    for expr in expresiones:
+        for nodo in sympy.preorder_traversal(expr):
+            if not nodo.free_symbols:
+                valor = nodo.doit()
+                if valor.is_real is not True or valor.is_finite is not True:
+                    return S.EmptySet
+            elif nodo.is_Function or nodo.is_Pow:
+                if (nodo.is_Pow and nodo.exp.is_Rational is not True
+                        and not (nodo.base.is_positive is True and nodo.exp.is_real is True)):
+                    raise NotImplementedError("Potencia sin dominio real validado")
+                permitido = continuous_domain(nodo.doit(), variable, S.Reals)
+                if permitido.has(sympy.ConditionSet):
+                    raise NotImplementedError("Dominio sin determinar")
+                dominio = dominio.intersect(permitido)
     return dominio
 
 

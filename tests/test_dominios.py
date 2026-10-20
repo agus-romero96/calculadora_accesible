@@ -193,3 +193,42 @@ def test_restricciones_en_ingles(core):
         assert "no admissible values" in core.simplificar("1/(x-x)").texto
     finally:
         i18n.establecer_idioma(anterior)
+
+
+@pytest.mark.parametrize("entrada, esperado", [
+    ("log(x)/log(x)=1", sp.Union(sp.Interval.open(0, 1), sp.Interval.open(1, sp.oo))),
+    ("sqrt(x)/sqrt(x)=1", sp.Interval.open(0, sp.oo)),
+    ("log(x)/log(x)+x=-1", S.EmptySet),
+    ("sqrt(x)/sqrt(x)+x=-1", S.EmptySet),
+    ("log(x)/log(x)+x=3", sp.FiniteSet(2)),
+    ("sqrt(x)/sqrt(x)+x=3", sp.FiniteSet(2)),
+    ("0*log(x)=0", sp.Interval.open(0, sp.oo)),
+    ("sqrt(x)^0=1", sp.Interval(0, sp.oo)),
+    ("sqrt(log(x))/sqrt(log(x))=1", sp.Interval.open(1, sp.oo)),
+    ("log(x)/log(x)<2", sp.Union(sp.Interval.open(0, 1), sp.Interval.open(1, sp.oo))),
+    ("sqrt(x)/sqrt(x)<2", sp.Interval.open(0, sp.oo)),
+    ("sqrt(-x^2-1)^2=-x^2-1", S.EmptySet),
+])
+def test_funciones_canceladas_respetan_dominio_real(core, entrada, esperado):
+    # Conjuntos explícitos, independientes del cálculo de dominio de producción.
+    res = core.ecuacion(entrada)
+    assert not res.es_error, res.texto
+    assert res.valor == esperado
+
+
+def test_dominio_no_soportado_se_rechaza(core, monkeypatch):
+    from sympy.calculus import util
+
+    def no_soportado(*args):
+        raise NotImplementedError()
+
+    monkeypatch.setattr(util, "continuous_domain", no_soportado)
+    res = core.ecuacion("log(x)/log(x)=1")
+    assert res.es_error
+    assert "No se puede validar el dominio real" in res.texto
+
+
+def test_potencia_simbolica_cancelada_no_se_acepta_sin_validar(core):
+    res = core.ecuacion("x^x/x^x=1")
+    assert res.es_error
+    assert "No se puede validar el dominio real" in res.texto

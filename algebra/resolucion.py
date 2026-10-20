@@ -31,7 +31,7 @@ from algebra.ecuaciones import _quitar_parentesis, despejar, invertir, sustituir
 from calculo.pasos import PasoCalculo, entre_parentesis, suma_texto, texto, texto_paso
 from i18n import N_, tr
 from dominios import (aviso_restricciones, comprobar_candidato, decimales_exactos, denominadores_originales,
-                      dominio_real, restricciones_denominadores)
+                      dominio_real, dominio_funciones_originales, restricciones_denominadores)
 from pasos_aritmetica import ExplicadorFactorizar, limpiar
 
 # Relación escrita -> clase de SymPy
@@ -258,7 +258,13 @@ class MotorEcuaciones:
             izquierda if restricciones else izq_normal, derecha if restricciones else der_normal, evaluate=False)
         enunciado = f"{izq_txt} {relacion} {der_txt}"
         try:
-            dominio = dominio_real(restricciones, x)
+            dominio_funciones = dominio_funciones_originales(x, izquierda, derecha)
+        except Exception:
+            return ResultadoEcuacion(tr("Error de Validación: {error}", error=tr(
+                "No se puede validar el dominio real de las funciones originales de esta ecuación o inecuación.")),
+                es_error=True)
+        try:
+            dominio = dominio_real(restricciones, x) & dominio_funciones
             verdad = (S.EmptySet if dominio == S.EmptySet else
                       sympy.solveset(RELACIONES[relacion](izq_normal, der_normal), x, domain=S.Reals) & dominio)
             if relacion == "=" and isinstance(verdad, sympy.FiniteSet):
@@ -282,7 +288,9 @@ class MotorEcuaciones:
             if dominio == S.EmptySet:
                 tipo, conjunto = (RACIONAL if relacion == "=" else OTRA_INECUACION), S.EmptySet
                 pasos = [PasoCalculo(
-                    tr("Restricciones del dominio"), regla=aviso_restricciones(restricciones),
+                    tr("Restricciones del dominio"), regla=(
+                        aviso_restricciones(restricciones) if S.false in restricciones else tr(
+                            "Las funciones originales no admiten valores en el dominio real.")),
                     partes=tr("la {tipo} es {enunciado}.", tipo=self._tipo(relacion), enunciado=enunciado),
                     queda=describir_conjunto(conjunto, x))]
             else:
