@@ -30,6 +30,8 @@ from sympy import S
 from algebra.ecuaciones import _quitar_parentesis, despejar, invertir, sustituir
 from calculo.pasos import PasoCalculo, entre_parentesis, suma_texto, texto, texto_paso
 from i18n import N_, tr
+from dominios import (aviso_restricciones, comprobar_candidato, decimales_exactos, denominadores_originales,
+                      dominio_real, restricciones_denominadores)
 from pasos_aritmetica import ExplicadorFactorizar, limpiar
 
 # Relación escrita -> clase de SymPy
@@ -60,6 +62,7 @@ class ResultadoEcuacion:
     variable: Any = None
     planteamiento: Any = None     # Eq / Lt / Le... sin evaluar, para exportar
     avisos: List[str] = field(default_factory=list)
+    restricciones: Tuple[Any, ...] = ()
 
 
 # ---------------- Texto de conjuntos ----------------
@@ -178,6 +181,8 @@ def _preparar(lado: Any) -> Any:
     números hechos (-1*3 = -3) y los términos que no cambian al evaluarlos ya en su forma normal.
     """
     lado = limpiar(lado)
+    if denominadores_originales(lado):
+        return lado  # no cancelar denominadores antes de explicar el dominio original
     terminos = []
     for t in sympy.Add.make_args(lado):
         normal = t.doit()
@@ -198,7 +203,7 @@ def _signo_texto(v: Any) -> str:
 
 def _cuenta(expr: Any, x: Any, valor: Any) -> Tuple[str, Any]:
     """('2*0 - 3 = -3', -3): la expresión con el valor sustituido y su resultado."""
-    resultado = sympy.simplify(sympy.sympify(expr).doit().subs(x, valor))
+    resultado = sympy.simplify(sympy.sympify(expr).subs(x, valor).doit())
     escrita = sustituir(expr, {x: valor})
     return (escrita if escrita == texto(resultado) else f"{escrita} = {texto(resultado)}"), resultado
 
@@ -225,8 +230,8 @@ class MotorEcuaciones:
         if not izq_txt or not der_txt:
             raise ValueError(tr("Falta uno de los dos lados de la {tipo}.",
                                 tipo=tr("ecuación") if relacion == "=" else tr("inecuación")))
-        izquierda = _preparar(self.parser.parsear(izq_txt))
-        derecha = _preparar(self.parser.parsear(der_txt))
+        izquierda = decimales_exactos(self.parser.parsear(izq_txt))
+        derecha = decimales_exactos(self.parser.parsear(der_txt))
         variables = sorted((izquierda.doit() - derecha.doit()).free_symbols | izquierda.free_symbols
                            | derecha.free_symbols, key=lambda s: s.name)
         if not variables:
@@ -235,7 +240,7 @@ class MotorEcuaciones:
             raise ValueError(tr("Hay varias variables ({variables}): esta operación resuelve ecuaciones e inecuaciones "
                                 "de una sola variable. Para varias ecuaciones con varias incógnitas, use Gauss-Jordan.",
                                 variables=", ".join(v.name for v in variables)))
-        return izquierda, derecha, relacion, variables[0], texto(izquierda), texto(derecha)
+        return izquierda, derecha, relacion, variables[0], texto(_preparar(izquierda)), texto(_preparar(derecha))
 
     # --- Fachada ---
 
@@ -248,10 +253,23 @@ class MotorEcuaciones:
             return ResultadoEcuacion(tr("Error del Sistema: {error}", error=str(e)), es_error=True)
 
         izq_normal, der_normal = izquierda.doit(), derecha.doit()
-        planteamiento = RELACIONES[relacion](izq_normal, der_normal, evaluate=False)
+        restricciones = restricciones_denominadores(izquierda, derecha)
+        planteamiento = RELACIONES[relacion](
+            izquierda if restricciones else izq_normal, derecha if restricciones else der_normal, evaluate=False)
         enunciado = f"{izq_txt} {relacion} {der_txt}"
         try:
-            verdad = sympy.solveset(RELACIONES[relacion](izq_normal, der_normal), x, domain=S.Reals)
+            dominio = dominio_real(restricciones, x)
+            verdad = (S.EmptySet if dominio == S.EmptySet else
+                      sympy.solveset(RELACIONES[relacion](izq_normal, der_normal), x, domain=S.Reals) & dominio)
+            if relacion == "=" and isinstance(verdad, sympy.FiniteSet):
+                validas = []
+                for candidato in verdad:
+                    cumple = comprobar_candidato(izquierda, derecha, x, candidato)
+                    if cumple is None:
+                        raise SinExplicacion()
+                    if cumple:
+                        validas.append(candidato)
+                verdad = sympy.FiniteSet(*validas)
         except Exception:
             verdad = None
         if verdad is None or not describible(verdad):
@@ -259,9 +277,16 @@ class MotorEcuaciones:
                 "no se puede resolver esta {tipo} con los métodos de la calculadora.",
                 tipo=tr("ecuación") if relacion == "=" else tr("inecuación"))), es_error=True)
 
-        avisos: List[str] = []
+        avisos: List[str] = [aviso_restricciones(restricciones)] if restricciones else []
         try:
-            tipo, pasos, conjunto = self._explicar(izquierda, derecha, relacion, x)
+            if dominio == S.EmptySet:
+                tipo, conjunto = (RACIONAL if relacion == "=" else OTRA_INECUACION), S.EmptySet
+                pasos = [PasoCalculo(
+                    tr("Restricciones del dominio"), regla=aviso_restricciones(restricciones),
+                    partes=tr("la {tipo} es {enunciado}.", tipo=self._tipo(relacion), enunciado=enunciado),
+                    queda=describir_conjunto(conjunto, x))]
+            else:
+                tipo, pasos, conjunto = self._explicar(_preparar(izquierda), _preparar(derecha), relacion, x)
             if not mismo_conjunto(conjunto, verdad):
                 avisos.append(tr("AVISO: la explicación no llegó al resultado de SymPy; se muestra el resultado "
                                  "sin pasos."))
@@ -280,7 +305,7 @@ class MotorEcuaciones:
         if pasos:
             lineas += ["", tr("PASO A PASO:")] + [texto_paso(i, p) for i, p in enumerate(pasos, 1)]
         return ResultadoEcuacion("\n".join(lineas), conjunto=verdad, variable=x, planteamiento=planteamiento,
-                                 avisos=avisos)
+                                 avisos=avisos, restricciones=restricciones)
 
     # --- Clasificación ---
 
@@ -289,8 +314,7 @@ class MotorEcuaciones:
         if not diferencia.is_rational_function(x):
             raise SinExplicacion()
         _, denominador = sympy.fraction(diferencia)
-        con_denominador = any(sympy.fraction(sympy.together(t))[1].has(x)
-                              for lado in (izquierda, derecha) for t in sympy.Add.make_args(lado.doit()))
+        con_denominador = any(d.has(x) for d in denominadores_originales(izquierda, derecha))
         if con_denominador or denominador.has(x):
             if relacion != "=":
                 raise SinExplicacion()
@@ -730,25 +754,22 @@ class MotorEcuaciones:
     def _racional(self, izquierda: Any, derecha: Any, x: Any) -> Tuple[List[PasoCalculo], Any]:
         pasos: List[PasoCalculo] = []
         terminos = [(lado, t) for lado, expr in (("izq", izquierda), ("der", derecha)) for t in _terminos(expr)]
-        denominadores = []
-        for _, t in terminos:
-            d = sympy.fraction(sympy.together(t.doit()))[1]
-            if d.has(x) and all(sympy.simplify(d - e) != 0 for e in denominadores):
-                denominadores.append(d)
+        denominadores = list(dict.fromkeys(d.doit() for d in denominadores_originales(izquierda, derecha)
+                                           if d.has(x)))
 
         # 1. Restricciones del dominio
         prohibidos: List[Any] = []
         lineas = []
         # Primero los de grado 1: los factores de los demás que ya se vieron no se repiten
-        for d in sorted(denominadores, key=lambda d: sympy.degree(d, x)):
+        for d in sorted(denominadores, key=lambda d: sympy.degree(sympy.fraction(sympy.together(d))[0], x)):
             ceros = sorted(set(sympy.solveset(d, x, domain=S.Reals)), key=float)
             factorizado = sympy.factor(d)
             texto_d = texto(d) if texto(factorizado) == texto(d) else f"{texto(d)} = {texto(factorizado)}"
             if not ceros:
                 lineas.append(tr("El denominador {denominador} no se anula para ningún número real.", denominador=texto_d))
-            elif sympy.degree(d, x) == 1:
+            elif d.is_polynomial(x) and sympy.degree(d, x) == 1:
                 lineas += self._producto_nulo([d], x)[0]
-            elif all(sympy.degree(f, x) <= 1 for f in sympy.Mul.make_args(factorizado)):
+            elif d.is_polynomial(x) and all(sympy.degree(f, x) <= 1 for f in sympy.Mul.make_args(factorizado)):
                 # (x - 2)*(x + 2): cada factor con x igualado a 0
                 lineas.append(tr("Factorizamos el denominador: {denominador}. Se anula si alguno de sus factores vale 0.",
                                  denominador=texto_d))
@@ -796,8 +817,8 @@ class MotorEcuaciones:
             else:
                 lineas.append(tr("{termino} por {mcm}: se simplifica el denominador {den} y queda {resultado}.",
                                  termino=texto(t.doit()), mcm=entre_parentesis(mcm), den=texto(den), resultado=texto(nuevo)))
-        nueva_izq = (sympy.Add(*nuevos["izq"], evaluate=False) if len(nuevos["izq"]) > 1 else nuevos["izq"][0])
-        nueva_der = (sympy.Add(*nuevos["der"], evaluate=False) if len(nuevos["der"]) > 1 else nuevos["der"][0])
+        nueva_izq = sympy.Add(*nuevos["izq"], evaluate=False)
+        nueva_der = sympy.Add(*nuevos["der"], evaluate=False)
         pasos.append(PasoCalculo(
             tr("Multiplicar por el MCM de los denominadores"),
             regla=tr("multiplicar los dos lados por el mínimo común múltiplo de los denominadores (que no vale 0 dentro "
@@ -830,6 +851,8 @@ class MotorEcuaciones:
                                      "una raíz extraña (apareció al multiplicar por el MCM) y se descarta.", variable=x,
                                      valor=texto(r), denominador=tr(" y ").join(anulados)))
                 else:
+                    if comprobar_candidato(izquierda, derecha, x, r) is not True:
+                        raise SinExplicacion()  # no afirmar que una raíz es válida sin comprobar la original
                     lineas.append(tr("{variable} = {valor} no anula ningún denominador: es válida.", variable=x,
                                      valor=texto(r)))
                     validas.append(r)

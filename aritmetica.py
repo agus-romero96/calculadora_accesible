@@ -5,6 +5,7 @@ from sympy import Integer, Float, Rational, Symbol
 
 from calculo.pasos import PasoCalculo, texto, texto_paso
 from i18n import N_, tr
+from dominios import aviso_restricciones, restricciones_denominadores
 from pasos_aritmetica import (IRREDUCIBLE, ExplicadorEvaluar, ExplicadorFactorizar, ExplicadorSimplificar,
                               SinExplicacion, paso_decimal)
 
@@ -34,6 +35,7 @@ class ResultadoAritmetica:
 
     # Error
     mensaje_error: str = ""
+    restricciones: Tuple[Any, ...] = ()
 
 
 # =============================================================
@@ -130,9 +132,12 @@ class Aritmetica:
             # El parser no evalúa (evaluate=False): el árbol sin evaluar conserva los paréntesis y los
             # términos sin agrupar que hay que explicar; doit() da la forma normal para calcular
             crudo = self.parser.parsear(expresion)
+            restricciones = restricciones_denominadores(crudo)
+            if sympy.S.false in restricciones:
+                return self._error(N_("Simplificación"), crudo, aviso_restricciones(restricciones))
             expr = crudo.doit()
             resultado = sympy.simplify(expr)  # la verdad matemática
-            advertencias: List[str] = []
+            advertencias: List[str] = [aviso_restricciones(restricciones)] if restricciones else []
             try:
                 pasos = ExplicadorSimplificar().explicar(crudo, expr, resultado)
             except (SinExplicacion, Exception):
@@ -142,7 +147,7 @@ class Aritmetica:
             return ResultadoAritmetica(
                 es_exitoso=True,
                 operacion=N_("Simplificación"),
-                expresion_original=expr,
+                expresion_original=crudo if restricciones else expr,
                 resultado=resultado,
                 diagnostico=self._diagnosticar_tipo(expr),
                 estrategia=N_("Simplificación algebraica"),
@@ -150,6 +155,7 @@ class Aritmetica:
                 advertencias=advertencias,
                 es_trivial=False,
                 entrada=expresion,
+                restricciones=restricciones,
             )
 
         except Exception as e:
@@ -165,9 +171,13 @@ class Aritmetica:
         try:
             # El parser no evalúa (evaluate=False): doit() lleva la expresión a su forma
             # normal para que las comparaciones (¿cambió algo?) sean fiables.
-            expr = self.parser.parsear(expresion).doit()
+            crudo = self.parser.parsear(expresion)
+            restricciones = restricciones_denominadores(crudo)
+            if sympy.S.false in restricciones:
+                return self._error(N_("Factorización"), crudo, aviso_restricciones(restricciones))
+            expr = crudo.doit()
             resultado = sympy.factor(expr)  # la verdad matemática
-            advertencias: List[str] = []
+            advertencias: List[str] = [aviso_restricciones(restricciones)] if restricciones else []
             explicador = ExplicadorFactorizar()
             pasos: List[PasoCalculo] = []
             try:
@@ -210,7 +220,7 @@ class Aritmetica:
             return ResultadoAritmetica(
                 es_exitoso=True,
                 operacion=N_("Factorización"),
-                expresion_original=expr,
+                expresion_original=crudo if restricciones else expr,
                 resultado=resultado,
                 diagnostico=self._diagnosticar_tipo(expr),
                 estrategia=estrategia,
@@ -218,6 +228,7 @@ class Aritmetica:
                 advertencias=advertencias,
                 es_trivial=False,
                 entrada=expresion,
+                restricciones=restricciones,
             )
 
         except Exception as e:
