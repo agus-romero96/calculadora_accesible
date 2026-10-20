@@ -27,6 +27,7 @@ from sympy import S
 
 from algebra.resolucion import MotorEcuaciones, SinExplicacion, _aproximado, _cuenta, describible, intervalo_texto
 from calculo.calculo import Calculo
+from calculo.derivabilidad import dominio_original, derivada_bilateral, avisar_potencias
 from calculo.pasos import PasoCalculo, texto, texto_paso
 from calculo.rectas import cuentas_sustitucion
 from i18n import tr
@@ -65,7 +66,7 @@ def lineas_resultado(valor: Dict[str, Any], x: Any, aproximar: bool = True) -> L
         lineas.append(tr("Mínimo local en {variable} = {punto}: f({punto}) = {valor}", variable=x, punto=texto(c),
                          valor=numero(fc)))
     if not valor["maximos"] and not valor["minimos"]:
-        lineas.append(tr("Sin extremos locales"))
+        lineas.append(tr("Sin extremos locales interiores") if valor.get("solo_interiores") else tr("Sin extremos locales"))
     lineas.append(tr("Creciente en {intervalos}", intervalos=_conjunto_texto(valor["crece"])))
     lineas.append(tr("Decreciente en {intervalos}", intervalos=_conjunto_texto(valor["decrece"])))
     return lineas
@@ -98,8 +99,10 @@ class MotorExtremos:
 
     def resolver(self, expresion: str, variable: Optional[str] = None) -> ResultadoExtremos:
         try:
-            expr = self.parser.parsear(expresion).doit()
+            original = self.parser.parsear(expresion)
+            expr = original.doit()
             x, avisos = self.calculo._resolver_variable(expr, variable, "DERIVADA")
+            avisar_potencias(original, avisos)
             otras = sorted(s.name for s in expr.free_symbols - {x})
             if otras:
                 raise ValueError(tr("La función tiene otras letras ({letras}): el signo de la derivada dependería de su "
@@ -108,7 +111,10 @@ class MotorExtremos:
             if not expr.has(x):
                 raise ValueError(tr("La función es constante: su derivada es 0 en todos los puntos, así que no crece, "
                                     "no decrece y no tiene extremos que estudiar."))
-            return self._estudiar(expresion, expr, x, avisos)
+            dominio = dominio_original(original, x)
+            if dominio != S.Reals:
+                avisos.append(tr("Los extremos unilaterales del dominio no se clasifican en esta operación; se estudian los extremos interiores."))
+            return self._estudiar(expresion, expr, x, avisos, dominio)
         except ValueError as e:
             return ResultadoExtremos(tr("Error de Validación: {error}", error=str(e)), es_error=True)
         except Exception as e:
@@ -116,28 +122,28 @@ class MotorExtremos:
 
     # --- El cálculo (SymPy) ---
 
-    def _calcular(self, expr: Any, x: Any) -> Tuple[Any, Any, List[Any], Dict[str, Any]]:
+    def _calcular(self, expr: Any, x: Any, dominio=None) -> Tuple[Any, Any, List[Any], Dict[str, Any]]:
         """(dominio, f', puntos que separan los intervalos, valor) con SymPy, sin explicar."""
-        dominio = sympy.calculus.util.continuous_domain(expr, x, S.Reals)
+        dominio = sympy.calculus.util.continuous_domain(expr, x, S.Reals) if dominio is None else dominio
         if not describible(dominio) or isinstance(dominio, sympy.FiniteSet):
             raise ValueError(tr("No se puede estudiar el dominio de esta función con los métodos de la calculadora."))
         df = sympy.simplify(sympy.diff(expr, x))
-        # Puntos del dominio donde f' no existe (x^(2/3) en 0): pueden ser extremos, pero aún no se estudian
+        # No se interpreta sign(0) como la derivada de Abs en una esquina.
         try:
-            # Solo en el interior: en un extremo del dominio (sqrt(x) en 0) no importa, los intervalos son abiertos
-            sin_derivada = sympy.Intersection(sympy.calculus.util.singularities(df, x, S.Reals), dominio.interior)
-        except Exception:
-            sin_derivada = S.EmptySet
-        if sin_derivada != S.EmptySet:
-            raise ValueError(tr("La derivada no existe en {puntos}, que está en el dominio de la función: ahí puede haber "
-                                "un pico. Esta operación estudia funciones derivables en todo su dominio.",
-                                puntos=", ".join(f"{x} = {texto(p)}" for p in sin_derivada)
-                                if isinstance(sin_derivada, sympy.FiniteSet) else texto(sin_derivada)))
+            regular = sympy.calculus.util.continuous_domain(df, x, S.Reals)
+            pendiente_de_estudio = dominio.interior - regular
+        except Exception as exc:
+            raise ValueError(tr("No soportado: no se puede certificar la derivabilidad en el interior del dominio; puede haber esquinas, cúspides o extremos no derivables.")) from exc
+        if pendiente_de_estudio != S.EmptySet:
+            raise ValueError(tr("No soportado: hay puntos interiores donde la derivabilidad no está certificada; pueden ser esquinas, cúspides o extremos no derivables."))
         criticos = sympy.solveset(df, x, dominio)
         if not isinstance(criticos, sympy.FiniteSet) and criticos != S.EmptySet:
             raise ValueError(tr("La derivada se anula en infinitos puntos (o no se pueden hallar): esta operación "
                                 "estudia funciones con un número finito de puntos críticos."))
-        criticos = sorted(criticos, key=float) if criticos != S.EmptySet else []
+        criticos = sorted(criticos.intersect(dominio.interior), key=float) if criticos != S.EmptySet else []
+        for c in criticos:
+            if derivada_bilateral(expr, expr, x, c) != 0:
+                raise ValueError(tr("No concluyente: un cero simbólico no es un punto estacionario demostrado."))
         maximos, minimos, crece, decrece = [], [], [], []
         piezas = list(dominio.args) if isinstance(dominio, sympy.Union) else [dominio]
         for pieza in piezas:
@@ -159,14 +165,17 @@ class MotorExtremos:
                     # Sin cambio de signo (x^3 en 0): la función sigue creciendo (o decreciendo) a través de c
                     (crece if izquierda > 0 else decrece).append(sympy.FiniteSet(c))
         valor = {"criticos": sympy.FiniteSet(*criticos), "maximos": maximos, "minimos": minimos,
+                 "solo_interiores": dominio != S.Reals,
                  "crece": sympy.Union(*crece) if crece else S.EmptySet,
                  "decrece": sympy.Union(*decrece) if decrece else S.EmptySet}
         separadores = sorted(set(criticos) | {e for p in piezas for e in (p.start, p.end) if e.is_finite}, key=float)
         return dominio, df, separadores, valor
 
-    def _estudiar(self, entrada: str, expr: Any, x: Any, avisos: List[str]) -> ResultadoExtremos:
-        dominio, df, separadores, valor = self._calcular(expr, x)
+    def _estudiar(self, entrada: str, expr: Any, x: Any, avisos: List[str], dominio=None) -> ResultadoExtremos:
+        dominio, df, separadores, valor = self._calcular(expr, x, dominio)
         try:
+            if dominio != sympy.calculus.util.continuous_domain(expr, x, S.Reals):
+                raise SinExplicacion()
             pasos = self._explicar(entrada, expr, x, dominio, df, valor, avisos)
         except SinExplicacion:
             pasos = []
@@ -294,8 +303,7 @@ class MotorExtremos:
         ecuacion = sympy.expand(polinomio)
         pasos.append(PasoCalculo(
             tr("Puntos críticos: resolver f'({variable}) = 0", variable=x),
-            regla=tr("un punto crítico es un valor del dominio donde la derivada vale 0 (la tangente es horizontal): "
-                     "ahí puede haber un máximo o un mínimo."),
+            regla=tr("se buscan puntos estacionarios: puntos interiores donde existe la derivada y vale 0. Un punto crítico también puede ser no derivable; esos casos requieren otro estudio."),
             partes=f"f'({x}) = {texto(df_explicada)}.",
             calculo=tuple(lineas) or (tr("Igualamos la derivada a 0."),),
             queda=f"{texto(ecuacion)} = 0"))
@@ -338,7 +346,8 @@ class MotorExtremos:
                 regla=tr("Propiedad del producto nulo: si un producto vale 0, alguno de sus factores vale 0."),
                 partes=tr("{expresion} = {producto}.", expresion=texto(ecuacion), producto=texto(producto)),
                 calculo=tuple(cuentas) or (tr("Los factores de grado 2 se resuelven a continuación."),),
-                queda=tr(" o ").join(f"{x} = {texto(r)}" for r in sorted(set(raices), key=float)) or tr("ninguno")))
+                queda=tr(" o ").join([f"{x} = {texto(r)}" for r in sorted(set(raices), key=float)]
+                                     + [f"{texto(f)} = 0" for f in otros]) or tr("ninguno")))
             for f in otros:
                 self.ecuaciones._polinomica(f, S.Zero, "=", x, pasos)
         criticos = sorted(valor["criticos"], key=float)

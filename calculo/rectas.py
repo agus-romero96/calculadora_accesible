@@ -10,8 +10,8 @@ calculo/pasos.py (Regla, En este caso, las cuentas y Queda):
   6. Recta normal, igual que la tangente.
   7. Comprobación: las dos rectas pasan por el punto y m*m_n = -1.
 
-Si la derivada no existe en x0 (|x| en 0) no hay tangente; si es infinita (raíz cúbica en 0),
-la tangente es vertical. Las rectas se comparan con las que da SymPy directamente.
+Se verifican continuidad, dominio y cocientes incrementales laterales. Una tangente
+vertical exige límites infinitos compatibles; los extremos unilaterales se identifican.
 """
 from __future__ import annotations
 
@@ -23,6 +23,7 @@ from sympy import S
 
 from algebra.ecuaciones import despejar, sustituir
 from calculo.calculo import Calculo
+from calculo.derivabilidad import cocientes, avisar_potencias
 from calculo.pasos import PasoCalculo, entre_parentesis, suma_texto, texto, texto_paso
 from i18n import tr
 from pasos_aritmetica import ExplicadorEvaluar, SinExplicacion
@@ -38,10 +39,6 @@ class ResultadoRectas:
     expresion: Any = None
     punto: Any = None             # (x0, y0)
     avisos: List[str] = field(default_factory=list)
-
-
-def _infinita(v: Any) -> bool:
-    return v in (S.Infinity, S.NegativeInfinity, S.ComplexInfinity)
 
 
 def _restado(v: Any) -> str:
@@ -138,21 +135,23 @@ class MotorRectas:
 
     def resolver(self, expresion: str, variable: Optional[str], punto: str) -> ResultadoRectas:
         try:
-            expr = self.parser.parsear(expresion).doit()
+            original = self.parser.parsear(expresion)
+            expr = original.doit()
             x, avisos = self.calculo._resolver_variable(expr, variable, "DERIVADA")
+            avisar_potencias(original, avisos)
             if not str(punto or "").strip():
                 raise ValueError(tr("Falta el punto x0 donde se traza la tangente."))
             x0 = self.parser.parsear(punto).doit()
             if x0.free_symbols or not x0.is_real or not x0.is_finite:
                 raise ValueError(tr("El punto debe ser un número real (ej: 1, -2, pi/4)."))
             y = self.parser.simbolo("y" if x.name != "y" else "z")
-            return self._explicar(expresion, expr, x, y, x0, avisos)
+            return self._explicar(expresion, expr, x, y, x0, avisos, original)
         except ValueError as e:
             return ResultadoRectas(tr("Error de Validación: {error}", error=str(e)), es_error=True)
         except Exception as e:
             return ResultadoRectas(tr("Error del Sistema: {error}", error=str(e)), es_error=True)
 
-    def _explicar(self, entrada: str, expr: Any, x: Any, y: Any, x0: Any, avisos: List[str]) -> ResultadoRectas:
+    def _explicar(self, entrada: str, expr: Any, x: Any, y: Any, x0: Any, avisos: List[str], original: Any = None) -> ResultadoRectas:
         nombre = f"{x}0"
         # 1. El punto de tangencia
         y0 = sympy.simplify(expr.subs(x, x0))
@@ -184,35 +183,32 @@ class MotorRectas:
         avisos += [a for a in derivada.advertencias if a not in avisos]
 
         # 3. La pendiente
-        m = sympy.simplify(df.subs(x, x0))
-        # Límites laterales de f'(x): solo los de un lado donde la función es real (sqrt(x) en 0: el derecho)
-        laterales = []
-        for lado in ("-", "+"):
-            try:
-                limite = sympy.limit(df, x, x0, dir=lado)
-            except Exception:
-                continue
-            if limite.is_real or limite in (S.Infinity, S.NegativeInfinity):
-                laterales.append(limite)
-        if len(laterales) == 2 and laterales[0] != laterales[1]:
+        lados = cocientes(expr if original is None else original, expr, x, x0)
+        laterales = list(lados.values())
+        if len(laterales) == 2 and sympy.simplify(laterales[0] - laterales[1]) != 0 and laterales[0] != laterales[1]:
             izquierda, derecha = laterales
+            tipo = tr("cúspide") if all(v in (S.Infinity, S.NegativeInfinity) for v in laterales) else tr("esquina o punto no derivable")
             raise ValueError(tr("La función no es derivable en {variable} = {valor} (la derivada vale {izquierda} por la "
-                                "izquierda y {derecha} por la derecha): la curva tiene un pico y no hay una recta tangente "
-                                "única.", variable=x, valor=texto(x0), izquierda=texto(izquierda), derecha=texto(derecha)))
-        vertical = _infinita(m) or (bool(laterales) and all(_infinita(v) for v in laterales))
-        if not vertical and (m is S.NaN or not m.is_real):
+                                "izquierda y {derecha} por la derecha): {tipo}. No se ofrece una tangente única.",
+                                variable=x, valor=texto(x0), izquierda=texto(izquierda), derecha=texto(derecha), tipo=tipo))
+        if not laterales:
+            raise ValueError(tr("No concluyente: no se puede certificar un entorno real lateral."))
+        m = laterales[0]
+        vertical = m in (S.Infinity, S.NegativeInfinity) and all(v == m for v in laterales)
+        if not vertical and (m.is_real is not True or m.is_finite is not True):
             raise ValueError(tr("La derivada no existe en {variable} = {valor}: no hay recta tangente.",
                                 variable=x, valor=texto(x0)))
+        if len(lados) == 1:
+            avisos.append(tr("Extremo unilateral del dominio: se ofrece la tangente lateral, no una derivada bilateral."))
+        avisos.append(tr("Cociente incremental: {laterales}.", laterales="; ".join(
+            (tr("izquierda") if lado == "-" else tr("derecha")) + ": " + texto(v) for lado, v in lados.items())))
         pendiente = PasoCalculo(
             tr("Pendiente de la recta tangente"),
-            regla=tr("la pendiente de la tangente es m = f'({x0}): la derivada evaluada en el punto.", x0=nombre),
+            regla=tr("la pendiente se obtiene del límite del cociente incremental; en un borde solo se usa el lado real disponible. Un límite infinito no es una derivada real finita."),
             partes=tr("f'({variable}) = {derivada} y {x0} = {valor}.", variable=x, derivada=texto(df), x0=nombre,
                       valor=texto(x0)),
             calculo=tuple(self._cuentas(df, x, x0, m)) if not vertical else (
-                tr("Sustituimos {variable} = {valor}: {cuenta}.", variable=x, valor=texto(x0),
-                   cuenta=sustituir(df, {x: x0})),
-                tr("La derivada crece sin límite al acercarse a {valor} (hay una división entre 0): la pendiente es "
-                   "infinita y la tangente es vertical.", valor=texto(x0))),
+                tr("El cociente incremental tiende al mismo infinito por todos los lados reales disponibles: la pendiente es infinita y la tangente es vertical."),),
             queda=f"m = {texto(m)}" if not vertical else tr("pendiente infinita: tangente vertical"))
         pasos.append(pendiente)
 
@@ -262,8 +258,8 @@ class MotorRectas:
             normal = sympy.Eq(y, valor_normal)
         tangente = sympy.Eq(y, tangente)
 
-        # La verdad: las rectas que da SymPy directamente
-        m_verdad = sympy.diff(expr, x).subs(x, x0)
+        # Comprobar las rectas con la pendiente certificada por cocientes incrementales.
+        m_verdad = m
         t_verdad = expr.subs(x, x0) + m_verdad * (x - x0)
         coinciden = sympy.simplify(tangente.rhs - t_verdad) == 0
         if mn is not None:
