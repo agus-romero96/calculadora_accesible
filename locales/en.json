@@ -2079,7 +2079,6 @@
   "Pi": "Pi",
   "Número e": "Number e",
   "Infinito": "Infinity",
-  "Elija una estructura o función:": "Choose a structure or function:",
   "Insertar expresión...": "Insert expression...",
   "Insertar estructuras": "Insert structures",
   "Constantes y símbolos compatibles": "Supported constants and symbols",
@@ -2098,5 +2097,8 @@
   "Número e elevado al argumento.": "Number e raised to the argument.",
   "Distancia del argumento al cero.": "Distance of the argument from zero.",
   "Escalón unitario: cero para negativos y uno para positivos; un medio en cero.": "Unit step: zero for negative values and one for positive values; one half at zero.",
-  "Distribución delta de Dirac, utilizada en transformadas de Laplace.": "Dirac delta distribution, used in Laplace transforms."
+  "Distribución delta de Dirac, utilizada en transformadas de Laplace.": "Dirac delta distribution, used in Laplace transforms.",
+  "Estructuras matemáticas": "Mathematical structures",
+  "Función o estructura:": "Function or structure:",
+  "Al aceptar se abrirá el constructor con este argumento como primer dato.": "Accept to open the constructor with this argument as its first input."
 }

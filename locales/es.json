@@ -2062,7 +2062,6 @@
   "Pi": "Pi",
   "Número e": "Número e",
   "Infinito": "Infinito",
-  "Elija una estructura o función:": "Elija una estructura o función:",
   "Insertar expresión...": "Insertar expresión...",
   "Insertar estructuras": "Insertar estructuras",
   "Constantes y símbolos compatibles": "Constantes y símbolos compatibles",
@@ -2098,5 +2097,8 @@
   "Número e elevado al argumento.": "Número e elevado al argumento.",
   "Distancia del argumento al cero.": "Distancia del argumento al cero.",
   "Escalón unitario: cero para negativos y uno para positivos; un medio en cero.": "Escalón unitario: cero para negativos y uno para positivos; un medio en cero.",
-  "Distribución delta de Dirac, utilizada en transformadas de Laplace.": "Distribución delta de Dirac, utilizada en transformadas de Laplace."
+  "Distribución delta de Dirac, utilizada en transformadas de Laplace.": "Distribución delta de Dirac, utilizada en transformadas de Laplace.",
+  "Estructuras matemáticas": "Estructuras matemáticas",
+  "Función o estructura:": "Función o estructura:",
+  "Al aceptar se abrirá el constructor con este argumento como primer dato.": "Al aceptar se abrirá el constructor con este argumento como primer dato."
 }

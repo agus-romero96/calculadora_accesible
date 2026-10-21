@@ -1,4 +1,6 @@
 """Catálogo, diálogo de funciones y menú nativo compartidos por ambos editores."""
+from dataclasses import dataclass
+
 import wx
 from i18n import N_, tr
 from catalogo_matematico import CATEGORIAS, FUNCIONES, POR_NOMBRE, funciones_categoria
@@ -10,6 +12,15 @@ ESTRUCTURAS = (("fraccion", N_("Fracción")), ("potencia", N_("Potencia")),
 CONSTANTES = (("pi", N_("Pi")), ("e", N_("Número e")), ("oo", N_("Infinito")))
 
 class DialogoFuncion(DialogoConstructor):
+    categorias = CATEGORIAS
+    etiqueta_lista = N_("Función:")
+
+    def _opciones_categoria(self, categoria):
+        return funciones_categoria(categoria)
+
+    def _categoria_nombre(self, nombre):
+        return POR_NOMBRE[nombre].categoria
+
     def __init__(self, parent, nombre="", inicial=""):
         # Reutiliza botones, validación asíncrona, errores y cancelación del constructor.
         self.funcion = nombre or FUNCIONES[0].canonica
@@ -18,17 +29,17 @@ class DialogoFuncion(DialogoConstructor):
         sizer = self.GetSizer()
         bloque = wx.BoxSizer(wx.VERTICAL)
         bloque.Add(wx.StaticText(self, label=tr("Categoría:")), 0, wx.TOP, 5)
-        self.categoria = wx.Choice(self, choices=[tr(v) for v in CATEGORIAS.values()], name=tr("Categoría:"))
+        self.categoria = wx.Choice(self, choices=[tr(v) for v in self.categorias.values()], name=tr("Categoría:"))
         bloque.Add(self.categoria, 0, wx.EXPAND | wx.BOTTOM, 5)
-        bloque.Add(wx.StaticText(self, label=tr("Función:")), 0)
-        self.lista = wx.ListBox(self, name=tr("Función:"), size=(400, 130))
+        bloque.Add(wx.StaticText(self, label=tr(self.etiqueta_lista)), 0)
+        self.lista = wx.ListBox(self, name=tr(self.etiqueta_lista), size=(400, 130))
         bloque.Add(self.lista, 0, wx.EXPAND | wx.BOTTOM, 5)
         self.descripcion = wx.StaticText(self, name=tr("Descripción:"))
         bloque.Add(self.descripcion, 0, wx.EXPAND)
         sizer.Insert(0, bloque, 0, wx.EXPAND | wx.ALL, 10)
         self.categoria.MoveBeforeInTabOrder(self.campos['argumento'])
         self.lista.MoveAfterInTabOrder(self.categoria)
-        self.categoria.SetSelection(list(CATEGORIAS).index(POR_NOMBRE[self.funcion].categoria))
+        self.categoria.SetSelection(list(self.categorias).index(self._categoria_nombre(self.funcion)))
         self._categoria(None)
         self.lista.SetSelection([f.canonica for f in self.disponibles].index(self.funcion))
         self._funcion(None)
@@ -39,7 +50,7 @@ class DialogoFuncion(DialogoConstructor):
         self.categoria.SetFocus()
 
     def _categoria(self, event):
-        self.disponibles = funciones_categoria(list(CATEGORIAS)[self.categoria.GetSelection()])
+        self.disponibles = self._opciones_categoria(list(self.categorias)[self.categoria.GetSelection()])
         self.lista.Set([tr(f.nombre) for f in self.disponibles])
         self.lista.SetSelection(0)
         self._funcion(None)
@@ -66,19 +77,64 @@ class DialogoFuncion(DialogoConstructor):
         self.lista.Enable(habilitar)
 
 
+@dataclass(frozen=True)
+class OpcionEstructura:
+    canonica: str
+    nombre: str
+    descripcion: str
+
+
+class DialogoCatalogo(DialogoFuncion):
+    categorias = {"estructuras": N_("Estructuras matemáticas"), **CATEGORIAS}
+    etiqueta_lista = N_("Función o estructura:")
+
+    def __init__(self, parent, inicial=""):
+        super().__init__(parent, "fraccion", inicial)
+        self.SetTitle(tr("Insertar expresión..."))
+
+    def _categoria_nombre(self, nombre):
+        if nombre in dict(ESTRUCTURAS):
+            return "estructuras"
+        return super()._categoria_nombre(nombre)
+
+    def _opciones_categoria(self, categoria):
+        if categoria == "estructuras":
+            return tuple(OpcionEstructura(tipo, nombre,
+                N_("Al aceptar se abrirá el constructor con este argumento como primer dato."))
+                for tipo, nombre in ESTRUCTURAS)
+        return super()._opciones_categoria(categoria)
+
+    def _aceptar(self, event):
+        if self._token is not None:
+            return
+        categoria = list(self.categorias)[self.categoria.GetSelection()]
+        if categoria != "estructuras":
+            return super()._aceptar(event)
+        from dialogos_constructores import solicitar_expresion
+        campo = self.campos['argumento']
+        seleccion = campo.GetSelection()
+        cursor = campo.GetInsertionPoint()
+        tipo = self.disponibles[self.lista.GetSelection()].canonica
+        expresion = solicitar_expresion(self, tipo, campo.GetValue())
+        if expresion is not None:
+            self.expresion = expresion
+            self.EndModal(wx.ID_OK)
+        else:
+            campo.SetFocus()
+            if seleccion[0] == seleccion[1]:
+                campo.SetInsertionPoint(cursor)
+            else:
+                campo.SetSelection(*seleccion)
+
+
 def solicitar_catalogo(parent, inicial):
-    opciones = list(ESTRUCTURAS) + [("funcion:" + f.canonica, f.nombre) for f in FUNCIONES]
-    opciones += [("constante:" + valor, nombre) for valor, nombre in CONSTANTES]
-    dialogo = wx.SingleChoiceDialog(parent, tr("Elija una estructura o función:"),
-                                    tr("Insertar expresión..."), [tr(n) for _, n in opciones])
+    dialogo = DialogoCatalogo(parent, inicial)
     try:
-        if dialogo.ShowModal() != wx.ID_OK:
-            return None
-        tipo = opciones[dialogo.GetSelection()][0]
+        if dialogo.ShowModal() == wx.ID_OK:
+            return dialogo.expresion
+        return None
     finally:
         dialogo.Destroy()
-    from dialogos_constructores import solicitar_expresion
-    return solicitar_expresion(parent, tipo, inicial)
 
 
 def crear_menu(parent, campo):
