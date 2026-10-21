@@ -16,6 +16,7 @@ from historial import Historial, ruta_historial
 from proceso_calculo import ProcesoCalculo
 from puente import OPERACION, REGISTRO, CoreMatematico, ResultadoOperacion
 import ventana_historial
+import interfaz_guiada
 from _version import __version__
 
 
@@ -137,9 +138,12 @@ class CalculadoraAccesible(wx.Frame):
         self.btn_calc = wx.Button(panel)
         self.btn_calc.Bind(wx.EVT_BUTTON, self.on_evaluar_inteligente)
         self.btn_clear = wx.Button(panel)
+        self.btn_guiado = wx.Button(panel)
+        self.btn_guiado.Bind(wx.EVT_BUTTON, self.on_calculo_guiado)
         self.btn_clear.Bind(wx.EVT_BUTTON, self.on_limpiar)
         btn_sizer.Add(self.btn_calc, 1, wx.RIGHT | wx.EXPAND, 5)
         btn_sizer.Add(self.btn_clear, 0, wx.EXPAND)
+        btn_sizer.Add(self.btn_guiado, 0, wx.LEFT | wx.EXPAND, 5)
         sizer_main.Add(btn_sizer, flag=wx.EXPAND | wx.ALL, border=10)
 
         # Output
@@ -160,6 +164,8 @@ class CalculadoraAccesible(wx.Frame):
         self.lbl_input.SetLabel(tr("&Entrada Matemática:"))
         self.btn_calc.SetLabel(tr("&Calcular (Ctrl+Enter)"))
         self.btn_clear.SetLabel(tr("&Borrar (Ctrl+Retroceso)"))
+        self.btn_guiado.SetLabel(tr("Nuevo cálculo guiado"))
+        self.btn_guiado.SetName(tr("Nuevo cálculo guiado"))
         self.lbl_res.SetLabel(tr("&Resultados:"))
         self.panel.Layout()
 
@@ -184,6 +190,7 @@ class CalculadoraAccesible(wx.Frame):
         # Menús de operaciones, construidos a partir del registro (puente.REGISTRO)
         menus = {clave: wx.Menu() for clave in self.MENUS}
         menus["operaciones"].Append(1001, tr("Evaluar") + "\tCtrl+Enter")
+        self._item(menus["operaciones"], N_("Nuevo cálculo guiado"), None, self.on_calculo_guiado)
         for op in REGISTRO:
             if op.menu is None:
                 continue
@@ -428,6 +435,19 @@ class CalculadoraAccesible(wx.Frame):
             return dlg.GetValue().strip()
         finally:
             dlg.Destroy()
+
+    def on_calculo_guiado(self, event):
+        if self._calculo_actual is not None:
+            self._avisar_ocupado()
+            return
+        foco = wx.Window.FindFocus()
+        try:
+            solicitud = interfaz_guiada.solicitar_calculo(self)
+        finally:
+            (foco or self.input_text).SetFocus()
+        if solicitud is not None:
+            op, args = solicitud
+            self._ejecutar(op.metodo, args, tr(op.descripcion))
 
     def on_evaluar_inteligente(self, event):
         txt = self.obtener_texto()

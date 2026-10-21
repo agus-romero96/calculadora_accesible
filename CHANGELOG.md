@@ -6,6 +6,10 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Sin publicar]
 
+### Añadido
+
+- **Interfaz matemática guiada (fase 6.5A)**: botón y opción «Nuevo cálculo guiado», con selección descrita de ecuación, derivada y límite. Cada formulario nativo recoge los datos de una vez y ofrece plantillas editables de fracciones, raíces, potencias y paréntesis. Reutiliza el registro y la ejecución en proceso separado, con historial, exportación y cancelación existentes. Incluye traducciones y pruebas de argumentos, selección, cancelación, plantillas y regresión del modo libre. La validación real con NVDA y JAWS queda pendiente; véase `ACCESIBILIDAD_GUIADA.md`. Se conserva la versión 1.7.0.
+
 ### Corregido
 
 - **Fidelidad y accesibilidad de las exportaciones**: MathML transforma `mfenced` mediante XML estructural y conserva separadores, delimitadores, conjuntos, intervalos, matrices y agrupaciones anidadas. Taylor conserva el nombre y orden del polinomio y sus potencias centradas; la derivada implícita identifica ambas variables, y extremos usa filas matemáticas y un entorno LaTeX `aligned`. Los resultados recuperados sin objetos SymPy conservan su texto y distinguen «No existe» de «No concluyente», sin duplicar encabezados ni mostrar `None`. Las salidas abreviadas y las fórmulas copiadas conservan restricciones y salvedades matemáticas del informe. Se refuerzan la identidad y los parámetros en texto plano y el escapado de Markdown y LaTeX, sin sustituir barras verticales de la entrada. Se añaden pruebas de XML, datos, persistencia, formatos y envío de texto al portapapeles con wx sustituido; la compatibilidad efectiva con lectores de pantalla queda pendiente de validación manual.
