@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 from i18n import N_, tr
 from puente import OPERACION
+from calculo.taylor import ORDEN_MAXIMO
 
 
 @dataclass(frozen=True)
@@ -11,6 +12,7 @@ class CampoGuiado:
     etiqueta: str
     inicial: str | int = ""
     opciones: tuple = ()
+    tipo: str = "texto"
 
 
 @dataclass(frozen=True)
@@ -61,6 +63,22 @@ _FORMULARIOS = (
         (FUNCION, VARIABLE_INTEGRACION,
          CampoGuiado("inferior", N_("Límite inferior:")),
          CampoGuiado("superior", N_("Límite superior:")))),
+    FormularioGuiado("derivada_n", N_("Derivada de orden N"),
+        N_("Derive varias veces. Ejemplo: x^4, variable x, orden 3."),
+        (FUNCION, VARIABLE, CampoGuiado("orden", N_("Orden de la derivada (entero, mínimo 1):"), "1", tipo="orden"))),
+    FormularioGuiado("tangente", N_("Recta tangente y normal"),
+        N_("Calcule las rectas en un punto. Ejemplo: x^2, variable x, punto 1."),
+        (FUNCION, VARIABLE, CampoGuiado("punto", N_("Punto de tangencia (por ejemplo: 1, 1/2):"), tipo="punto"))),
+    FormularioGuiado("extremos", N_("Extremos y crecimiento"),
+        N_("Estudie los extremos y el crecimiento. Ejemplo: x^3 - 3*x, variable x."),
+        (FUNCION, VARIABLE)),
+    FormularioGuiado("taylor", N_("Polinomio de Taylor"),
+        N_("Aproxime una función cerca de un punto. Ejemplo: exp(x), variable x, orden 3, punto 0."),
+        (FUNCION, VARIABLE, CampoGuiado("orden", N_("Orden del polinomio (entero de 0 a 15):"), "3", tipo="orden"),
+         CampoGuiado("punto", N_("Punto de expansión (por ejemplo: 0, pi/2):"), "0", tipo="punto"))),
+    FormularioGuiado("implicita", N_("Derivada implícita"),
+        N_("Derive una ecuación con dos variables. Ejemplo: x^2 + y^2 = 25."),
+        (CampoGuiado("expresion", N_("Ecuación implícita:"), tipo="ecuacion"),)),
 )
 
 FORMULARIOS = {formulario.clave: formulario for formulario in _FORMULARIOS}
@@ -74,16 +92,26 @@ class CampoObligatorio(ValueError):
 
 
 def construir_argumentos(clave, expresion, variable="x", tendencia="", direccion=0,
-                        inferior="", superior=""):
+                        inferior="", superior="", orden="", punto=""):
     """Comprueba datos obligatorios y adapta su orden; el núcleo interpreta la matemática."""
     if clave not in FORMULARIOS:
         raise ValueError(clave)
     formulario = FORMULARIOS[clave]
     datos = dict(expresion=expresion.strip(), variable=variable.strip(), tendencia=tendencia.strip(),
-                 inferior=inferior.strip(), superior=superior.strip())
+                 inferior=inferior.strip(), superior=superior.strip(),
+                 orden=str(orden).strip(), punto=punto.strip())
     for campo in formulario.argumentos:
         if not datos[campo]:
             raise CampoObligatorio(campo, tr("Complete este campo antes de calcular."))
+    if "orden" in formulario.argumentos:
+        try:
+            datos["orden"] = int(datos["orden"])
+        except ValueError:
+            raise CampoObligatorio("orden", tr("El orden debe ser un número entero.")) from None
+        if clave == "derivada_n" and datos["orden"] < 1:
+            raise CampoObligatorio("orden", tr("El orden de derivación debe ser 1 o mayor."))
+        if clave == "taylor" and not 0 <= datos["orden"] <= ORDEN_MAXIMO:
+            raise CampoObligatorio("orden", tr("El orden debe estar entre 0 y {maximo}.", maximo=ORDEN_MAXIMO))
     if clave == "ecuacion" and not any(signo in datos["expresion"] for signo in "=<>≤≥"):
         raise CampoObligatorio("expresion", tr("Escriba una ecuación o inecuación con un signo =, <, >, <= o >= (ej: 2*x + 1 = 7)."))
     if clave == "limite":

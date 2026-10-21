@@ -55,3 +55,22 @@ Registrar lector y versión, versión de Windows, idioma, fecha, resultado e inc
 Para una función, Aceptar valida el argumento mediante el mismo constructor asíncrono e inserta la expresión. Para una estructura, Aceptar abre el constructor existente con el argumento como primer dato, permitiendo completar el denominador o exponente cuando corresponde. Cancelar ese constructor mantiene abierto el catálogo y conserva su argumento; cancelar el catálogo deja intactos el texto y la selección del editor. La inserción final conserva el adaptador de foco y cursor. No se cambian los botones rápidos ni el menú contextual.
 
 Las pruebas automáticas verifican las seis categorías, el filtrado de las 23 funciones, etiquetas en español e inglés, el recorrido de Tab/Shift+Tab, la ausencia de cambios de foco al cambiar de categoría, la conservación del argumento y su selección, la inserción y la cancelación con retorno al editor. Sigue pendiente comprobar con NVDA y JAWS reales, en ambos idiomas, la lectura del nuevo selector y sus descripciones, navegación por flechas, Enter/Escape, ratón y escalado de pantalla. Los eventos automatizados no certifican los lectores de pantalla.
+
+## Entrega C: cálculo avanzado
+
+Se añaden cinco opciones al selector compartido: derivada de orden N, recta tangente y normal, extremos y crecimiento, polinomio de Taylor y derivada implícita. Reutilizan el diálogo declarativo, los controles nativos, los constructores y las categorías del catálogo B.1. Los ocho formularios anteriores conservan su orden.
+
+El orden se convierte a entero antes del envío: derivadas desde 1, sin máximo impuesto por la interfaz; Taylor desde 0 hasta el máximo 15 del motor. Los puntos se envían como texto matemático, admitiendo fracciones y constantes. La ecuación implícita se envía como una sola cadena; el motor identifica sus dos variables. No se interpreta ni calcula la matemática en el formulario. Las descripciones del progreso incluyen el orden elegido.
+
+Los errores locales identifican la etiqueta del campo, conservan todos los valores y devuelven el foco al control. Los errores del proceso recuperan el formulario con los datos literales y el foco inicial en la función o ecuación; el protocolo del motor no identifica un campo erróneo, por lo que no se adivina uno. Solo pulsar Calcular vuelve a enviar. Los resultados válidos siguen la presentación, historial y exportación compartidos, según `ResultadoOperacion.es_error`.
+
+Limitaciones matemáticas: se mantienen íntegramente las comprobaciones de dominio, derivabilidad bilateral de Taylor, tangentes unilaterales y verticales y situaciones no certificadas de extremos. La interfaz no amplía el alcance de estos motores.
+
+Verificación manual pendiente con NVDA y JAWS reales, en español e inglés:
+
+- Recorrer las trece opciones; comprobar lectura de ejemplos, etiquetas y orden de Tab/Shift+Tab, foco inicial, Enter para calcular y Escape para cancelar.
+- En cada formulario nuevo abrir el catálogo por botón, Shift+F10, Aplicaciones y clic derecho. Recorrer las seis categorías, insertar funciones trigonométricas, inversas, hiperbólicas, logaritmos y exponenciales, además de las cuatro estructuras. Comprobar selección, cursor y foco al aceptar y cancelar.
+- Probar órdenes vacíos, decimales y fuera de rango, puntos incorrectos y ecuaciones incompletas. Corregir sin perder datos, cancelar la recuperación y comprobar que no se inicia otro cálculo automáticamente.
+- Calcular los cinco ejemplos de la entrega; comprobar lectura desde la primera línea, historial y exportaciones. Probar cancelación durante un cálculo y editor libre. Revisar el diálogo con escalados de 150 % y 200 %.
+
+Registrar lector y versión, Windows, idioma, fecha e incidencias. Las pruebas con controles wx reales y eventos programados no certifican el comportamiento de NVDA o JAWS; estas comprobaciones manuales siguen pendientes.

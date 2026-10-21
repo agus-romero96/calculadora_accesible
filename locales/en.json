@@ -2100,5 +2100,15 @@
   "Distribución delta de Dirac, utilizada en transformadas de Laplace.": "Dirac delta distribution, used in Laplace transforms.",
   "Estructuras matemáticas": "Mathematical structures",
   "Función o estructura:": "Function or structure:",
-  "Al aceptar se abrirá el constructor con este argumento como primer dato.": "Accept to open the constructor with this argument as its first input."
+  "Al aceptar se abrirá el constructor con este argumento como primer dato.": "Accept to open the constructor with this argument as its first input.",
+  "Aproxime una función cerca de un punto. Ejemplo: exp(x), variable x, orden 3, punto 0.": "Approximate a function near a point. Example: exp(x), variable x, order 3, point 0.",
+  "Calcule las rectas en un punto. Ejemplo: x^2, variable x, punto 1.": "Calculate the lines at a point. Example: x^2, variable x, point 1.",
+  "Derive una ecuación con dos variables. Ejemplo: x^2 + y^2 = 25.": "Differentiate an equation with two variables. Example: x^2 + y^2 = 25.",
+  "Derive varias veces. Ejemplo: x^4, variable x, orden 3.": "Differentiate several times. Example: x^4, variable x, order 3.",
+  "Ecuación implícita:": "Implicit equation:",
+  "Estudie los extremos y el crecimiento. Ejemplo: x^3 - 3*x, variable x.": "Study extrema and growth. Example: x^3 - 3*x, variable x.",
+  "Orden de la derivada (entero, mínimo 1):": "Derivative order (integer, minimum 1):",
+  "Orden del polinomio (entero de 0 a 15):": "Polynomial order (integer from 0 to 15):",
+  "Punto de expansión (por ejemplo: 0, pi/2):": "Expansion point (for example: 0, pi/2):",
+  "Punto de tangencia (por ejemplo: 1, 1/2):": "Tangency point (for example: 1, 1/2):"
 }

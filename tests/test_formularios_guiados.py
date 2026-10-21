@@ -20,8 +20,9 @@ DATOS = {
 
 def test_operaciones_del_registro_sin_cambiar_claves_ni_metodos():
     assert [clave for clave, _, _ in OPCIONES] == [
-        'ecuacion', 'derivar', 'limite', 'evaluar', 'simplificar', 'factorizar', 'integrar', 'integral_definida']
-    assert len(OPCIONES) == len(FORMULARIOS) == 8
+        'ecuacion', 'derivar', 'limite', 'evaluar', 'simplificar', 'factorizar', 'integrar', 'integral_definida',
+        'derivada_n', 'tangente', 'extremos', 'taylor', 'implicita']
+    assert len(OPCIONES) == len(FORMULARIOS) == 13
     for clave, formulario in FORMULARIOS.items():
         assert formulario.operacion is OPERACION[clave]
         assert formulario.operacion in REGISTRO

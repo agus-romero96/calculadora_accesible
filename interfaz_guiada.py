@@ -63,6 +63,7 @@ class DialogoCalculo(wx.Dialog):
         botones.AddButton(calcular)
         botones.AddButton(cancelar)
         botones.Realize()
+        self.SetEscapeId(wx.ID_CANCEL)
         calcular.SetDefault()
         calcular.Bind(wx.EVT_BUTTON, self._aceptar)
         sizer.Add(botones, 0, wx.ALL | wx.ALIGN_RIGHT, 10)
@@ -124,7 +125,8 @@ class DialogoCalculo(wx.Dialog):
         try:
             self.argumentos = construir_argumentos(self.clave, **self.obtener_valores())
         except CampoObligatorio as error:
-            wx.MessageBox(str(error), tr("Datos del cálculo"), wx.OK | wx.ICON_INFORMATION, parent=self)
+            etiqueta = next(c.etiqueta for c in FORMULARIOS[self.clave].campos if c.clave == error.campo)
+            wx.MessageBox(tr(etiqueta) + "\n" + str(error), tr("Datos del cálculo"), wx.OK | wx.ICON_INFORMATION, parent=self)
             self.campos[error.campo].SetFocus()
             return
         self.EndModal(wx.ID_OK)
@@ -171,4 +173,5 @@ def iniciar_calculo_guiado(parent, anterior=None):
             parent.presentar_resultado(resultado)
 
     op, args = solicitud
-    parent._ejecutar(op.metodo, args, tr(op.descripcion), al_finalizar=terminado)
+    datos = dict(zip(FORMULARIOS[op.clave].argumentos, args))
+    parent._ejecutar(op.metodo, args, tr(op.descripcion, **datos), al_finalizar=terminado)

@@ -19,6 +19,11 @@ def aplicacion_wx():
 
 
 @pytest.mark.parametrize('clave,valores,campo', [
+    ('derivada_n', {'expresion': 'x^4', 'variable': 'x', 'orden': '0'}, 'orden'),
+    ('taylor', {'expresion': 'exp(x)', 'variable': 'x', 'orden': '16', 'punto': '0'}, 'orden'),
+    ('tangente', {'expresion': 'x^2', 'variable': 'x', 'punto': ' '}, 'punto'),
+    ('extremos', {'expresion': 'x^3', 'variable': ' '}, 'variable'),
+    ('implicita', {'expresion': ' '}, 'expresion'),
     ('ecuacion', {'expresion': ' 2*x+1 '}, 'expresion'),
     ('derivar', {'expresion': ' x^2 ', 'variable': ' '}, 'variable'),
     ('limite', {'expresion': ' t^2 ', 'variable': 't', 'tendencia': ' ', 'direccion': 2}, 'tendencia'),
@@ -172,6 +177,11 @@ class VentanaPrueba(wx.Dialog):
 
 
 @pytest.mark.parametrize('clave,valores,corregida,esperado', [
+    ('derivada_n', {'expresion': ' x^ ', 'variable': ' x ', 'orden': ' 3 '}, 'x^4', '24*x'),
+    ('taylor', {'expresion': ' exp( ', 'variable': ' x ', 'orden': ' 3 ', 'punto': ' 0 '}, 'exp(x)', 'x**3/6 + x**2/2 + x + 1'),
+    ('tangente', {'expresion': 'x^2', 'variable': 'x', 'punto': '('}, {'punto': '1'}, '[Eq(y, 2*x - 1), Eq(y, 3/2 - x/2)]'),
+    ('extremos', {'expresion': ' x^ ', 'variable': ' x '}, 'x', None),
+    ('implicita', {'expresion': 'x^2+y^2='}, 'x^2+y^2=25', '-x/y'),
     ('ecuacion', {'expresion': ' x+ = 1 '}, 'x+1=3', '{2}'),
     ('derivar', {'expresion': ' t^ ', 'variable': ' t '}, 't^3', '3*t**2'),
     ('limite', {'expresion': ' t+ ', 'variable': ' t ', 'tendencia': ' -2 ', 'direccion': 0}, 't+1', '-1'),
@@ -249,7 +259,8 @@ def test_error_del_proceso_recupera_datos_y_permite_corregir_o_cancelar(
         else:
             resultado, = padre.resultados
             assert not resultado.es_error
-            assert str(resultado.valor) == esperado
+            if esperado is not None:
+                assert str(resultado.valor) == esperado
             assert padre.focos == [(padre.output_text, 0)]
     finally:
         for timer in timers:

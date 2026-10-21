@@ -135,6 +135,11 @@ def aplicacion_wx():
 
 
 @pytest.mark.parametrize('clave,campos', [
+    ('derivada_n', ['expresion', 'variable', 'orden']),
+    ('tangente', ['expresion', 'variable', 'punto']),
+    ('extremos', ['expresion', 'variable']),
+    ('taylor', ['expresion', 'variable', 'orden', 'punto']),
+    ('implicita', ['expresion']),
     ('ecuacion', ['expresion']),
     ('derivar', ['expresion', 'variable']),
     ('limite', ['expresion', 'variable', 'tendencia']),

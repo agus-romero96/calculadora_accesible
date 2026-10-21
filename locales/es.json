@@ -2100,5 +2100,15 @@
   "Distribución delta de Dirac, utilizada en transformadas de Laplace.": "Distribución delta de Dirac, utilizada en transformadas de Laplace.",
   "Estructuras matemáticas": "Estructuras matemáticas",
   "Función o estructura:": "Función o estructura:",
-  "Al aceptar se abrirá el constructor con este argumento como primer dato.": "Al aceptar se abrirá el constructor con este argumento como primer dato."
+  "Al aceptar se abrirá el constructor con este argumento como primer dato.": "Al aceptar se abrirá el constructor con este argumento como primer dato.",
+  "Aproxime una función cerca de un punto. Ejemplo: exp(x), variable x, orden 3, punto 0.": "Aproxime una función cerca de un punto. Ejemplo: exp(x), variable x, orden 3, punto 0.",
+  "Calcule las rectas en un punto. Ejemplo: x^2, variable x, punto 1.": "Calcule las rectas en un punto. Ejemplo: x^2, variable x, punto 1.",
+  "Derive una ecuación con dos variables. Ejemplo: x^2 + y^2 = 25.": "Derive una ecuación con dos variables. Ejemplo: x^2 + y^2 = 25.",
+  "Derive varias veces. Ejemplo: x^4, variable x, orden 3.": "Derive varias veces. Ejemplo: x^4, variable x, orden 3.",
+  "Ecuación implícita:": "Ecuación implícita:",
+  "Estudie los extremos y el crecimiento. Ejemplo: x^3 - 3*x, variable x.": "Estudie los extremos y el crecimiento. Ejemplo: x^3 - 3*x, variable x.",
+  "Orden de la derivada (entero, mínimo 1):": "Orden de la derivada (entero, mínimo 1):",
+  "Orden del polinomio (entero de 0 a 15):": "Orden del polinomio (entero de 0 a 15):",
+  "Punto de expansión (por ejemplo: 0, pi/2):": "Punto de expansión (por ejemplo: 0, pi/2):",
+  "Punto de tangencia (por ejemplo: 1, 1/2):": "Punto de tangencia (por ejemplo: 1, 1/2):"
 }
