@@ -6,13 +6,9 @@ import wx
 from i18n import N_, tr
 from puente import OPERACION, Operacion
 from dialogos_constructores import insertar_constructor
+from formularios_guiados import FORMULARIOS, OPCIONES, CampoObligatorio, construir_argumentos
 
 
-OPCIONES = (
-    ("ecuacion", N_("Resolver ecuación"), N_("Encuentre el valor de la incógnita. Ejemplo: 2*x + 3 = 7.")),
-    ("derivar", N_("Calcular derivada"), N_("Obtenga la derivada de una función. Ejemplo: x^2 + 3*x.")),
-    ("limite", N_("Calcular límite"), N_("Estudie una función cerca de un valor. Ejemplo: sin(x)/x, cuando x tiende a 0.")),
-)
 PLANTILLAS = (
     (N_("Fracción"), "(1)/(2)", 1, 2),
     (N_("Raíz cuadrada"), "sqrt(1)", 5, 6),
@@ -32,12 +28,6 @@ def insertar_plantilla(texto, seleccion, indice):
     return texto[:a] + plantilla + texto[b:], (a + inicio, a + fin)
 
 
-class CampoObligatorio(ValueError):
-    def __init__(self, campo, mensaje):
-        super().__init__(mensaje)
-        self.campo = campo
-
-
 @dataclass(frozen=True)
 class SolicitudGuiada:
     operacion: Operacion
@@ -50,66 +40,22 @@ class SolicitudGuiada:
         yield self.argumentos
 
 
-def construir_argumentos(clave, expresion, variable="x", tendencia="", direccion=0):
-    """Sin interpretar matemáticas en el hilo gráfico; el núcleo usa su parser habitual."""
-    if clave not in {op[0] for op in OPCIONES}:
-        raise ValueError(clave)
-    datos = {"expresion": expresion.strip(), "variable": variable.strip(), "tendencia": tendencia.strip()}
-    campos = ["expresion"]
-    if clave != "ecuacion":
-        campos.append("variable")
-    if clave == "limite":
-        campos.append("tendencia")
-    for campo in campos:
-        if not datos[campo]:
-            raise CampoObligatorio(campo, tr("Complete este campo antes de calcular."))
-    if clave == "ecuacion":
-        if not any(signo in datos["expresion"] for signo in "=<>≤≥"):
-            raise CampoObligatorio("expresion", tr("Escriba una ecuación o inecuación con un signo =, <, >, <= o >= (ej: 2*x + 1 = 7)."))
-        return (datos["expresion"],)
-    if clave == "derivar":
-        return datos["expresion"], datos["variable"]
-    if direccion not in (0, 1, 2):
-        raise ValueError(direccion)
-    punto = datos["tendencia"]
-    if punto.endswith(("+", "-")):
-        raise CampoObligatorio("tendencia", tr("Escriba solo el valor de tendencia y elija la dirección en la lista."))
-    infinito = punto.lower() in {"oo", "+oo", "-oo", "inf", "+inf", "-inf", "infinito", "-infinito", "infinity", "-infinity", "∞", "-∞"}
-    if infinito and direccion:
-        raise CampoObligatorio("tendencia", tr("Para infinito, seleccione Bilateral; el sentido lo determina el signo del infinito."))
-    return datos["expresion"], datos["variable"], punto + ("", "-", "+")[direccion]
-
-
 class DialogoCalculo(wx.Dialog):
     def __init__(self, parent, clave, valores=None):
-        _, nombre, ejemplo = next(op for op in OPCIONES if op[0] == clave)
-        super().__init__(parent, title=tr(nombre))
+        formulario = FORMULARIOS[clave]
+        super().__init__(parent, title=tr(formulario.nombre))
         self.clave = clave
         self.argumentos = None
         self.campos = {}
+        self.selectores = {}
         sizer = wx.BoxSizer(wx.VERTICAL)
-        ayuda = wx.StaticText(self, label=tr(ejemplo))
+        ayuda = wx.StaticText(self, label=tr(formulario.ejemplo))
         ayuda.Wrap(560)
         sizer.Add(ayuda, 0, wx.ALL, 10)
-        self._campo(sizer, "expresion", tr("Ecuación:") if clave == "ecuacion" else tr("Función:"))
-        ayuda = wx.StaticText(self, label=tr("Fracción, Raíz cuadrada y Potencia abren formularios. El texto seleccionado se usa como primer dato. Paréntesis agrupa la selección."))
-        ayuda.Wrap(560)
-        sizer.Add(ayuda, 0, wx.ALL, 10)
-        fila = wx.BoxSizer(wx.HORIZONTAL)
-        for indice, (nombre, *_) in enumerate(PLANTILLAS):
-            boton = wx.Button(self, label=tr(nombre), name=tr(nombre))
-            boton.Bind(wx.EVT_BUTTON, lambda e, i=indice: self._insertar(i))
-            fila.Add(boton, 0, wx.RIGHT, 5)
-        sizer.Add(fila, 0, wx.ALL, 10)
-        if clave != "ecuacion":
-            self._campo(sizer, "variable", tr("Variable:"), "x")
-        if clave == "limite":
-            self._campo(sizer, "tendencia", tr("Valor de tendencia (por ejemplo: 0, 2, infinito):"))
-            etiqueta = tr("Dirección:")
-            sizer.Add(wx.StaticText(self, label=etiqueta), 0, wx.LEFT, 10)
-            self.direccion = wx.Choice(self, choices=[tr("Bilateral"), tr("Izquierda"), tr("Derecha")], name=etiqueta)
-            self.direccion.SetSelection(0)
-            sizer.Add(self.direccion, 0, wx.EXPAND | wx.ALL, 10)
+        for campo in formulario.campos:
+            self._campo(sizer, campo)
+            if campo.clave == "expresion":
+                self._herramientas(sizer)
         botones = wx.StdDialogButtonSizer()
         calcular = wx.Button(self, wx.ID_OK, label=tr("Calcular"), name=tr("Calcular"))
         cancelar = wx.Button(self, wx.ID_CANCEL, label=tr("Cancelar"), name=tr("Cancelar"))
@@ -124,15 +70,39 @@ class DialogoCalculo(wx.Dialog):
         if valores is not None:
             for nombre, campo in self.campos.items():
                 campo.SetValue(valores[nombre])
-            if clave == "limite":
-                self.direccion.SetSelection(valores["direccion"])
+            for nombre, selector in self.selectores.items():
+                selector.SetSelection(valores[nombre])
         self.campos["expresion"].SetFocus()
 
-    def _campo(self, sizer, clave, etiqueta, valor=""):
+    @property
+    def direccion(self):
+        try:
+            return self.selectores["direccion"]
+        except KeyError:
+            raise AttributeError("direccion") from None
+
+    def _campo(self, sizer, definicion):
+        etiqueta = tr(definicion.etiqueta)
         sizer.Add(wx.StaticText(self, label=etiqueta), 0, wx.LEFT, 10)
-        campo = wx.TextCtrl(self, value=valor, name=etiqueta)
-        self.campos[clave] = campo
+        if definicion.opciones:
+            campo = wx.Choice(self, choices=[tr(opcion) for opcion in definicion.opciones], name=etiqueta)
+            campo.SetSelection(definicion.inicial)
+            self.selectores[definicion.clave] = campo
+        else:
+            campo = wx.TextCtrl(self, value=definicion.inicial, name=etiqueta)
+            self.campos[definicion.clave] = campo
         sizer.Add(campo, 0, wx.EXPAND | wx.ALL, 10)
+
+    def _herramientas(self, sizer):
+        ayuda = wx.StaticText(self, label=tr("Fracción, Raíz cuadrada y Potencia abren formularios. El texto seleccionado se usa como primer dato. Paréntesis agrupa la selección."))
+        ayuda.Wrap(560)
+        sizer.Add(ayuda, 0, wx.ALL, 10)
+        fila = wx.BoxSizer(wx.HORIZONTAL)
+        for indice, (nombre, *_) in enumerate(PLANTILLAS):
+            boton = wx.Button(self, label=tr(nombre), name=tr(nombre))
+            boton.Bind(wx.EVT_BUTTON, lambda e, i=indice: self._insertar(i))
+            fila.Add(boton, 0, wx.RIGHT, 5)
+        sizer.Add(fila, 0, wx.ALL, 10)
 
     def _insertar(self, indice):
         campo = self.campos["expresion"]
@@ -148,8 +118,7 @@ class DialogoCalculo(wx.Dialog):
     def obtener_valores(self):
         """Copia literal del formulario, independiente de los argumentos normalizados."""
         datos = {clave: campo.GetValue() for clave, campo in self.campos.items()}
-        if self.clave == "limite":
-            datos["direccion"] = self.direccion.GetSelection()
+        datos.update({clave: selector.GetSelection() for clave, selector in self.selectores.items()})
         return datos
 
     def _aceptar(self, event):
@@ -179,7 +148,7 @@ def solicitar_calculo(parent, anterior=None):
         dialogo = DialogoCalculo(parent, clave, anterior.valores)
     try:
         if dialogo.ShowModal() == wx.ID_OK:
-            return SolicitudGuiada(OPERACION[clave], dialogo.argumentos, dialogo.obtener_valores())
+            return SolicitudGuiada(FORMULARIOS[clave].operacion, dialogo.argumentos, dialogo.obtener_valores())
         return None
     finally:
         dialogo.Destroy()
