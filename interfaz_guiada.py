@@ -6,6 +6,7 @@ import wx
 from i18n import N_, tr
 from puente import OPERACION, Operacion
 from dialogos_constructores import insertar_constructor
+from herramientas_matematicas import instalar_menu, boton_catalogo
 from formularios_guiados import FORMULARIOS, OPCIONES, CampoObligatorio, construir_argumentos
 
 
@@ -91,6 +92,7 @@ class DialogoCalculo(wx.Dialog):
         else:
             campo = wx.TextCtrl(self, value=definicion.inicial, name=etiqueta)
             self.campos[definicion.clave] = campo
+            instalar_menu(self, campo)
         sizer.Add(campo, 0, wx.EXPAND | wx.ALL, 10)
 
     def _herramientas(self, sizer):
@@ -102,6 +104,7 @@ class DialogoCalculo(wx.Dialog):
             boton = wx.Button(self, label=tr(nombre), name=tr(nombre))
             boton.Bind(wx.EVT_BUTTON, lambda e, i=indice: self._insertar(i))
             fila.Add(boton, 0, wx.RIGHT, 5)
+        fila.Add(boton_catalogo(self, self.campos["expresion"]), 0, wx.RIGHT, 5)
         sizer.Add(fila, 0, wx.ALL, 10)
 
     def _insertar(self, indice):
@@ -109,11 +112,7 @@ class DialogoCalculo(wx.Dialog):
         if indice < 3:
             insertar_constructor(self, campo, ("fraccion", "raiz", "potencia")[indice])
             return
-        texto, seleccion = insertar_plantilla(campo.GetValue(), campo.GetSelection(), indice)
-        # Replace conserva la edición nativa y el historial de deshacer.
-        campo.Replace(0, campo.GetLastPosition(), texto)
-        campo.SetFocus()
-        campo.SetSelection(*seleccion)
+        insertar_constructor(self, campo, "parentesis")
 
     def obtener_valores(self):
         """Copia literal del formulario, independiente de los argumentos normalizados."""

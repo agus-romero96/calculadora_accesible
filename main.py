@@ -17,6 +17,7 @@ from proceso_calculo import ProcesoCalculo
 from puente import OPERACION, REGISTRO, CoreMatematico, ResultadoOperacion
 import ventana_historial
 import interfaz_guiada
+from herramientas_matematicas import instalar_menu, boton_catalogo
 from _version import __version__
 
 
@@ -133,8 +134,12 @@ class CalculadoraAccesible(wx.Frame):
         self.input_text.SetFont(wx.Font(14, wx.FONTFAMILY_TELETYPE, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
         sizer_main.Add(self.input_text, proportion=1, flag=wx.EXPAND | wx.LEFT | wx.RIGHT, border=10)
 
+        instalar_menu(self, self.input_text)
+
         # Botones
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.btn_insertar = boton_catalogo(panel, self.input_text)
+        btn_sizer.Add(self.btn_insertar, 0, wx.RIGHT, 5)
         self.btn_calc = wx.Button(panel)
         self.btn_calc.Bind(wx.EVT_BUTTON, self.on_evaluar_inteligente)
         self.btn_clear = wx.Button(panel)
@@ -164,6 +169,8 @@ class CalculadoraAccesible(wx.Frame):
         self.lbl_input.SetLabel(tr("&Entrada Matemática:"))
         self.btn_calc.SetLabel(tr("&Calcular (Ctrl+Enter)"))
         self.btn_clear.SetLabel(tr("&Borrar (Ctrl+Retroceso)"))
+        self.btn_insertar.SetLabel(tr("Insertar expresión..."))
+        self.btn_insertar.SetName(tr("Insertar expresión..."))
         self.btn_guiado.SetLabel(tr("Nuevo cálculo guiado"))
         self.btn_guiado.SetName(tr("Nuevo cálculo guiado"))
         self.lbl_res.SetLabel(tr("&Resultados:"))
