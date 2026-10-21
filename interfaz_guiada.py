@@ -1,8 +1,10 @@
 """Formularios nativos; solo recogen datos, el cálculo pertenece al proceso existente."""
+from dataclasses import dataclass
+
 import wx
 
 from i18n import N_, tr
-from puente import OPERACION
+from puente import OPERACION, Operacion
 from dialogos_constructores import insertar_constructor
 
 
@@ -36,6 +38,18 @@ class CampoObligatorio(ValueError):
         self.campo = campo
 
 
+@dataclass(frozen=True)
+class SolicitudGuiada:
+    operacion: Operacion
+    argumentos: tuple
+    valores: dict
+
+    def __iter__(self):
+        # Conserva el desempaquetado (operación, argumentos) del prototipo.
+        yield self.operacion
+        yield self.argumentos
+
+
 def construir_argumentos(clave, expresion, variable="x", tendencia="", direccion=0):
     """Sin interpretar matemáticas en el hilo gráfico; el núcleo usa su parser habitual."""
     if clave not in {op[0] for op in OPCIONES}:
@@ -50,6 +64,8 @@ def construir_argumentos(clave, expresion, variable="x", tendencia="", direccion
         if not datos[campo]:
             raise CampoObligatorio(campo, tr("Complete este campo antes de calcular."))
     if clave == "ecuacion":
+        if not any(signo in datos["expresion"] for signo in "=<>≤≥"):
+            raise CampoObligatorio("expresion", tr("Escriba una ecuación o inecuación con un signo =, <, >, <= o >= (ej: 2*x + 1 = 7)."))
         return (datos["expresion"],)
     if clave == "derivar":
         return datos["expresion"], datos["variable"]
@@ -65,7 +81,7 @@ def construir_argumentos(clave, expresion, variable="x", tendencia="", direccion
 
 
 class DialogoCalculo(wx.Dialog):
-    def __init__(self, parent, clave):
+    def __init__(self, parent, clave, valores=None):
         _, nombre, ejemplo = next(op for op in OPCIONES if op[0] == clave)
         super().__init__(parent, title=tr(nombre))
         self.clave = clave
@@ -105,6 +121,11 @@ class DialogoCalculo(wx.Dialog):
         sizer.Add(botones, 0, wx.ALL | wx.ALIGN_RIGHT, 10)
         self.SetSizerAndFit(sizer)
         self.CentreOnParent()
+        if valores is not None:
+            for nombre, campo in self.campos.items():
+                campo.SetValue(valores[nombre])
+            if clave == "limite":
+                self.direccion.SetSelection(valores["direccion"])
         self.campos["expresion"].SetFocus()
 
     def _campo(self, sizer, clave, etiqueta, valor=""):
@@ -124,11 +145,16 @@ class DialogoCalculo(wx.Dialog):
         campo.SetFocus()
         campo.SetSelection(*seleccion)
 
-    def _aceptar(self, event):
+    def obtener_valores(self):
+        """Copia literal del formulario, independiente de los argumentos normalizados."""
         datos = {clave: campo.GetValue() for clave, campo in self.campos.items()}
+        if self.clave == "limite":
+            datos["direccion"] = self.direccion.GetSelection()
+        return datos
+
+    def _aceptar(self, event):
         try:
-            self.argumentos = construir_argumentos(self.clave, **datos,
-                direccion=self.direccion.GetSelection() if self.clave == "limite" else 0)
+            self.argumentos = construir_argumentos(self.clave, **self.obtener_valores())
         except CampoObligatorio as error:
             wx.MessageBox(str(error), tr("Datos del cálculo"), wx.OK | wx.ICON_INFORMATION, parent=self)
             self.campos[error.campo].SetFocus()
@@ -136,20 +162,45 @@ class DialogoCalculo(wx.Dialog):
         self.EndModal(wx.ID_OK)
 
 
-def solicitar_calculo(parent):
-    """None al cancelar cualquier etapa; nunca solicita otra vez los datos recogidos."""
-    selector = wx.SingleChoiceDialog(parent, tr("Elija qué desea calcular:"),
-        tr("Nuevo cálculo guiado"), [tr(nombre) + ": " + tr(descripcion) for _, nombre, descripcion in OPCIONES])
-    try:
-        if selector.ShowModal() != wx.ID_OK:
-            return None
-        clave = OPCIONES[selector.GetSelection()][0]
-    finally:
-        selector.Destroy()
-    dialogo = DialogoCalculo(parent, clave)
+def solicitar_calculo(parent, anterior=None):
+    """Al recuperar un envío, restaura su formulario sin repetir la selección de operación."""
+    if anterior is None:
+        selector = wx.SingleChoiceDialog(parent, tr("Elija qué desea calcular:"),
+            tr("Nuevo cálculo guiado"), [tr(nombre) + ": " + tr(descripcion) for _, nombre, descripcion in OPCIONES])
+        try:
+            if selector.ShowModal() != wx.ID_OK:
+                return None
+            clave = OPCIONES[selector.GetSelection()][0]
+        finally:
+            selector.Destroy()
+        dialogo = DialogoCalculo(parent, clave)
+    else:
+        clave = anterior.operacion.clave
+        dialogo = DialogoCalculo(parent, clave, anterior.valores)
     try:
         if dialogo.ShowModal() == wx.ID_OK:
-            return OPERACION[clave], dialogo.argumentos
+            return SolicitudGuiada(OPERACION[clave], dialogo.argumentos, dialogo.obtener_valores())
         return None
     finally:
         dialogo.Destroy()
+
+
+def iniciar_calculo_guiado(parent, anterior=None):
+    """Controla la recuperación en el hilo de wx; solo Calcular inicia otro envío."""
+    foco = wx.Window.FindFocus()
+    try:
+        solicitud = solicitar_calculo(parent, anterior)
+    finally:
+        (foco or parent.input_text).SetFocus()
+    if solicitud is None:
+        return
+
+    def terminado(resultado):
+        if resultado.es_error:
+            wx.MessageBox(resultado.texto, tr("Error Matemático"), wx.OK | wx.ICON_ERROR, parent=parent)
+            iniciar_calculo_guiado(parent, solicitud)
+        else:
+            parent.presentar_resultado(resultado)
+
+    op, args = solicitud
+    parent._ejecutar(op.metodo, args, tr(op.descripcion), al_finalizar=terminado)

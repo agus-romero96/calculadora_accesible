@@ -67,7 +67,8 @@ def test_seleccion_y_cancelacion(monkeypatch, indice, cancelar):
     selector = SimpleNamespace(ShowModal=lambda: wx.ID_CANCEL if cancelar == 'selector' else wx.ID_OK,
         GetSelection=lambda: indice, Destroy=lambda: destruidos.append('selector'))
     formulario = SimpleNamespace(ShowModal=lambda: wx.ID_CANCEL if cancelar == 'formulario' else wx.ID_OK,
-        argumentos=('datos',), Destroy=lambda: destruidos.append('formulario'))
+        argumentos=('datos',), obtener_valores=lambda: {'expresion': 'datos'},
+        Destroy=lambda: destruidos.append('formulario'))
     monkeypatch.setattr(wx, 'SingleChoiceDialog', lambda *a: selector)
     elegidas = []
     monkeypatch.setattr(gui, 'DialogoCalculo', lambda padre, clave: elegidas.append(clave) or formulario)
@@ -75,7 +76,8 @@ def test_seleccion_y_cancelacion(monkeypatch, indice, cancelar):
     if cancelar:
         assert resultado is None
     else:
-        assert resultado == (OPERACION[gui.OPCIONES[indice][0]], ('datos',))
+        assert tuple(resultado) == (OPERACION[gui.OPCIONES[indice][0]], ('datos',))
+        assert resultado.valores == {'expresion': 'datos'}
     assert destruidos == (['selector'] if cancelar == 'selector' else ['selector', 'formulario'])
     assert elegidas == ([] if cancelar == 'selector' else [gui.OPCIONES[indice][0]])
 
@@ -97,15 +99,23 @@ def test_modo_libre(entrada, clave):
 
 
 @pytest.mark.parametrize('cancelar', [True, False])
-def test_envio_asincrono_y_foco(cancelar):
+def test_envio_asincrono_y_foco(monkeypatch, cancelar):
     llamadas = []
     foco = SimpleNamespace(SetFocus=lambda: llamadas.append('foco'))
-    falso = SimpleNamespace(_calculo_actual=None, _ejecutar=lambda *a: llamadas.append(a), input_text=foco)
-    solicitud = None if cancelar else (OPERACION['derivar'], ('t^2', 't'))
+    falso = SimpleNamespace(_calculo_actual=None, _ejecutar=lambda *a, **kw: llamadas.append((a, kw)), input_text=foco)
+    solicitud = None if cancelar else gui.SolicitudGuiada(OPERACION['derivar'], ('t^2', 't'),
+                                                        {'expresion': 't^2', 'variable': 't'})
+    monkeypatch.setattr(gui, 'solicitar_calculo', lambda padre, anterior=None: solicitud)
+    monkeypatch.setattr(wx.Window, 'FindFocus', lambda: foco)
     entorno = handlers('on_calculo_guiado', wx=SimpleNamespace(Window=SimpleNamespace(FindFocus=lambda: foco)),
-        interfaz_guiada=SimpleNamespace(solicitar_calculo=lambda _: solicitud), tr=lambda s: s)
+        interfaz_guiada=gui, tr=lambda s: s)
     entorno['on_calculo_guiado'](falso, None)
-    assert llamadas == (['foco'] if cancelar else ['foco', ('derivar', ('t^2', 't'), OPERACION['derivar'].descripcion)])
+    assert llamadas[0] == 'foco'
+    if cancelar:
+        assert llamadas == ['foco']
+    else:
+        assert llamadas[1][0] == ('derivar', ('t^2', 't'), OPERACION['derivar'].descripcion)
+        assert callable(llamadas[1][1]['al_finalizar'])
 
 
 def test_resultado_empieza_en_primera_linea_y_recibe_foco():

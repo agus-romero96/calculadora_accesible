@@ -319,7 +319,7 @@ class CalculadoraAccesible(wx.Frame):
     # aquí (hilo de UI), y el cálculo va al proceso de cálculo (proceso_calculo.py),
     # esperado desde un hilo aparte. Al cancelar se detiene ese proceso.
 
-    def _ejecutar(self, metodo, args, descripcion):
+    def _ejecutar(self, metodo, args, descripcion, al_finalizar=None):
         """
         Ejecuta core.metodo(*args) (que devuelve un ResultadoOperacion) en el proceso de
         cálculo. Si tarda más de MS_ANTES_DE_AVISAR, muestra un diálogo "Calculando…" con
@@ -342,7 +342,7 @@ class CalculadoraAccesible(wx.Frame):
             except Exception as e:
                 resultado = ResultadoOperacion(operacion="", entrada=entrada,
                                                texto=tr("Error inesperado: {error}", error=e), es_error=True)
-            wx.CallAfter(self._finalizar_calculo, token, resultado)
+            wx.CallAfter(self._finalizar_calculo, token, resultado, al_finalizar)
 
         threading.Thread(target=trabajo, daemon=True).start()
         self._timer_aviso = wx.CallLater(self.MS_ANTES_DE_AVISAR, self._mostrar_progreso, token, descripcion)
@@ -385,13 +385,16 @@ class CalculadoraAccesible(wx.Frame):
         self.lbl_info.SetValue(tr("Cálculo cancelado.") + " " + texto_info())
         self.input_text.SetFocus()
 
-    def _finalizar_calculo(self, token, resultado):
+    def _finalizar_calculo(self, token, resultado, al_finalizar=None):
         if token is not self._calculo_actual:
             return  # cálculo cancelado: se ignora el resultado tardío
         self._calculo_actual = None
         self._cerrar_progreso()
         self.lbl_info.SetValue(texto_info())
-        self.presentar_resultado(resultado)
+        if al_finalizar is None:
+            self.presentar_resultado(resultado)
+        else:
+            al_finalizar(resultado)
 
     def _resolver_ambiguedad_variable(self, txt, op):
         """
@@ -440,14 +443,7 @@ class CalculadoraAccesible(wx.Frame):
         if self._calculo_actual is not None:
             self._avisar_ocupado()
             return
-        foco = wx.Window.FindFocus()
-        try:
-            solicitud = interfaz_guiada.solicitar_calculo(self)
-        finally:
-            (foco or self.input_text).SetFocus()
-        if solicitud is not None:
-            op, args = solicitud
-            self._ejecutar(op.metodo, args, tr(op.descripcion))
+        interfaz_guiada.iniciar_calculo_guiado(self)
 
     def on_evaluar_inteligente(self, event):
         txt = self.obtener_texto()
