@@ -3,6 +3,7 @@ import wx
 
 from i18n import N_, tr
 from puente import OPERACION
+from dialogos_constructores import insertar_constructor
 
 
 OPCIONES = (
@@ -75,7 +76,7 @@ class DialogoCalculo(wx.Dialog):
         ayuda.Wrap(560)
         sizer.Add(ayuda, 0, wx.ALL, 10)
         self._campo(sizer, "expresion", tr("Ecuación:") if clave == "ecuacion" else tr("Función:"))
-        ayuda = wx.StaticText(self, label=tr("Puede escribir x, +, -, *, / y =. Las plantillas insertan un ejemplo editable; seleccione texto para envolverlo."))
+        ayuda = wx.StaticText(self, label=tr("Fracción, Raíz cuadrada y Potencia abren formularios. El texto seleccionado se usa como primer dato. Paréntesis agrupa la selección."))
         ayuda.Wrap(560)
         sizer.Add(ayuda, 0, wx.ALL, 10)
         fila = wx.BoxSizer(wx.HORIZONTAL)
@@ -114,6 +115,9 @@ class DialogoCalculo(wx.Dialog):
 
     def _insertar(self, indice):
         campo = self.campos["expresion"]
+        if indice < 3:
+            insertar_constructor(self, campo, ("fraccion", "raiz", "potencia")[indice])
+            return
         texto, seleccion = insertar_plantilla(campo.GetValue(), campo.GetSelection(), indice)
         # Replace conserva la edición nativa y el historial de deshacer.
         campo.Replace(0, campo.GetLastPosition(), texto)

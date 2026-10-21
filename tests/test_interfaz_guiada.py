@@ -7,6 +7,8 @@ import pytest
 import wx
 
 import interfaz_guiada as gui
+import dialogos_constructores
+from constructores_matematicos import construir_raiz
 from puente import OPERACION
 from parser_matematico import ParserMatematico
 
@@ -106,6 +108,15 @@ def test_envio_asincrono_y_foco(cancelar):
     assert llamadas == (['foco'] if cancelar else ['foco', ('derivar', ('t^2', 't'), OPERACION['derivar'].descripcion)])
 
 
+def test_resultado_empieza_en_primera_linea_y_recibe_foco():
+    llamadas = []
+    campo = SimpleNamespace(SetValue=lambda valor: llamadas.append(('texto', valor)),
+                            SetInsertionPoint=lambda punto: llamadas.append(('cursor', punto)),
+                            SetFocus=lambda: llamadas.append('foco'))
+    handlers('_mostrar_texto')['_mostrar_texto'](SimpleNamespace(output_text=campo), 'RESULTADO: 2\nExplicación')
+    assert llamadas == [('texto', 'RESULTADO: 2\nExplicación'), ('cursor', 0), 'foco']
+
+
 @pytest.fixture(scope='module')
 def aplicacion_wx():
     app = wx.App.Get() or wx.App(False)
@@ -117,7 +128,9 @@ def aplicacion_wx():
     ('derivar', ['expresion', 'variable']),
     ('limite', ['expresion', 'variable', 'tendencia']),
 ])
-def test_controles_nativos_y_edicion(aplicacion_wx, clave, campos):
+def test_controles_nativos_y_edicion(aplicacion_wx, monkeypatch, clave, campos):
+    monkeypatch.setattr(dialogos_constructores, 'solicitar_expresion',
+                        lambda parent, tipo, inicial: construir_raiz(inicial))
     dialogo = gui.DialogoCalculo(None, clave)
     try:
         assert list(dialogo.campos) == campos
@@ -129,7 +142,7 @@ def test_controles_nativos_y_edicion(aplicacion_wx, clave, campos):
         expresion.SetSelection(0, 3)
         dialogo._insertar(1)
         assert expresion.GetValue() == 'sqrt(x+1)'
-        assert expresion.GetSelection() == (5, 8)
+        assert expresion.GetSelection() == (9, 9)
         if clave == 'limite':
             assert dialogo.direccion.GetSelection() == 0
             assert dialogo.direccion.GetCount() == 3

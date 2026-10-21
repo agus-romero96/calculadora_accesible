@@ -8,6 +8,8 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Añadido
 
+- **Constructores matemáticos accesibles (fase 6.5B)**: Fracción, Potencia y Raíz cuadrada abren formularios nativos reutilizables con campos etiquetados, validación específica y Aceptar/Cancelar. La selección inicial se usa como numerador, base o radicando. Se rechazan denominadores exactamente nulos, sin excluir expresiones simbólicas por sus posibles ceros; se conservan el texto y los paréntesis de los operandos. La validación se realiza fuera del hilo de wx. Al aceptar se sustituye solo el rango original y el cursor queda al final; al cancelar se conservan texto, selección y cursor. Se añaden pruebas con diálogos y controles reales, precedencia, cancelación y restauración del foco. No cambia el flujo de cálculo ni el foco en la primera línea de resultados. La comprobación manual de los nuevos constructores con NVDA y JAWS queda pendiente en `ACCESIBILIDAD_GUIADA.md`.
+
 - **Interfaz matemática guiada (fase 6.5A)**: botón y opción «Nuevo cálculo guiado», con selección descrita de ecuación, derivada y límite. Cada formulario nativo recoge los datos de una vez y ofrece plantillas editables de fracciones, raíces, potencias y paréntesis. Reutiliza el registro y la ejecución en proceso separado, con historial, exportación y cancelación existentes. Incluye traducciones y pruebas de argumentos, selección, cancelación, plantillas y regresión del modo libre. La validación real con NVDA y JAWS queda pendiente; véase `ACCESIBILIDAD_GUIADA.md`. Se conserva la versión 1.7.0.
 
 ### Corregido
