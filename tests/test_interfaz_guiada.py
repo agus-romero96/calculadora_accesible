@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 import wx
+import i18n
 
 import interfaz_guiada as gui
 import dialogos_constructores
@@ -60,7 +61,7 @@ def test_plantillas_validas_y_cursor(indice):
     ParserMatematico().parsear(texto)
 
 
-@pytest.mark.parametrize('indice', range(3))
+@pytest.mark.parametrize('indice', range(len(gui.OPCIONES)))
 @pytest.mark.parametrize('cancelar', ['selector', 'formulario', None])
 def test_seleccion_y_cancelacion(monkeypatch, indice, cancelar):
     destruidos = []
@@ -137,6 +138,11 @@ def aplicacion_wx():
     ('ecuacion', ['expresion']),
     ('derivar', ['expresion', 'variable']),
     ('limite', ['expresion', 'variable', 'tendencia']),
+    ('evaluar', ['expresion']),
+    ('simplificar', ['expresion']),
+    ('factorizar', ['expresion']),
+    ('integrar', ['expresion', 'variable']),
+    ('integral_definida', ['expresion', 'variable', 'inferior', 'superior']),
 ])
 def test_controles_nativos_y_edicion(aplicacion_wx, monkeypatch, clave, campos):
     monkeypatch.setattr(dialogos_constructores, 'solicitar_expresion',
@@ -145,6 +151,11 @@ def test_controles_nativos_y_edicion(aplicacion_wx, monkeypatch, clave, campos):
     try:
         assert list(dialogo.campos) == campos
         assert all(isinstance(campo, wx.TextCtrl) and campo.GetName() for campo in dialogo.campos.values())
+        for campo in dialogo.campos.values():
+            assert isinstance(campo.GetPrevSibling(), wx.StaticText)
+            assert campo.GetPrevSibling().GetLabel() == campo.GetName()
+        if 'variable' in dialogo.campos:
+            assert dialogo.campos['variable'].GetValue() == 'x'
         assert dialogo.GetDefaultItem() == dialogo.FindWindow(wx.ID_OK)
         assert dialogo.FindWindow(wx.ID_CANCEL).GetName()
         expresion = dialogo.campos['expresion']
@@ -156,5 +167,28 @@ def test_controles_nativos_y_edicion(aplicacion_wx, monkeypatch, clave, campos):
         if clave == 'limite':
             assert dialogo.direccion.GetSelection() == 0
             assert dialogo.direccion.GetCount() == 3
+        else:
+            assert not hasattr(dialogo, 'direccion')
     finally:
         dialogo.Destroy()
+
+
+@pytest.mark.parametrize('clave,etiquetas', [
+    ('evaluar', ['Mathematical expression:']),
+    ('simplificar', ['Mathematical expression:']),
+    ('factorizar', ['Mathematical expression:']),
+    ('integrar', ['Function:', 'Integration variable:']),
+    ('integral_definida', ['Function:', 'Integration variable:', 'Lower limit:', 'Upper limit:']),
+])
+def test_etiquetas_accesibles_en_ingles(aplicacion_wx, clave, etiquetas):
+    anterior = i18n.idioma_actual()
+    i18n.establecer_idioma('en')
+    dialogo = None
+    try:
+        dialogo = gui.DialogoCalculo(None, clave)
+        assert [campo.GetName() for campo in dialogo.campos.values()] == etiquetas
+        assert [campo.GetPrevSibling().GetLabel() for campo in dialogo.campos.values()] == etiquetas
+    finally:
+        if dialogo is not None:
+            dialogo.Destroy()
+        i18n.establecer_idioma(anterior)

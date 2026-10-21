@@ -23,6 +23,15 @@ def aplicacion_wx():
     ('derivar', {'expresion': ' x^2 ', 'variable': ' '}, 'variable'),
     ('limite', {'expresion': ' t^2 ', 'variable': 't', 'tendencia': ' ', 'direccion': 2}, 'tendencia'),
     ('limite', {'expresion': ' t^2 ', 'variable': 't', 'tendencia': '0+', 'direccion': 1}, 'tendencia'),
+    ('evaluar', {'expresion': ' '}, 'expresion'),
+    ('simplificar', {'expresion': ' '}, 'expresion'),
+    ('factorizar', {'expresion': ' '}, 'expresion'),
+    ('integrar', {'expresion': ' ', 'variable': 't'}, 'expresion'),
+    ('integrar', {'expresion': ' t ', 'variable': ' '}, 'variable'),
+    ('integral_definida', {'expresion': ' ', 'variable': 't', 'inferior': '0', 'superior': '2'}, 'expresion'),
+    ('integral_definida', {'expresion': ' t ', 'variable': ' ', 'inferior': '0', 'superior': '2'}, 'variable'),
+    ('integral_definida', {'expresion': ' t ', 'variable': 't', 'inferior': ' ', 'superior': '2'}, 'inferior'),
+    ('integral_definida', {'expresion': ' t ', 'variable': 't', 'inferior': '0', 'superior': ' '}, 'superior'),
 ])
 def test_error_local_mantiene_formulario_y_foco(aplicacion_wx, monkeypatch, clave, valores, campo):
     dialogo = gui.DialogoCalculo(None, clave, valores)
@@ -63,13 +72,15 @@ def test_finalizacion_respeta_token_y_modo_libre(activa, guiada):
     assert falso._calculo_actual is None
 
 
-@pytest.mark.parametrize('tipo', ['sin_solucion', 'no_existe', 'no_concluyente'])
+@pytest.mark.parametrize('tipo', ['sin_solucion', 'no_existe', 'no_concluyente', 'integral_divergente'])
 def test_respuestas_matematicas_legitimas_no_recuperan(core, monkeypatch, tipo):
     if tipo == 'sin_solucion':
         resultado = core.ecuacion('x^2=-1')
         assert str(resultado.valor) == 'EmptySet'
     elif tipo == 'no_existe':
         resultado = core.limite('1/x', 'x', '0')
+    elif tipo == 'integral_divergente':
+        resultado = core.integral_definida('1/x^2', 'x', '-1', '1')
     else:
         # El protocolo distingue el estado del texto: no se deduce por palabras.
         resultado = ResultadoOperacion('limite', 'f(x)', 'No concluyente', es_error=False)
@@ -166,6 +177,13 @@ class VentanaPrueba(wx.Dialog):
     ('limite', {'expresion': ' t+ ', 'variable': ' t ', 'tendencia': ' -2 ', 'direccion': 0}, 't+1', '-1'),
     ('limite', {'expresion': ' t+ ', 'variable': ' t ', 'tendencia': ' -2 ', 'direccion': 1}, 't+1', '-1'),
     ('limite', {'expresion': ' t+ ', 'variable': ' t ', 'tendencia': ' -2 ', 'direccion': 2}, 't+1', '-1'),
+    ('evaluar', {'expresion': ' 2+ '}, '2+3*4', '14'),
+    ('simplificar', {'expresion': ' t+ '}, '(t^2-1)/(t-1)', 't + 1'),
+    ('factorizar', {'expresion': ' t+ '}, '2*t+2', '2*(t + 1)'),
+    ('integrar', {'expresion': ' t^ ', 'variable': ' t '}, 't^2', 't**3/3'),
+    ('integral_definida', {'expresion': ' t^ ', 'variable': ' t ', 'inferior': ' -1 ', 'superior': ' 2 '}, 't', '3/2'),
+    ('integral_definida', {'expresion': ' t ', 'variable': ' t ', 'inferior': ' ( ', 'superior': ' 2 '}, {'inferior': '0'}, '2'),
+    ('integral_definida', {'expresion': ' t ', 'variable': ' t ', 'inferior': ' 0 ', 'superior': ' ( '}, {'superior': '2'}, '2'),
 ])
 @pytest.mark.parametrize('cancelar', [False, True])
 def test_error_del_proceso_recupera_datos_y_permite_corregir_o_cancelar(
@@ -204,7 +222,9 @@ def test_error_del_proceso_recupera_datos_y_permite_corregir_o_cancelar(
                     if cancelar:
                         dialogo.EndModal(wx.ID_CANCEL)
                         return
-                    dialogo.campos['expresion'].SetValue(corregida)
+                    cambios = {'expresion': corregida} if isinstance(corregida, str) else corregida
+                    for campo, texto in cambios.items():
+                        dialogo.campos[campo].SetValue(texto)
                 dialogo._aceptar(None)
             except Exception as error:
                 errores.append(error)

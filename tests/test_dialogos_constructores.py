@@ -222,14 +222,14 @@ def test_cancelar_mientras_se_valida_no_bloquea_wx(aplicacion_wx, monkeypatch):
         dialogo.Destroy()
 
 
-@pytest.mark.parametrize('clave', ['ecuacion', 'derivar', 'limite'])
+@pytest.mark.parametrize('clave', [op[0] for op in interfaz_guiada.OPCIONES])
 @pytest.mark.parametrize('indice,tipo,expresion', [
     (0, 'fraccion', '(x+1)/(x-2)'),
     (1, 'raiz', 'sqrt(x+1)'),
     (2, 'potencia', '(x+1)^(2)'),
 ])
 @pytest.mark.parametrize('cancelar', [False, True])
-def test_constructores_reales_en_los_tres_formularios(aplicacion_wx, monkeypatch, clave, indice, tipo, expresion, cancelar):
+def test_constructores_reales_en_los_formularios_guiados(aplicacion_wx, monkeypatch, clave, indice, tipo, expresion, cancelar):
     padre = interfaz_guiada.DialogoCalculo(None, clave)
     fabrica = gui.DialogoConstructor
     iniciales, finales, timers = [], [], []
