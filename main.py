@@ -16,6 +16,7 @@ from historial import Historial, ruta_historial
 from proceso_calculo import ProcesoCalculo
 from puente import OPERACION, REGISTRO, CoreMatematico, ResultadoOperacion
 import ventana_historial
+import interfaz_guiada
 from _version import __version__
 
 
@@ -137,9 +138,12 @@ class CalculadoraAccesible(wx.Frame):
         self.btn_calc = wx.Button(panel)
         self.btn_calc.Bind(wx.EVT_BUTTON, self.on_evaluar_inteligente)
         self.btn_clear = wx.Button(panel)
+        self.btn_guiado = wx.Button(panel)
+        self.btn_guiado.Bind(wx.EVT_BUTTON, self.on_calculo_guiado)
         self.btn_clear.Bind(wx.EVT_BUTTON, self.on_limpiar)
         btn_sizer.Add(self.btn_calc, 1, wx.RIGHT | wx.EXPAND, 5)
         btn_sizer.Add(self.btn_clear, 0, wx.EXPAND)
+        btn_sizer.Add(self.btn_guiado, 0, wx.LEFT | wx.EXPAND, 5)
         sizer_main.Add(btn_sizer, flag=wx.EXPAND | wx.ALL, border=10)
 
         # Output
@@ -160,6 +164,8 @@ class CalculadoraAccesible(wx.Frame):
         self.lbl_input.SetLabel(tr("&Entrada Matemática:"))
         self.btn_calc.SetLabel(tr("&Calcular (Ctrl+Enter)"))
         self.btn_clear.SetLabel(tr("&Borrar (Ctrl+Retroceso)"))
+        self.btn_guiado.SetLabel(tr("Nuevo cálculo guiado"))
+        self.btn_guiado.SetName(tr("Nuevo cálculo guiado"))
         self.lbl_res.SetLabel(tr("&Resultados:"))
         self.panel.Layout()
 
@@ -184,6 +190,7 @@ class CalculadoraAccesible(wx.Frame):
         # Menús de operaciones, construidos a partir del registro (puente.REGISTRO)
         menus = {clave: wx.Menu() for clave in self.MENUS}
         menus["operaciones"].Append(1001, tr("Evaluar") + "\tCtrl+Enter")
+        self._item(menus["operaciones"], N_("Nuevo cálculo guiado"), None, self.on_calculo_guiado)
         for op in REGISTRO:
             if op.menu is None:
                 continue
@@ -312,7 +319,7 @@ class CalculadoraAccesible(wx.Frame):
     # aquí (hilo de UI), y el cálculo va al proceso de cálculo (proceso_calculo.py),
     # esperado desde un hilo aparte. Al cancelar se detiene ese proceso.
 
-    def _ejecutar(self, metodo, args, descripcion):
+    def _ejecutar(self, metodo, args, descripcion, al_finalizar=None):
         """
         Ejecuta core.metodo(*args) (que devuelve un ResultadoOperacion) en el proceso de
         cálculo. Si tarda más de MS_ANTES_DE_AVISAR, muestra un diálogo "Calculando…" con
@@ -335,7 +342,7 @@ class CalculadoraAccesible(wx.Frame):
             except Exception as e:
                 resultado = ResultadoOperacion(operacion="", entrada=entrada,
                                                texto=tr("Error inesperado: {error}", error=e), es_error=True)
-            wx.CallAfter(self._finalizar_calculo, token, resultado)
+            wx.CallAfter(self._finalizar_calculo, token, resultado, al_finalizar)
 
         threading.Thread(target=trabajo, daemon=True).start()
         self._timer_aviso = wx.CallLater(self.MS_ANTES_DE_AVISAR, self._mostrar_progreso, token, descripcion)
@@ -378,13 +385,16 @@ class CalculadoraAccesible(wx.Frame):
         self.lbl_info.SetValue(tr("Cálculo cancelado.") + " " + texto_info())
         self.input_text.SetFocus()
 
-    def _finalizar_calculo(self, token, resultado):
+    def _finalizar_calculo(self, token, resultado, al_finalizar=None):
         if token is not self._calculo_actual:
             return  # cálculo cancelado: se ignora el resultado tardío
         self._calculo_actual = None
         self._cerrar_progreso()
         self.lbl_info.SetValue(texto_info())
-        self.presentar_resultado(resultado)
+        if al_finalizar is None:
+            self.presentar_resultado(resultado)
+        else:
+            al_finalizar(resultado)
 
     def _resolver_ambiguedad_variable(self, txt, op):
         """
@@ -428,6 +438,12 @@ class CalculadoraAccesible(wx.Frame):
             return dlg.GetValue().strip()
         finally:
             dlg.Destroy()
+
+    def on_calculo_guiado(self, event):
+        if self._calculo_actual is not None:
+            self._avisar_ocupado()
+            return
+        interfaz_guiada.iniciar_calculo_guiado(self)
 
     def on_evaluar_inteligente(self, event):
         txt = self.obtener_texto()
