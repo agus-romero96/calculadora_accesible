@@ -23,6 +23,8 @@ class DialogoConstructor(wx.Dialog):
             control = wx.TextCtrl(self, value=inicial if indice == 0 else campo.sugerencia,
                                   name=etiqueta, size=(360, -1))
             self.campos[campo.clave] = control
+            from herramientas_matematicas import instalar_menu
+            instalar_menu(self, control)
             sizer.Add(control, 0, wx.EXPAND | wx.ALL, 10)
         botones = wx.StdDialogButtonSizer()
         self.aceptar = wx.Button(self, wx.ID_OK, label=tr("Aceptar"), name=tr("Aceptar"))
@@ -49,7 +51,7 @@ class DialogoConstructor(wx.Dialog):
 
         def validar():
             try:
-                expresion = construir_expresion(self.tipo, valores)
+                expresion = self._construir(valores)
                 error = None
             except Exception as fallo:
                 expresion, error = None, fallo
@@ -57,6 +59,9 @@ class DialogoConstructor(wx.Dialog):
             wx.CallAfter(self._validado, token, expresion, error)
 
         threading.Thread(target=validar, daemon=True).start()
+
+    def _construir(self, valores):
+        return construir_expresion(self.tipo, valores)
 
     def _habilitar_edicion(self, habilitar):
         self.aceptar.Enable(habilitar)
@@ -83,7 +88,17 @@ class DialogoConstructor(wx.Dialog):
 
 
 def solicitar_expresion(parent, tipo, inicial=""):
-    dialogo = DialogoConstructor(parent, tipo, inicial)
+    if tipo == "catalogo":
+        from herramientas_matematicas import solicitar_catalogo
+        return solicitar_catalogo(parent, inicial)
+    if tipo.startswith("constante:"):
+        from herramientas_matematicas import CONSTANTES
+        return next(v for v, _ in CONSTANTES if v == tipo.split(":", 1)[1])
+    if tipo.startswith("funcion:"):
+        from herramientas_matematicas import DialogoFuncion
+        dialogo = DialogoFuncion(parent, tipo.split(":", 1)[1], inicial)
+    else:
+        dialogo = DialogoConstructor(parent, tipo, inicial)
     try:
         if dialogo.ShowModal() == wx.ID_OK:
             return dialogo.expresion

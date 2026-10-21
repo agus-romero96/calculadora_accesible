@@ -22,6 +22,9 @@ class Constructor:
 
 
 CONSTRUCTORES = {
+    "parentesis": Constructor(N_("Insertar paréntesis"), (
+        CampoConstructor("argumento", N_("Argumento:"), N_("Escriba el argumento de la función.")),
+    )),
     "fraccion": Constructor(N_("Insertar fracción"), (
         CampoConstructor("numerador", N_("Numerador:"), N_("Escriba el numerador de la fracción.")),
         CampoConstructor("denominador", N_("Denominador:"), N_("Escriba el denominador de la fracción.")),
@@ -76,6 +79,8 @@ def construir_expresion(tipo, valores):
         return f"({datos['numerador']})/({datos['denominador']})"
     if tipo == "potencia":
         return f"({datos['base']})^({datos['exponente']})"
+    if tipo == "parentesis":
+        return f"({datos['argumento']})"
     return f"sqrt({datos['radicando']})"
 
 
@@ -89,3 +94,20 @@ def construir_potencia(base, exponente):
 
 def construir_raiz(radicando):
     return construir_expresion("raiz", dict(radicando=radicando))
+
+def construir_funcion(nombre, argumento):
+    from catalogo_matematico import POR_NOMBRE
+
+    if nombre not in POR_NOMBRE:
+        raise ValueError(tr("Función fuera del catálogo."))
+    texto = argumento.strip()
+    try:
+        if not texto:
+            raise ValueError(tr("Escriba el argumento de la función."))
+        valor = ParserMatematico().parsear(texto)
+        if not isinstance(valor, sympy.Expr):
+            raise ValueError(tr("Escriba una expresión matemática, sin ecuaciones, listas ni matrices."))
+    except Exception as error:
+        raise ErrorCampoConstructor("argumento", str(error)) from error
+    # Solo valida el argumento. No aplica ni evalúa la función elegida.
+    return f"{nombre}({texto})"
